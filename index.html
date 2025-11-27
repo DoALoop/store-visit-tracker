@@ -81,6 +81,35 @@
             <p><strong>Error:</strong> <span id="error-text"></span></p>
         </div>
 
+        <!-- Duplicate Warning Modal -->
+        <div id="duplicate-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+            <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-96 shadow-lg rounded-md bg-white">
+                <div class="mt-3">
+                    <div class="flex items-center justify-center w-12 h-12 mx-auto bg-yellow-100 rounded-full">
+                        <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-medium text-gray-900 text-center mt-4">Potential Duplicate</h3>
+                    <div class="mt-4 px-4 py-3 bg-yellow-50 rounded-lg">
+                        <p class="text-sm text-gray-700 mb-2">An entry for this store and date already exists:</p>
+                        <div id="duplicate-details" class="text-sm font-mono text-gray-800">
+                            <!-- Details will be inserted by JavaScript -->
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-600 text-center mt-4">Would you like to submit this entry anyway?</p>
+                    <div class="flex gap-4 mt-4">
+                        <button id="duplicate-cancel-btn" class="flex-1 px-4 py-2 bg-gray-200 text-gray-800 text-base font-medium rounded-md shadow-sm hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-300">
+                            Cancel
+                        </button>
+                        <button id="duplicate-submit-btn" class="flex-1 px-4 py-2 bg-indigo-600 text-white text-base font-medium rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            Submit Anyway
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Results Section -->
         <div id="results-container" class="hidden space-y-6">
             <h3 class="text-2xl font-bold text-gray-900">Analysis Results</h3>
@@ -211,8 +240,15 @@
         const resultTop3 = document.getElementById('result-top-3');
         const rawJson = document.getElementById('raw-json');
 
+        // Duplicate modal elements
+        const duplicateModal = document.getElementById('duplicate-modal');
+        const duplicateDetails = document.getElementById('duplicate-details');
+        const duplicateCancelBtn = document.getElementById('duplicate-cancel-btn');
+        const duplicateSubmitBtn = document.getElementById('duplicate-submit-btn');
+
         let base64ImageData = null;
         let fileMimeType = null;
+        let currentParsedData = null; // Store parsed data for saving later
 
         // --- Event Listeners ---
         imageUpload.addEventListener('change', (event) => {
@@ -251,59 +287,57 @@
 
             // --- Show loading state ---
             setLoading(true);
-            
-            try {
-                // --- Call our NEW Python Backend ---
-                // This now points to the local server we just built.
-                const backendApiUrl = 'http://127.0.0.1:8000/api/upload-visit';
 
-                // This is the payload our FastAPI server expects
+            try {
+                // Step 1: Analyze the image (no save)
+                const analyzeUrl = 'http://127.0.0.1:8000/api/analyze-visit';
+
                 const backendPayload = {
                     mime_type: fileMimeType,
                     image_data: base64ImageData
                 };
-                
+
                 // --- Exponential Backoff ---
                 const fetchWithBackoff = async (url, options, retries = 5, delay = 1000) => {
                     for (let i = 0; i < retries; i++) {
                         try {
                             const response = await fetch(url, options);
                             if (response.status === 429 || response.status >= 500) {
-                                // Throttled or server error, wait and retry
                                 throw new Error(`Retryable error: ${response.status}`);
                             }
-                            return response; // Success
+                            return response;
                         } catch (error) {
-                            // Don't retry on network errors (e.g., server not running)
                             if (!error.message.startsWith('Retryable')) {
                                 throw error;
                             }
-                            if (i === retries - 1) throw error; // Last retry failed
+                            if (i === retries - 1) throw error;
                             await new Promise(res => setTimeout(res, delay * Math.pow(2, i)));
                         }
                     }
                 };
 
-                const response = await fetchWithBackoff(backendApiUrl, {
+                const response = await fetchWithBackoff(analyzeUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(backendPayload)
                 });
 
                 if (!response.ok) {
-                    const errorBody = await response.json(); // FastAPI errors are JSON
+                    const errorBody = await response.json();
                     throw new Error(`API request failed with status ${response.status}: ${errorBody.detail || 'Unknown error'}`);
                 }
 
-                // The backend now returns the parsed data directly.
                 const parsedData = await response.json();
-                
-                // --- Display the results ---
+                currentParsedData = parsedData; // Store for later save
+
+                // Display the results
                 displayResults(parsedData);
+
+                // Step 2: Check for duplicates
+                await checkAndSave(parsedData);
 
             } catch (err) {
                 console.error('Analysis failed:', err);
-                // Check for common 'fetch failed' error if backend isn't running
                 if (err.message.includes('Failed to fetch')) {
                     showError('Could not connect to the backend server. Is it running? (python main.py)');
                 } else {
@@ -312,6 +346,87 @@
             } finally {
                 setLoading(false);
             }
+        });
+
+        // Check for duplicates and handle save logic
+        async function checkAndSave(data) {
+            try {
+                // Check for duplicates
+                const checkUrl = `http://127.0.0.1:8000/api/check-duplicate?storeNbr=${encodeURIComponent(data.storeNbr)}&calendar_date=${encodeURIComponent(data.calendar_date)}`;
+
+                const checkResponse = await fetch(checkUrl);
+                if (!checkResponse.ok) {
+                    console.warn('Duplicate check failed, proceeding to save anyway');
+                    await saveToBackend(data);
+                    return;
+                }
+
+                const checkResult = await checkResponse.json();
+
+                if (checkResult.is_duplicate && checkResult.existing_records.length > 0) {
+                    // Show duplicate warning modal
+                    showDuplicateModal(checkResult.existing_records);
+                } else {
+                    // No duplicate, save automatically
+                    await saveToBackend(data);
+                }
+
+            } catch (error) {
+                console.error('Error checking duplicates:', error);
+                // If check fails, ask user what to do
+                if (confirm('Could not check for duplicates. Save anyway?')) {
+                    await saveToBackend(data);
+                }
+            }
+        }
+
+        // Save data to backend
+        async function saveToBackend(data) {
+            try {
+                const saveUrl = 'http://127.0.0.1:8000/api/save-visit';
+                const saveResponse = await fetch(saveUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (!saveResponse.ok) {
+                    const errorBody = await saveResponse.json();
+                    throw new Error(`Save failed: ${errorBody.detail || 'Unknown error'}`);
+                }
+
+                const result = await saveResponse.json();
+                console.log('Data saved successfully:', result);
+                // Could show a success message to user here
+
+            } catch (error) {
+                console.error('Error saving data:', error);
+                showError('Failed to save data to BigQuery: ' + error.message);
+            }
+        }
+
+        // Show duplicate warning modal
+        function showDuplicateModal(existingRecords) {
+            const record = existingRecords[0]; // Show first duplicate
+            duplicateDetails.innerHTML = `
+                <p><strong>Store:</strong> ${record.storeNbr}</p>
+                <p><strong>Date:</strong> ${record.calendar_date}</p>
+                <p><strong>Rating:</strong> ${record.rating}</p>
+                <p class="mt-2 text-xs"><strong>Notes:</strong> ${record.store_notes}</p>
+            `;
+            duplicateModal.classList.remove('hidden');
+        }
+
+        // Duplicate modal: Cancel button
+        duplicateCancelBtn.addEventListener('click', () => {
+            duplicateModal.classList.add('hidden');
+            // Don't save, just close modal
+        });
+
+        // Duplicate modal: Submit Anyway button
+        duplicateSubmitBtn.addEventListener('click', async () => {
+            duplicateModal.classList.add('hidden');
+            await saveToBackend(currentParsedData);
         });
 
         // --- Helper Functions ---

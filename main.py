@@ -157,11 +157,54 @@ def read_root():
     """Simple health check endpoint."""
     return {"status": "Store Visit API is running"}
 
-@app.post("/api/upload-visit", response_model=NoteSchema, summary="Analyze Handwritten Note")
-async def upload_visit_notes(request: ImageUploadRequest):
+def convert_data_for_bigquery(parsed_data: dict) -> dict:
+    """Helper function to convert parsed AI data to BigQuery format."""
+    # Convert arrays to newline-separated strings for BigQuery
+    good_str = "\n".join(parsed_data["good"]) if parsed_data["good"] else ""
+    top_3_str = "\n".join(parsed_data["top_3"]) if parsed_data["top_3"] else ""
+
+    # Convert date to YYYY-MM-DD format for BigQuery DATE field
+    calendar_date_str = parsed_data["calendar_date"]
+    calendar_date_formatted = ""
+
+    # Try multiple date formats
+    date_formats = [
+        "%m/%d/%Y",    # 11/07/2025
+        "%m-%d-%Y",    # 11-07-2025
+        "%m/%d/%y",    # 11/07/25
+        "%m-%d-%y",    # 11-07-25
+    ]
+
+    # Also try to handle "11, 7, 25" format by cleaning it first
+    cleaned_date = calendar_date_str.replace(", ", "/").replace(",", "/").strip()
+
+    for fmt in date_formats:
+        try:
+            date_obj = datetime.strptime(cleaned_date, fmt)
+            calendar_date_formatted = date_obj.strftime("%Y-%m-%d")
+            break
+        except ValueError:
+            continue
+
+    if not calendar_date_formatted:
+        print(f"Warning: Could not parse date '{calendar_date_str}', using None")
+        calendar_date_formatted = None
+
+    return {
+        "calendar_date": calendar_date_formatted,
+        "storeNbr": parsed_data["storeNbr"],
+        "store_notes": parsed_data["store_notes"],
+        "mkt_notes": parsed_data["mkt_notes"],
+        "good": good_str,
+        "top_3": top_3_str,
+        "rating": parsed_data["rating"]
+    }
+
+@app.post("/api/analyze-visit", response_model=NoteSchema, summary="Analyze Handwritten Note (No Save)")
+async def analyze_visit_notes(request: ImageUploadRequest):
     """
     Receives a base64-encoded image, sends it to Vertex AI for analysis,
-    saves the result to BigQuery, and returns the structured JSON data.
+    and returns the structured JSON data WITHOUT saving to BigQuery.
     """
     try:
         # Create the image part for the model
@@ -180,64 +223,7 @@ async def upload_visit_notes(request: ImageUploadRequest):
         json_text = response.candidates[0].content.parts[0].text
         parsed_data = json.loads(json_text)
 
-        # --- BIGQUERY INTEGRATION POINT ---
-
-        # 1. Create a row to insert with the extracted data:
-        # Convert arrays to newline-separated strings for BigQuery
-        good_str = "\n".join(parsed_data["good"]) if parsed_data["good"] else ""
-        top_3_str = "\n".join(parsed_data["top_3"]) if parsed_data["top_3"] else ""
-
-        # Convert date to YYYY-MM-DD format for BigQuery DATE field
-        calendar_date_str = parsed_data["calendar_date"]
-        calendar_date_formatted = ""
-
-        # Try multiple date formats
-        date_formats = [
-            "%m/%d/%Y",    # 11/07/2025
-            "%m-%d-%Y",    # 11-07-2025
-            "%m/%d/%y",    # 11/07/25
-            "%m-%d-%y",    # 11-07-25
-        ]
-
-        # Also try to handle "11, 7, 25" format by cleaning it first
-        cleaned_date = calendar_date_str.replace(", ", "/").replace(",", "/").strip()
-
-        for fmt in date_formats:
-            try:
-                date_obj = datetime.strptime(cleaned_date, fmt)
-                calendar_date_formatted = date_obj.strftime("%Y-%m-%d")
-                break
-            except ValueError:
-                continue
-
-        if not calendar_date_formatted:
-            print(f"Warning: Could not parse date '{calendar_date_str}', using None")
-            calendar_date_formatted = None
-
-        row_to_insert = {
-            "calendar_date": calendar_date_formatted,
-            "storeNbr": parsed_data["storeNbr"],
-            "store_notes": parsed_data["store_notes"],
-            "mkt_notes": parsed_data["mkt_notes"],
-            "good": good_str,
-            "top_3": top_3_str,
-            "rating": parsed_data["rating"]
-        }
-        
-        # 2. Insert the row:
-        print(f"Inserting row into {TABLE_ID}: {row_to_insert}")
-        errors = bigquery_client.insert_rows_json(TABLE_ID, [row_to_insert])
-        
-        if errors:
-            print(f"Error inserting to BigQuery: {errors}")
-            # We'll still return the data to the user, but log the error
-            # In production, you might want to handle this more gracefully
-        else:
-            print("Row successfully inserted into BigQuery.")
-        
-        # ------------------------------------
-
-        # Return the parsed data to the frontend
+        # Return the parsed data to the frontend (NO BigQuery save)
         return parsed_data
 
     except Exception as e:
@@ -245,6 +231,102 @@ async def upload_visit_notes(request: ImageUploadRequest):
         raise HTTPException(
             status_code=500,
             detail=f"An error occurred during analysis: {str(e)}"
+        )
+
+@app.get("/api/check-duplicate", summary="Check for Duplicate Entry")
+async def check_duplicate(storeNbr: str, calendar_date: str):
+    """
+    Checks if a record with the same store number and date already exists in BigQuery.
+    Returns: { "is_duplicate": bool, "existing_records": [...] }
+    """
+    try:
+        # Convert date to YYYY-MM-DD format for query
+        date_formats = [
+            "%m/%d/%Y", "%m-%d-%Y", "%m/%d/%y", "%m-%d-%y"
+        ]
+        cleaned_date = calendar_date.replace(", ", "/").replace(",", "/").strip()
+        formatted_date = None
+
+        for fmt in date_formats:
+            try:
+                date_obj = datetime.strptime(cleaned_date, fmt)
+                formatted_date = date_obj.strftime("%Y-%m-%d")
+                break
+            except ValueError:
+                continue
+
+        if not formatted_date:
+            return {"is_duplicate": False, "existing_records": []}
+
+        # Query BigQuery for existing records
+        query = f"""
+            SELECT calendar_date, storeNbr, rating, store_notes
+            FROM `{TABLE_ID}`
+            WHERE storeNbr = @storeNbr AND calendar_date = @calendar_date
+            LIMIT 5
+        """
+
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("storeNbr", "STRING", storeNbr),
+                bigquery.ScalarQueryParameter("calendar_date", "DATE", formatted_date),
+            ]
+        )
+
+        query_job = bigquery_client.query(query, job_config=job_config)
+        results = query_job.result()
+
+        existing_records = []
+        for row in results:
+            existing_records.append({
+                "calendar_date": str(row.calendar_date),
+                "storeNbr": row.storeNbr,
+                "rating": row.rating,
+                "store_notes": row.store_notes[:100] + "..." if len(row.store_notes) > 100 else row.store_notes
+            })
+
+        return {
+            "is_duplicate": len(existing_records) > 0,
+            "existing_records": existing_records
+        }
+
+    except Exception as e:
+        print(f"Error checking duplicates: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred while checking for duplicates: {str(e)}"
+        )
+
+@app.post("/api/save-visit", summary="Save Visit Data to BigQuery")
+async def save_visit_notes(data: NoteSchema):
+    """
+    Receives parsed visit data and saves it to BigQuery.
+    """
+    try:
+        # Convert to BigQuery format
+        row_to_insert = convert_data_for_bigquery(data.model_dump())
+
+        # Insert the row into BigQuery
+        print(f"Inserting row into {TABLE_ID}: {row_to_insert}")
+        errors = bigquery_client.insert_rows_json(TABLE_ID, [row_to_insert])
+
+        if errors:
+            print(f"Error inserting to BigQuery: {errors}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"BigQuery insertion failed: {errors}"
+            )
+
+        print("Row successfully inserted into BigQuery.")
+        return {"success": True, "message": "Data saved successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error saving to BigQuery: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred while saving: {str(e)}"
         )
 
 # --- Run the Server ---
