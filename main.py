@@ -181,13 +181,17 @@ async def upload_visit_notes(request: ImageUploadRequest):
         # --- BIGQUERY INTEGRATION POINT ---
 
         # 1. Create a row to insert with the extracted data:
+        # Convert arrays to newline-separated strings for BigQuery
+        good_str = "\n".join(parsed_data["good"]) if parsed_data["good"] else ""
+        top_3_str = "\n".join(parsed_data["top_3"]) if parsed_data["top_3"] else ""
+
         row_to_insert = {
             "calendar_date": parsed_data["calendar_date"],
             "storeNbr": parsed_data["storeNbr"],
             "store_notes": parsed_data["store_notes"],
             "mkt_notes": parsed_data["mkt_notes"],
-            "good": parsed_data["good"],
-            "top_3": parsed_data["top_3"],
+            "good": good_str,
+            "top_3": top_3_str,
             "rating": parsed_data["rating"]
         }
         
