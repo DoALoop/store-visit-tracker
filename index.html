@@ -234,7 +234,7 @@
 
             try {
                 // Step 1: Analyze the image (no save)
-                const analyzeUrl = 'http://127.0.0.1:8000/api/analyze-visit';
+                const analyzeUrl = '/api/analyze-visit';
 
                 const backendPayload = {
                     mime_type: fileMimeType,
@@ -296,7 +296,7 @@
         async function checkAndSave(data) {
             try {
                 // Check for duplicates
-                const checkUrl = `http://127.0.0.1:8000/api/check-duplicate?storeNbr=${encodeURIComponent(data.storeNbr)}&calendar_date=${encodeURIComponent(data.calendar_date)}`;
+                const checkUrl = `/api/check-duplicate?storeNbr=${encodeURIComponent(data.storeNbr)}&calendar_date=${encodeURIComponent(data.calendar_date)}`;
 
                 const checkResponse = await fetch(checkUrl);
                 if (!checkResponse.ok) {
@@ -327,7 +327,7 @@
         // Save data to backend
         async function saveToBackend(data) {
             try {
-                const saveUrl = 'http://127.0.0.1:8000/api/save-visit';
+                const saveUrl = '/api/save-visit';
                 const saveResponse = await fetch(saveUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
