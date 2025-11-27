@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Store Visit Note Analyzer</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                },
+            },
+        }
+    </script>
+</head>
+<body class="h-full flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-2xl w-full space-y-8 p-10 bg-white rounded-2xl shadow-xl">
+        <div>
+            <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
+                Store Visit Note Uploader
+            </h2>
+            <p class="mt-2 text-center text-sm text-gray-600">
+                Upload a photo of your handwritten notes to automatically categorize them.
+            </p>
+        </div>
+        
+        <!-- File Upload Area -->
+        <div class="space-y-6">
+            <div>
+                <label for="image-upload" class="block text-sm font-medium text-gray-700">
+                    Handwritten Note Photo
+                </label>
+                <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg">
+                    <div class="space-y-1 text-center">
+                        <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                            <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                        <div class="flex text-sm text-gray-600">
+                            <label for="image-upload" class="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500">
+                                <span>Upload a file</span>
+                                <input id="image-upload" name="image-upload" type="file" class="sr-only" accept="image/*">
+                            </label>
+                            <p class="pl-1">or drag and drop</p>
+                        </div>
+                        <p class="text-xs text-gray-500">
+                            PNG, JPG, GIF up to 10MB
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Preview Image -->
+            <div id="image-preview-container" class="hidden">
+                <p class="block text-sm font-medium text-gray-700">Image Preview:</p>
+                <img id="image-preview" src="" alt="Image preview" class="mt-2 rounded-lg shadow-md max-h-60 w-auto mx-auto"/>
+            </div>
+
+            <div>
+                <button id="analyze-button" type="submit" class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-gray-400">
+                    Analyze Notes
+                </button>
+            </div>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div id="loading-spinner" class="hidden text-center">
+            <svg class="animate-spin -ml-1 mr-3 h-8 w-8 text-indigo-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p class="mt-2 text-sm text-gray-600">Analyzing handwriting... this may take a moment.</p>
+        </div>
+
+        <!-- Error Message -->
+        <div id="error-message" class="hidden p-4 bg-red-100 text-red-700 rounded-lg">
+            <p><strong>Error:</strong> <span id="error-text"></span></p>
+        </div>
+
+        <!-- Results Section -->
+        <div id="results-container" class="hidden space-y-6">
+            <h3 class="text-2xl font-bold text-gray-900">Analysis Results</h3>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- General Notes -->
+                <div class="bg-gray-50 p-6 rounded-lg shadow-inner">
+                    <h4 class="text-lg font-semibold text-gray-800">Store Notes</h4>
+                    <p id="result-store-notes" class="mt-2 text-sm text-gray-700 whitespace-pre-wrap font-mono"></p>
+                </div>
+                
+                <!-- Good -->
+                <div class="bg-green-50 p-6 rounded-lg shadow-inner">
+                    <h4 class="text-lg font-semibold text-green-800">What I Liked ("Good")</h4>
+                    <p id="result-good" class="mt-2 text-sm text-green-700 whitespace-pre-wrap font-mono"></p>
+                </div>
+                
+                <!-- Top 3 Fixes -->
+                <div class="bg-yellow-50 p-6 rounded-lg shadow-inner">
+                    <h4 class="text-lg font-semibold text-yellow-800">Top 3 Things to Fix</h4>
+                    <p id="result-top-3-fixes" class="mt-2 text-sm text-yellow-700 whitespace-pre-wrap font-mono"></p>
+                </div>
+
+                <!-- Needs From Me -->
+                <div class="bg-blue-50 p-6 rounded-lg shadow-inner">
+                    <h4 class="text-lg font-semibold text-blue-800">What They Need From Me</h4>
+                    <p id="result-needs-from-me" class="mt-2 text-sm text-blue-700 whitespace-pre-wrap font-mono"></p>
+                </div>
+            </div>
+
+            <!-- Raw JSON for debugging -->
+            <div class="bg-gray-800 text-white p-4 rounded-lg overflow-x-auto">
+                <h4 class="text-md font-semibold text-gray-300 mb-2">Raw JSON Response</h4>
+                <pre id="raw-json" class="text-xs"></pre>
+            </div>
+        </div>
+
+        <!-- Mock Grid Section -->
+        <div id="mock-grid-section" class_="mt-12">
+            <h3 class="text-2xl font-bold text-gray-900 text-center mb-4">Future Visit Log (Your Goal)</h3>
+            <p class="text-center text-sm text-gray-600 mb-6">Once you build your backend and connect BigQuery, your app will populate a grid like this:</p>
+            <div class="overflow-x-auto shadow-md rounded-lg">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Visit Date</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Store</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Store Notes</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">"Good"</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Top 3 Go Do's</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rating</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        <!-- Example Row 1 -->
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">6/28/2025</td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">2617</td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">**Tim Note service desk area...</td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700"></td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">OPD 2.0 Not getting Walk in Coolers</td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                                    Red
+                                </span
+                            </td>
+                        </tr>
+                        <!-- Example Row 2 -->
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">6/17/2025</td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">2780</td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">Get rid of pallet guards...</td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">Juice replenishment</td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700"></td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                    Green
+                                </span
+                            </td>
+                        </tr>
+                        <!-- New Row (from our analysis) will be added here dynamically -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- DOM Elements ---
+        const imageUpload = document.getElementById('image-upload');
+        const imagePreview = document.getElementById('image-preview');
+        const imagePreviewContainer = document.getElementById('image-preview-container');
+        const analyzeButton = document.getElementById('analyze-button');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const resultsContainer = document.getElementById('results-container');
+        const errorMessage = document.getElementById('error-message');
+        const errorText = document.getElementById('error-text');
+        
+        // Result fields
+        const resultStoreNotes = document.getElementById('result-store-notes');
+        const resultGood = document.getElementById('result-good');
+        const resultTop3Fixes = document.getElementById('result-top-3-fixes');
+        const resultNeedsFromMe = document.getElementById('result-needs-from-me');
+        const rawJson = document.getElementById('raw-json');
+
+        let base64ImageData = null;
+        let fileMimeType = null;
+
+        // --- Event Listeners ---
+        imageUpload.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                // Check file type
+                if (!file.type.startsWith('image/')) {
+                    showError('Please upload an image file (PNG, JPG, etc.).');
+                    return;
+                }
+                
+                fileMimeType = file.type;
+                
+                // Show preview
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    imagePreview.src = e.target.result;
+                    imagePreviewContainer.classList.remove('hidden');
+                    
+                    // Convert to base64 for API
+                    // e.target.result is a data URL (e.g., "data:image/jpeg;base64,.....")
+                    // We need to strip the prefix
+                    base64ImageData = e.target.result.split(',')[1];
+                };
+                reader.readAsDataURL(file);
+                
+                hideError();
+            }
+        });
+
+        analyzeButton.addEventListener('click', async () => {
+            if (!base64ImageData || !fileMimeType) {
+                showError('Please upload an image first.');
+                return;
+            }
+
+            // --- Show loading state ---
+            setLoading(true);
+            
+            try {
+                // --- Call our NEW Python Backend ---
+                // This now points to the local server we just built.
+                const backendApiUrl = 'http://127.0.0.1:8000/api/upload-visit';
+
+                // This is the payload our FastAPI server expects
+                const backendPayload = {
+                    mime_type: fileMimeType,
+                    image_data: base64ImageData
+                };
+                
+                // --- Exponential Backoff ---
+                const fetchWithBackoff = async (url, options, retries = 5, delay = 1000) => {
+                    for (let i = 0; i < retries; i++) {
+                        try {
+                            const response = await fetch(url, options);
+                            if (response.status === 429 || response.status >= 500) {
+                                // Throttled or server error, wait and retry
+                                throw new Error(`Retryable error: ${response.status}`);
+                            }
+                            return response; // Success
+                        } catch (error) {
+                            // Don't retry on network errors (e.g., server not running)
+                            if (!error.message.startsWith('Retryable')) {
+                                throw error;
+                            }
+                            if (i === retries - 1) throw error; // Last retry failed
+                            await new Promise(res => setTimeout(res, delay * Math.pow(2, i)));
+                        }
+                    }
+                };
+
+                const response = await fetchWithBackoff(backendApiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(backendPayload)
+                });
+
+                if (!response.ok) {
+                    const errorBody = await response.json(); // FastAPI errors are JSON
+                    throw new Error(`API request failed with status ${response.status}: ${errorBody.detail || 'Unknown error'}`);
+                }
+
+                // The backend now returns the parsed data directly.
+                const parsedData = await response.json();
+                
+                // --- Display the results ---
+                displayResults(parsedData);
+
+            } catch (err) {
+                console.error('Analysis failed:', err);
+                // Check for common 'fetch failed' error if backend isn't running
+                if (err.message.includes('Failed to fetch')) {
+                    showError('Could not connect to the backend server. Is it running? (python main.py)');
+                } else {
+                    showError(err.message);
+                }
+            } finally {
+                setLoading(false);
+            }
+        });
+
+        // --- Helper Functions ---
+        
+        function setLoading(isLoading) {
+            if (isLoading) {
+                loadingSpinner.classList.remove('hidden');
+                analyzeButton.disabled = true;
+                analyzeButton.classList.add('disabled:bg-gray-400');
+                resultsContainer.classList.add('hidden');
+                hideError();
+            } else {
+                loadingSpinner.classList.add('hidden');
+                analyzeButton.disabled = false;
+                analyzeButton.classList.remove('disabled:bg-gray-400');
+            }
+        }
+
+        function displayResults(data) {
+            // Helper to format arrays
+            const formatArray = (arr) => {
+                if (!arr || arr.length === 0) return 'N/A';
+                return arr.map(item => `• ${item}`).join('\n');
+            };
+
+            resultStoreNotes.textContent = data.store_notes || 'N/A';
+            resultGood.textContent = formatArray(data.good);
+            resultTop3Fixes.textContent = formatArray(data.top_3_fixes);
+            resultNeedsFromMe.textContent = formatArray(data.needs_from_me);
+
+            // Show raw JSON for debugging
+            rawJson.textContent = JSON.stringify(data, null, 2);
+            
+            resultsContainer.classList.remove('hidden');
+        }
+
+        function showError(message) {
+            errorText.textContent = message;
+            errorMessage.classList.remove('hidden');
+        }
+
+        function hideError() {
+            errorMessage.classList.add('hidden');
+        }
+
+    </script>
+</body>
+</html>
