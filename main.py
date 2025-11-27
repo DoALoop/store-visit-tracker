@@ -133,7 +133,8 @@ user_query = """
     If you cannot find information for a field, use an empty string "" or an empty array [].
 
     Extraction Rules:
-    - calendar_date: Look for a date in MM/DD/YYYY format (e.g., 11/11/2025). Extract exactly as written.
+    - calendar_date: Look for a date anywhere in the notes. It may be written as MM/DD/YYYY, MM/DD/YY, or with slashes/dashes/commas.
+      Examples: "11/11/2025", "11/7/25", "11-7-25". Return it in the format you find with slashes (e.g., "11/07/2025" or "11/7/25").
     - storeNbr: Look for a store number (just digits, e.g., 2617). Return as a string.
     - store_notes: Extract the main body of notes that are TO the store (not the "me:" section).
     - mkt_notes: Look for notes after "me:" label. This is what the store told you. Extract everything after "me:".
@@ -186,16 +187,32 @@ async def upload_visit_notes(request: ImageUploadRequest):
         good_str = "\n".join(parsed_data["good"]) if parsed_data["good"] else ""
         top_3_str = "\n".join(parsed_data["top_3"]) if parsed_data["top_3"] else ""
 
-        # Convert date from MM/DD/YYYY to YYYY-MM-DD for BigQuery DATE field
+        # Convert date to YYYY-MM-DD format for BigQuery DATE field
         calendar_date_str = parsed_data["calendar_date"]
-        try:
-            # Parse MM/DD/YYYY format and convert to YYYY-MM-DD
-            date_obj = datetime.strptime(calendar_date_str, "%m/%d/%Y")
-            calendar_date_formatted = date_obj.strftime("%Y-%m-%d")
-        except ValueError:
-            # If parsing fails, use empty string or current date as fallback
-            print(f"Warning: Could not parse date '{calendar_date_str}', using empty string")
-            calendar_date_formatted = ""
+        calendar_date_formatted = ""
+
+        # Try multiple date formats
+        date_formats = [
+            "%m/%d/%Y",    # 11/07/2025
+            "%m-%d-%Y",    # 11-07-2025
+            "%m/%d/%y",    # 11/07/25
+            "%m-%d-%y",    # 11-07-25
+        ]
+
+        # Also try to handle "11, 7, 25" format by cleaning it first
+        cleaned_date = calendar_date_str.replace(", ", "/").replace(",", "/").strip()
+
+        for fmt in date_formats:
+            try:
+                date_obj = datetime.strptime(cleaned_date, fmt)
+                calendar_date_formatted = date_obj.strftime("%Y-%m-%d")
+                break
+            except ValueError:
+                continue
+
+        if not calendar_date_formatted:
+            print(f"Warning: Could not parse date '{calendar_date_str}', using None")
+            calendar_date_formatted = None
 
         row_to_insert = {
             "calendar_date": calendar_date_formatted,
