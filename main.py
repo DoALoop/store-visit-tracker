@@ -9,6 +9,7 @@ from vertexai.generative_models import GenerativeModel, Part, GenerationConfig
 import vertexai
 import json
 from dotenv import load_dotenv
+from datetime import datetime
 
 # Load environment variables from a .env file (good practice)
 load_dotenv()
@@ -185,8 +186,19 @@ async def upload_visit_notes(request: ImageUploadRequest):
         good_str = "\n".join(parsed_data["good"]) if parsed_data["good"] else ""
         top_3_str = "\n".join(parsed_data["top_3"]) if parsed_data["top_3"] else ""
 
+        # Convert date from MM/DD/YYYY to YYYY-MM-DD for BigQuery DATE field
+        calendar_date_str = parsed_data["calendar_date"]
+        try:
+            # Parse MM/DD/YYYY format and convert to YYYY-MM-DD
+            date_obj = datetime.strptime(calendar_date_str, "%m/%d/%Y")
+            calendar_date_formatted = date_obj.strftime("%Y-%m-%d")
+        except ValueError:
+            # If parsing fails, use empty string or current date as fallback
+            print(f"Warning: Could not parse date '{calendar_date_str}', using empty string")
+            calendar_date_formatted = ""
+
         row_to_insert = {
-            "calendar_date": parsed_data["calendar_date"],
+            "calendar_date": calendar_date_formatted,
             "storeNbr": parsed_data["storeNbr"],
             "store_notes": parsed_data["store_notes"],
             "mkt_notes": parsed_data["mkt_notes"],
