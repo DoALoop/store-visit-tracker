@@ -84,7 +84,15 @@
         <!-- Results Section -->
         <div id="results-container" class="hidden space-y-6">
             <h3 class="text-2xl font-bold text-gray-900">Analysis Results</h3>
-            
+
+            <!-- Store Rating Section - Prominent Display -->
+            <div class="bg-white border-2 p-6 rounded-lg shadow-lg text-center">
+                <h4 class="text-lg font-semibold text-gray-800 mb-3">Store Rating</h4>
+                <div id="result-store-rating" class="inline-flex items-center justify-center px-6 py-3 text-2xl font-bold rounded-full">
+                    <!-- Rating badge will be inserted here by JavaScript -->
+                </div>
+            </div>
+
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <!-- General Notes -->
                 <div class="bg-gray-50 p-6 rounded-lg shadow-inner">
@@ -181,6 +189,7 @@
         const errorText = document.getElementById('error-text');
         
         // Result fields
+        const resultStoreRating = document.getElementById('result-store-rating');
         const resultStoreNotes = document.getElementById('result-store-notes');
         const resultGood = document.getElementById('result-good');
         const resultTop3Fixes = document.getElementById('result-top-3-fixes');
@@ -313,6 +322,23 @@
                 return arr.map(item => `• ${item}`).join('\n');
             };
 
+            // Display store rating with color-coded badge
+            const rating = data.store_rating || 'Not Rated';
+            let ratingClass = '';
+
+            if (rating === 'Red') {
+                ratingClass = 'bg-red-100 text-red-800 border-red-300';
+            } else if (rating === 'Yellow') {
+                ratingClass = 'bg-yellow-100 text-yellow-800 border-yellow-300';
+            } else if (rating === 'Green') {
+                ratingClass = 'bg-green-100 text-green-800 border-green-300';
+            } else {
+                ratingClass = 'bg-gray-100 text-gray-800 border-gray-300';
+            }
+
+            resultStoreRating.className = `inline-flex items-center justify-center px-6 py-3 text-2xl font-bold rounded-full border-2 ${ratingClass}`;
+            resultStoreRating.textContent = rating;
+
             resultStoreNotes.textContent = data.store_notes || 'N/A';
             resultGood.textContent = formatArray(data.good);
             resultTop3Fixes.textContent = formatArray(data.top_3_fixes);
@@ -320,7 +346,7 @@
 
             // Show raw JSON for debugging
             rawJson.textContent = JSON.stringify(data, null, 2);
-            
+
             resultsContainer.classList.remove('hidden');
         }
 

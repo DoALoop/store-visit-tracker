@@ -65,6 +65,7 @@ def setup_bigquery():
         schema = [
             bigquery.SchemaField("visit_timestamp", "TIMESTAMP", mode="REQUIRED"),
             bigquery.SchemaField("store_notes", "STRING", mode="NULLABLE"),
+            bigquery.SchemaField("store_rating", "STRING", mode="NULLABLE"),
             bigquery.SchemaField("good", "STRING", mode="REPEATED"),
             bigquery.SchemaField("top_3_fixes", "STRING", mode="REPEATED"),
             bigquery.SchemaField("needs_from_me", "STRING", mode="REPEATED"),
@@ -101,6 +102,7 @@ class ImageUploadRequest(BaseModel):
 class NoteSchema(BaseModel):
     """Defines the JSON structure we expect from the AI."""
     store_notes: str
+    store_rating: str
     good: list[str]
     top_3_fixes: list[str]
     needs_from_me: list[str]
@@ -111,11 +113,12 @@ response_schema = {
     "type": "OBJECT",
     "properties": {
         "store_notes": {"type": "STRING"},
+        "store_rating": {"type": "STRING"},
         "good": {"type": "ARRAY", "items": {"type": "STRING"}},
         "top_3_fixes": {"type": "ARRAY", "items": {"type": "STRING"}},
         "needs_from_me": {"type": "ARRAY", "items": {"type": "STRING"}},
     },
-    "required": ["store_notes", "good", "top_3_fixes", "needs_from_me"]
+    "required": ["store_notes", "store_rating", "good", "top_3_fixes", "needs_from_me"]
 }
 
 generation_config = GenerationConfig(
@@ -138,6 +141,10 @@ user_query = """
     Transcribe all the handwriting.
     From the transcribed text, extract the information according to the provided JSON schema.
     If you cannot find information for a field, use an empty string "" or an empty array [].
+
+    For the store_rating field: Look for mentions of "Red", "Yellow", or "Green" in the notes.
+    If the user wrote one of these ratings, extract it exactly (Red, Yellow, or Green).
+    If no rating is mentioned, return "Not Rated".
 """
 
 # Initialize the Generative Model
@@ -183,6 +190,7 @@ async def upload_visit_notes(request: ImageUploadRequest):
         row_to_insert = {
             "visit_timestamp": datetime.now(timezone.utc).isoformat(),
             "store_notes": parsed_data["store_notes"],
+            "store_rating": parsed_data["store_rating"],
             "good": parsed_data["good"],
             "top_3_fixes": parsed_data["top_3_fixes"],
             "needs_from_me": parsed_data["needs_from_me"]
