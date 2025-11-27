@@ -160,12 +160,6 @@
                     <p id="result-top-3" class="mt-2 text-sm text-yellow-700 whitespace-pre-wrap font-mono"></p>
                 </div>
             </div>
-
-            <!-- Raw JSON for debugging -->
-            <div class="bg-gray-800 text-white p-4 rounded-lg overflow-x-auto">
-                <h4 class="text-md font-semibold text-gray-300 mb-2">Raw JSON Response</h4>
-                <pre id="raw-json" class="text-xs"></pre>
-            </div>
         </div>
 
     </div>
@@ -189,7 +183,6 @@
         const resultMktNotes = document.getElementById('result-mkt-notes');
         const resultGood = document.getElementById('result-good');
         const resultTop3 = document.getElementById('result-top-3');
-        const rawJson = document.getElementById('raw-json');
 
         // Duplicate modal elements
         const duplicateModal = document.getElementById('duplicate-modal');
@@ -431,9 +424,6 @@
             // Display arrays
             resultGood.textContent = formatArray(data.good);
             resultTop3.textContent = formatArray(data.top_3);
-
-            // Show raw JSON for debugging
-            rawJson.textContent = JSON.stringify(data, null, 2);
 
             resultsContainer.classList.remove('hidden');
         }
