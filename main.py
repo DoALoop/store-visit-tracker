@@ -9,7 +9,6 @@ from vertexai.generative_models import GenerativeModel, Part, GenerationConfig
 import vertexai
 import json
 from dotenv import load_dotenv
-from datetime import datetime, timezone
 
 # Load environment variables from a .env file (good practice)
 load_dotenv()
@@ -40,40 +39,26 @@ app = FastAPI(
 
 # --- BigQuery Setup Function (Runs on Startup) ---
 def setup_bigquery():
-    """Checks for dataset and table, creates them if they don't exist."""
-    
-    # --- Create Dataset if not exists ---
+    """Checks for dataset and table. Assumes table already exists with correct schema."""
+
+    # --- Check Dataset exists ---
     dataset_id = f"{GOOGLE_PROJECT_ID}.{BIGQUERY_DATASET}"
     try:
         bigquery_client.get_dataset(dataset_id)  # Make an API request.
-        print(f"Dataset {dataset_id} already exists.")
-    except Exception:
-        print(f"Dataset {dataset_id} not found, creating...")
-        dataset = bigquery.Dataset(dataset_id)
-        dataset.location = GOOGLE_LOCATION
-        dataset = bigquery_client.create_dataset(dataset, timeout=30)  # Make an API request.
-        print(f"Created dataset {dataset.project}.{dataset.dataset_id}")
+        print(f"Dataset {dataset_id} exists.")
+    except Exception as e:
+        print(f"Error: Dataset {dataset_id} not found: {e}")
+        print("Please create the dataset in BigQuery first.")
+        raise
 
-    # --- Create Table if not exists ---
+    # --- Check Table exists ---
     try:
         bigquery_client.get_table(TABLE_ID)  # Make an API request.
-        print(f"Table {TABLE_ID} already exists.")
-    except Exception:
-        print(f"Table {TABLE_ID} not found, creating...")
-        
-        # Define the schema based on our AI output
-        schema = [
-            bigquery.SchemaField("visit_timestamp", "TIMESTAMP", mode="REQUIRED"),
-            bigquery.SchemaField("store_notes", "STRING", mode="NULLABLE"),
-            bigquery.SchemaField("store_rating", "STRING", mode="NULLABLE"),
-            bigquery.SchemaField("good", "STRING", mode="REPEATED"),
-            bigquery.SchemaField("top_3_fixes", "STRING", mode="REPEATED"),
-            bigquery.SchemaField("needs_from_me", "STRING", mode="REPEATED"),
-        ]
-        
-        table = bigquery.Table(TABLE_ID, schema=schema)
-        table = bigquery_client.create_table(table)  # Make an API request.
-        print(f"Created table {table.project}.{table.dataset_id}.{table.table_id}")
+        print(f"Table {TABLE_ID} exists and ready to use.")
+    except Exception as e:
+        print(f"Error: Table {TABLE_ID} not found: {e}")
+        print("Please ensure your BigQuery table exists with columns: calendar_date, storeNbr, store_notes, mkt_notes, good, top_3, rating")
+        raise
 
 @app.on_event("startup")
 def on_startup():
@@ -101,24 +86,28 @@ class ImageUploadRequest(BaseModel):
 
 class NoteSchema(BaseModel):
     """Defines the JSON structure we expect from the AI."""
+    calendar_date: str
+    storeNbr: str
     store_notes: str
-    store_rating: str
+    mkt_notes: str
     good: list[str]
-    top_3_fixes: list[str]
-    needs_from_me: list[str]
+    top_3: list[str]
+    rating: str
 
 # --- AI Model Setup ---
 # Define the JSON schema for the model's output
 response_schema = {
     "type": "OBJECT",
     "properties": {
+        "calendar_date": {"type": "STRING"},
+        "storeNbr": {"type": "STRING"},
         "store_notes": {"type": "STRING"},
-        "store_rating": {"type": "STRING"},
+        "mkt_notes": {"type": "STRING"},
         "good": {"type": "ARRAY", "items": {"type": "STRING"}},
-        "top_3_fixes": {"type": "ARRAY", "items": {"type": "STRING"}},
-        "needs_from_me": {"type": "ARRAY", "items": {"type": "STRING"}},
+        "top_3": {"type": "ARRAY", "items": {"type": "STRING"}},
+        "rating": {"type": "STRING"},
     },
-    "required": ["store_notes", "store_rating", "good", "top_3_fixes", "needs_from_me"]
+    "required": ["calendar_date", "storeNbr", "store_notes", "mkt_notes", "good", "top_3", "rating"]
 }
 
 generation_config = GenerationConfig(
@@ -142,9 +131,14 @@ user_query = """
     From the transcribed text, extract the information according to the provided JSON schema.
     If you cannot find information for a field, use an empty string "" or an empty array [].
 
-    For the store_rating field: Look for mentions of "Red", "Yellow", or "Green" in the notes.
-    If the user wrote one of these ratings, extract it exactly (Red, Yellow, or Green).
-    If no rating is mentioned, return "Not Rated".
+    Extraction Rules:
+    - calendar_date: Look for a date in MM/DD/YYYY format (e.g., 11/11/2025). Extract exactly as written.
+    - storeNbr: Look for a store number (just digits, e.g., 2617). Return as a string.
+    - store_notes: Extract the main body of notes that are TO the store (not the "me:" section).
+    - mkt_notes: Look for notes after "me:" label. This is what the store told you. Extract everything after "me:".
+    - good: Extract a list of things that were good at the store.
+    - top_3: Extract a list of the top 3 things the store needs to fix or do.
+    - rating: Look for "Red", "Yellow", or "Green" in the notes. If found, return exactly (Red, Yellow, or Green). If not found, return "Not Rated".
 """
 
 # Initialize the Generative Model
@@ -185,15 +179,16 @@ async def upload_visit_notes(request: ImageUploadRequest):
         parsed_data = json.loads(json_text)
 
         # --- BIGQUERY INTEGRATION POINT ---
-        
-        # 1. Create a row to insert (add a visit_date, store_id, etc.):
+
+        # 1. Create a row to insert with the extracted data:
         row_to_insert = {
-            "visit_timestamp": datetime.now(timezone.utc).isoformat(),
+            "calendar_date": parsed_data["calendar_date"],
+            "storeNbr": parsed_data["storeNbr"],
             "store_notes": parsed_data["store_notes"],
-            "store_rating": parsed_data["store_rating"],
+            "mkt_notes": parsed_data["mkt_notes"],
             "good": parsed_data["good"],
-            "top_3_fixes": parsed_data["top_3_fixes"],
-            "needs_from_me": parsed_data["needs_from_me"]
+            "top_3": parsed_data["top_3"],
+            "rating": parsed_data["rating"]
         }
         
         # 2. Insert the row:

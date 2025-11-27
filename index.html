@@ -88,34 +88,47 @@
             <!-- Store Rating Section - Prominent Display -->
             <div class="bg-white border-2 p-6 rounded-lg shadow-lg text-center">
                 <h4 class="text-lg font-semibold text-gray-800 mb-3">Store Rating</h4>
-                <div id="result-store-rating" class="inline-flex items-center justify-center px-6 py-3 text-2xl font-bold rounded-full">
+                <div id="result-rating" class="inline-flex items-center justify-center px-6 py-3 text-2xl font-bold rounded-full">
                     <!-- Rating badge will be inserted here by JavaScript -->
                 </div>
             </div>
 
+            <!-- Date and Store Number -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <!-- General Notes -->
-                <div class="bg-gray-50 p-6 rounded-lg shadow-inner">
-                    <h4 class="text-lg font-semibold text-gray-800">Store Notes</h4>
-                    <p id="result-store-notes" class="mt-2 text-sm text-gray-700 whitespace-pre-wrap font-mono"></p>
-                </div>
-                
-                <!-- Good -->
-                <div class="bg-green-50 p-6 rounded-lg shadow-inner">
-                    <h4 class="text-lg font-semibold text-green-800">What I Liked ("Good")</h4>
-                    <p id="result-good" class="mt-2 text-sm text-green-700 whitespace-pre-wrap font-mono"></p>
-                </div>
-                
-                <!-- Top 3 Fixes -->
-                <div class="bg-yellow-50 p-6 rounded-lg shadow-inner">
-                    <h4 class="text-lg font-semibold text-yellow-800">Top 3 Things to Fix</h4>
-                    <p id="result-top-3-fixes" class="mt-2 text-sm text-yellow-700 whitespace-pre-wrap font-mono"></p>
+                <div class="bg-indigo-50 p-6 rounded-lg shadow-inner">
+                    <h4 class="text-lg font-semibold text-indigo-800">Tour Date</h4>
+                    <p id="result-calendar-date" class="mt-2 text-xl font-bold text-indigo-900"></p>
                 </div>
 
-                <!-- Needs From Me -->
-                <div class="bg-blue-50 p-6 rounded-lg shadow-inner">
-                    <h4 class="text-lg font-semibold text-blue-800">What They Need From Me</h4>
-                    <p id="result-needs-from-me" class="mt-2 text-sm text-blue-700 whitespace-pre-wrap font-mono"></p>
+                <div class="bg-indigo-50 p-6 rounded-lg shadow-inner">
+                    <h4 class="text-lg font-semibold text-indigo-800">Store Number</h4>
+                    <p id="result-store-nbr" class="mt-2 text-xl font-bold text-indigo-900"></p>
+                </div>
+            </div>
+
+            <!-- Store Notes (TO Store) -->
+            <div class="bg-gray-50 p-6 rounded-lg shadow-inner">
+                <h4 class="text-lg font-semibold text-gray-800">Store Notes (Your Notes TO Store)</h4>
+                <p id="result-store-notes" class="mt-2 text-sm text-gray-700 whitespace-pre-wrap font-mono"></p>
+            </div>
+
+            <!-- Market Notes (FROM Store) -->
+            <div class="bg-purple-50 p-6 rounded-lg shadow-inner">
+                <h4 class="text-lg font-semibold text-purple-800">Market Notes (Notes FROM Store - "me:")</h4>
+                <p id="result-mkt-notes" class="mt-2 text-sm text-purple-700 whitespace-pre-wrap font-mono"></p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Good -->
+                <div class="bg-green-50 p-6 rounded-lg shadow-inner">
+                    <h4 class="text-lg font-semibold text-green-800">What's Good</h4>
+                    <p id="result-good" class="mt-2 text-sm text-green-700 whitespace-pre-wrap font-mono"></p>
+                </div>
+
+                <!-- Top 3 -->
+                <div class="bg-yellow-50 p-6 rounded-lg shadow-inner">
+                    <h4 class="text-lg font-semibold text-yellow-800">Top 3 Things Needed</h4>
+                    <p id="result-top-3" class="mt-2 text-sm text-yellow-700 whitespace-pre-wrap font-mono"></p>
                 </div>
             </div>
 
@@ -189,11 +202,13 @@
         const errorText = document.getElementById('error-text');
         
         // Result fields
-        const resultStoreRating = document.getElementById('result-store-rating');
+        const resultRating = document.getElementById('result-rating');
+        const resultCalendarDate = document.getElementById('result-calendar-date');
+        const resultStoreNbr = document.getElementById('result-store-nbr');
         const resultStoreNotes = document.getElementById('result-store-notes');
+        const resultMktNotes = document.getElementById('result-mkt-notes');
         const resultGood = document.getElementById('result-good');
-        const resultTop3Fixes = document.getElementById('result-top-3-fixes');
-        const resultNeedsFromMe = document.getElementById('result-needs-from-me');
+        const resultTop3 = document.getElementById('result-top-3');
         const rawJson = document.getElementById('raw-json');
 
         let base64ImageData = null;
@@ -323,7 +338,7 @@
             };
 
             // Display store rating with color-coded badge
-            const rating = data.store_rating || 'Not Rated';
+            const rating = data.rating || 'Not Rated';
             let ratingClass = '';
 
             if (rating === 'Red') {
@@ -336,13 +351,20 @@
                 ratingClass = 'bg-gray-100 text-gray-800 border-gray-300';
             }
 
-            resultStoreRating.className = `inline-flex items-center justify-center px-6 py-3 text-2xl font-bold rounded-full border-2 ${ratingClass}`;
-            resultStoreRating.textContent = rating;
+            resultRating.className = `inline-flex items-center justify-center px-6 py-3 text-2xl font-bold rounded-full border-2 ${ratingClass}`;
+            resultRating.textContent = rating;
 
+            // Display calendar date and store number
+            resultCalendarDate.textContent = data.calendar_date || 'N/A';
+            resultStoreNbr.textContent = data.storeNbr || 'N/A';
+
+            // Display notes
             resultStoreNotes.textContent = data.store_notes || 'N/A';
+            resultMktNotes.textContent = data.mkt_notes || 'N/A';
+
+            // Display arrays
             resultGood.textContent = formatArray(data.good);
-            resultTop3Fixes.textContent = formatArray(data.top_3_fixes);
-            resultNeedsFromMe.textContent = formatArray(data.needs_from_me);
+            resultTop3.textContent = formatArray(data.top_3);
 
             // Show raw JSON for debugging
             rawJson.textContent = JSON.stringify(data, null, 2);
