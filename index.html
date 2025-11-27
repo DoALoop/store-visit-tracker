@@ -137,13 +137,13 @@
 
             <!-- Store Notes (TO Store) -->
             <div class="bg-gray-50 p-6 rounded-lg shadow-inner">
-                <h4 class="text-lg font-semibold text-gray-800">Store Notes (Your Notes TO Store)</h4>
+                <h4 class="text-lg font-semibold text-gray-800">Store Notes</h4>
                 <p id="result-store-notes" class="mt-2 text-sm text-gray-700 whitespace-pre-wrap font-mono"></p>
             </div>
 
             <!-- Market Notes (FROM Store) -->
             <div class="bg-purple-50 p-6 rounded-lg shadow-inner">
-                <h4 class="text-lg font-semibold text-purple-800">Market Notes (Notes FROM Store - "me:")</h4>
+                <h4 class="text-lg font-semibold text-purple-800">Market Notes</h4>
                 <p id="result-mkt-notes" class="mt-2 text-sm text-purple-700 whitespace-pre-wrap font-mono"></p>
             </div>
 
@@ -165,55 +165,6 @@
             <div class="bg-gray-800 text-white p-4 rounded-lg overflow-x-auto">
                 <h4 class="text-md font-semibold text-gray-300 mb-2">Raw JSON Response</h4>
                 <pre id="raw-json" class="text-xs"></pre>
-            </div>
-        </div>
-
-        <!-- Mock Grid Section -->
-        <div id="mock-grid-section" class_="mt-12">
-            <h3 class="text-2xl font-bold text-gray-900 text-center mb-4">Future Visit Log (Your Goal)</h3>
-            <p class="text-center text-sm text-gray-600 mb-6">Once you build your backend and connect BigQuery, your app will populate a grid like this:</p>
-            <div class="overflow-x-auto shadow-md rounded-lg">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Visit Date</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Store</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Store Notes</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">"Good"</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Top 3 Go Do's</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rating</th>
-                        </tr>
-                    </thead>
-                    <tbody class="bg-white divide-y divide-gray-200">
-                        <!-- Example Row 1 -->
-                        <tr class="hover:bg-gray-50">
-                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">6/28/2025</td>
-                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">2617</td>
-                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">**Tim Note service desk area...</td>
-                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700"></td>
-                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">OPD 2.0 Not getting Walk in Coolers</td>
-                            <td class="px-4 py-3 whitespace-nowrap text-sm">
-                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
-                                    Red
-                                </span
-                            </td>
-                        </tr>
-                        <!-- Example Row 2 -->
-                        <tr class="hover:bg-gray-50">
-                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">6/17/2025</td>
-                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">2780</td>
-                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">Get rid of pallet guards...</td>
-                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">Juice replenishment</td>
-                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700"></td>
-                            <td class="px-4 py-3 whitespace-nowrap text-sm">
-                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                                    Green
-                                </span
-                            </td>
-                        </tr>
-                        <!-- New Row (from our analysis) will be added here dynamically -->
-                    </tbody>
-                </table>
             </div>
         </div>
 
