@@ -1,5 +1,5 @@
-fastapi
-uvicorn[standard]
-google-cloud-aiplatform
-python-dotenv
-google-cloud-bigquery
+Flask>=3.0.0
+Werkzeug>=3.0.0
+gunicorn==20.1.0
+google-cloud-bigquery>=3.20.0
+google-cloud-aiplatform>=1.38.0

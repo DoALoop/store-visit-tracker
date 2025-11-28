@@ -1,339 +1,232 @@
 import os
-import uvicorn
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from google.cloud import aiplatform, bigquery
-from google.cloud.aiplatform_v1.types import HarmCategory, SafetySetting
-from vertexai.generative_models import GenerativeModel, Part, GenerationConfig
-import vertexai
 import json
-from dotenv import load_dotenv
-from datetime import datetime
+import base64
+import vertexai
+from vertexai.generative_models import GenerativeModel, Part, FinishReason
+import vertexai.preview.generative_models as generative_models
+from flask import Flask, request, jsonify, send_from_directory
+from google.cloud import bigquery
+from werkzeug.exceptions import BadRequest
 
-# Load environment variables from a .env file (good practice)
-load_dotenv()
+app = Flask(__name__)
 
 # --- Configuration ---
-GOOGLE_PROJECT_ID = os.getenv("GOOGLE_PROJECT_ID")
-GOOGLE_LOCATION = os.getenv("GOOGLE_LOCATION", "us-central1") # Default location
-BIGQUERY_DATASET = os.getenv("BIGQUERY_DATASET", "store_visits")
-BIGQUERY_TABLE = os.getenv("BIGQUERY_TABLE", "store_visits")
+# Use environment variables provided by Cloud Run, with fallbacks
+PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT", "store-visit-tracker")
+LOCATION = os.environ.get("GOOGLE_CLOUD_REGION", "us-central1")
+DATASET_ID = "store_visits"
+TABLE_ID = "store_visits"
 
-if not GOOGLE_PROJECT_ID:
-    raise ValueError("GOOGLE_PROJECT_ID environment variable not set.")
-
-# The fully-qualified BigQuery table ID
-TABLE_ID = f"{GOOGLE_PROJECT_ID}.{BIGQUERY_DATASET}.{BIGQUERY_TABLE}"
+# Initialize BigQuery
+try:
+    bq_client = bigquery.Client(project=PROJECT_ID)
+    print("Successfully connected to BigQuery.")
+except Exception as e:
+    print(f"Error connecting to BigQuery: {e}")
+    bq_client = None
 
 # Initialize Vertex AI
-vertexai.init(project=GOOGLE_PROJECT_ID, location=GOOGLE_LOCATION)
+try:
+    vertexai.init(project=PROJECT_ID, location=LOCATION)
+    # Load the model - using 2.5 Flash (stable alias)
+    model = GenerativeModel("gemini-2.5-flash")
+    print("Successfully connected to Vertex AI.")
+except Exception as e:
+    print(f"Error connecting to Vertex AI: {e}")
+    model = None
 
-# Initialize BigQuery Client
-bigquery_client = bigquery.Client(project=GOOGLE_PROJECT_ID)
+# --- Static File Route ---
+@app.route('/')
+def index():
+    return send_from_directory('.', 'index.html')
 
-# --- FastAPI App Setup ---
-app = FastAPI(
-    title="Store Visit Tracker API",
-    description="API for processing handwritten store visit notes.",
-)
+# --- API Routes ---
 
-# --- BigQuery Setup Function (Runs on Startup) ---
-def setup_bigquery():
-    """Checks for dataset and table. Assumes table already exists with correct schema."""
+@app.route('/api/visits', methods=['GET'])
+def get_visits():
+    if not bq_client:
+        return jsonify({"error": "Server is not configured to connect to BigQuery."}), 500
 
-    # --- Check Dataset exists ---
-    dataset_id = f"{GOOGLE_PROJECT_ID}.{BIGQUERY_DATASET}"
-    try:
-        bigquery_client.get_dataset(dataset_id)  # Make an API request.
-        print(f"Dataset {dataset_id} exists.")
-    except Exception as e:
-        print(f"Error: Dataset {dataset_id} not found: {e}")
-        print("Please create the dataset in BigQuery first.")
-        raise
+    store_number = request.args.get('storeNbr')
 
-    # --- Check Table exists ---
-    try:
-        bigquery_client.get_table(TABLE_ID)  # Make an API request.
-        print(f"Table {TABLE_ID} exists and ready to use.")
-    except Exception as e:
-        print(f"Error: Table {TABLE_ID} not found: {e}")
-        print("Please ensure your BigQuery table exists with columns: calendar_date, storeNbr, store_notes, mkt_notes, good, top_3, rating")
-        raise
-
-@app.on_event("startup")
-def on_startup():
-    """Run the BigQuery setup on application startup."""
-    print("Running BigQuery setup...")
-    setup_bigquery()
-    print("BigQuery setup complete.")
-
-# --- CORS Middleware ---
-# This allows your frontend (running on a different domain/port)
-# to communicate with this backend.
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], # In production, restrict this to your frontend's domain
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# --- Pydantic Models (Data Validation) ---
-class ImageUploadRequest(BaseModel):
-    """Defines the expected data structure for an image upload."""
-    mime_type: str
-    image_data: str  # This will be the base64-encoded string
-
-class NoteSchema(BaseModel):
-    """Defines the JSON structure we expect from the AI."""
-    calendar_date: str
-    storeNbr: str
-    store_notes: str
-    mkt_notes: str
-    good: list[str]
-    top_3: list[str]
-    rating: str
-
-# --- AI Model Setup ---
-# Define the JSON schema for the model's output
-response_schema = {
-    "type": "OBJECT",
-    "properties": {
-        "calendar_date": {"type": "STRING"},
-        "storeNbr": {"type": "STRING"},
-        "store_notes": {"type": "STRING"},
-        "mkt_notes": {"type": "STRING"},
-        "good": {"type": "ARRAY", "items": {"type": "STRING"}},
-        "top_3": {"type": "ARRAY", "items": {"type": "STRING"}},
-        "rating": {"type": "STRING"},
-    },
-    "required": ["calendar_date", "storeNbr", "store_notes", "mkt_notes", "good", "top_3", "rating"]
-}
-
-generation_config = GenerationConfig(
-    response_mime_type="application/json",
-    response_schema=response_schema,
-)
-
-# Set safety settings
-safety_settings = {
-    HarmCategory.HARM_CATEGORY_HATE_SPEECH: SafetySetting.HarmBlockThreshold.BLOCK_ONLY_HIGH,
-    HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: SafetySetting.HarmBlockThreshold.BLOCK_ONLY_HIGH,
-    HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: SafetySetting.HarmBlockThreshold.BLOCK_ONLY_HIGH,
-    HarmCategory.HARM_CATEGORY_HARASSMENT: SafetySetting.HarmBlockThreshold.BLOCK_ONLY_HIGH,
-}
-
-# System prompt for the AI
-system_prompt = "You are an expert analyst processing handwritten store visit notes."
-user_query = """
-    Please analyze the attached image of handwritten notes from a store visit.
-    Transcribe all the handwriting.
-    From the transcribed text, extract the information according to the provided JSON schema.
-    If you cannot find information for a field, use an empty string "" or an empty array [].
-
-    Extraction Rules:
-    - calendar_date: Look for a date anywhere in the notes. It may be written as MM/DD/YYYY, MM/DD/YY, or with slashes/dashes/commas.
-      Examples: "11/11/2025", "11/7/25", "11-7-25". Return it in the format you find with slashes (e.g., "11/07/2025" or "11/7/25").
-    - storeNbr: Look for a store number (just digits, e.g., 2617). Return as a string.
-    - store_notes: Extract the main body of notes that are TO the store (not the "me:" section).
-    - mkt_notes: Look for notes after "me:" label. This is what the store told you. Extract everything after "me:".
-    - good: Extract a list of things that were good at the store.
-    - top_3: Extract a list of the top 3 things the store needs to fix or do.
-    - rating: Look for "Red", "Yellow", or "Green" in the notes. If found, return exactly (Red, Yellow, or Green). If not found, return "Not Rated".
-"""
-
-# Initialize the Generative Model
-model = GenerativeModel(
-    "gemini-2.5-flash",
-    system_instruction=[system_prompt],
-    generation_config=generation_config,
-    safety_settings=safety_settings
-)
-
-# --- API Endpoints ---
-@app.get("/", summary="Health Check")
-def read_root():
-    """Simple health check endpoint."""
-    return {"status": "Store Visit API is running"}
-
-def convert_data_for_bigquery(parsed_data: dict) -> dict:
-    """Helper function to convert parsed AI data to BigQuery format."""
-    # Convert arrays to newline-separated strings for BigQuery
-    good_str = "\n".join(parsed_data["good"]) if parsed_data["good"] else ""
-    top_3_str = "\n".join(parsed_data["top_3"]) if parsed_data["top_3"] else ""
-
-    # Convert date to YYYY-MM-DD format for BigQuery DATE field
-    calendar_date_str = parsed_data["calendar_date"]
-    calendar_date_formatted = ""
-
-    # Try multiple date formats
-    date_formats = [
-        "%m/%d/%Y",    # 11/07/2025
-        "%m-%d-%Y",    # 11-07-2025
-        "%m/%d/%y",    # 11/07/25
-        "%m-%d-%y",    # 11-07-25
-    ]
-
-    # Also try to handle "11, 7, 25" format by cleaning it first
-    cleaned_date = calendar_date_str.replace(", ", "/").replace(",", "/").strip()
-
-    for fmt in date_formats:
-        try:
-            date_obj = datetime.strptime(cleaned_date, fmt)
-            calendar_date_formatted = date_obj.strftime("%Y-%m-%d")
-            break
-        except ValueError:
-            continue
-
-    if not calendar_date_formatted:
-        print(f"Warning: Could not parse date '{calendar_date_str}', using None")
-        calendar_date_formatted = None
-
-    return {
-        "calendar_date": calendar_date_formatted,
-        "storeNbr": parsed_data["storeNbr"],
-        "store_notes": parsed_data["store_notes"],
-        "mkt_notes": parsed_data["mkt_notes"],
-        "good": good_str,
-        "top_3": top_3_str,
-        "rating": parsed_data["rating"]
-    }
-
-@app.post("/api/analyze-visit", response_model=NoteSchema, summary="Analyze Handwritten Note (No Save)")
-async def analyze_visit_notes(request: ImageUploadRequest):
-    """
-    Receives a base64-encoded image, sends it to Vertex AI for analysis,
-    and returns the structured JSON data WITHOUT saving to BigQuery.
-    """
-    try:
-        # Create the image part for the model
-        image_part = Part.from_data(
-            data=request.image_data,
-            mime_type=request.mime_type
-        )
-
-        # Create the text part
-        text_part = Part.from_text(user_query)
-
-        # Send the request to the model
-        response = model.generate_content([text_part, image_part])
-
-        # Extract the JSON text and parse it
-        json_text = response.candidates[0].content.parts[0].text
-        parsed_data = json.loads(json_text)
-
-        # Return the parsed data to the frontend (NO BigQuery save)
-        return parsed_data
-
-    except Exception as e:
-        print(f"Error during analysis: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"An error occurred during analysis: {str(e)}"
-        )
-
-@app.get("/api/check-duplicate", summary="Check for Duplicate Entry")
-async def check_duplicate(storeNbr: str, calendar_date: str):
-    """
-    Checks if a record with the same store number and date already exists in BigQuery.
-    Returns: { "is_duplicate": bool, "existing_records": [...] }
-    """
-    try:
-        # Convert date to YYYY-MM-DD format for query
-        date_formats = [
-            "%m/%d/%Y", "%m-%d-%Y", "%m/%d/%y", "%m-%d-%y"
-        ]
-        cleaned_date = calendar_date.replace(", ", "/").replace(",", "/").strip()
-        formatted_date = None
-
-        for fmt in date_formats:
-            try:
-                date_obj = datetime.strptime(cleaned_date, fmt)
-                formatted_date = date_obj.strftime("%Y-%m-%d")
-                break
-            except ValueError:
-                continue
-
-        if not formatted_date:
-            return {"is_duplicate": False, "existing_records": []}
-
-        # Query BigQuery for existing records
+    if store_number:
+        # Case 2: Get Prior 3 Visits for a Specific Store
+        print(f"Querying for prior 3 visits for store: {store_number}")
         query = f"""
-            SELECT calendar_date, storeNbr, rating, store_notes
-            FROM `{TABLE_ID}`
-            WHERE storeNbr = @storeNbr AND calendar_date = @calendar_date
-            LIMIT 5
+            SELECT * 
+            FROM `{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}` 
+            WHERE storeNbr = @store_number 
+            ORDER BY calendar_date DESC 
+            LIMIT 3
         """
-
         job_config = bigquery.QueryJobConfig(
             query_parameters=[
-                bigquery.ScalarQueryParameter("storeNbr", "STRING", storeNbr),
-                bigquery.ScalarQueryParameter("calendar_date", "DATE", formatted_date),
+                bigquery.ScalarQueryParameter("store_number", "STRING", store_number),
             ]
         )
+    else:
+        # Case 1: Get All Visits
+        print("Querying for all recent visits.")
+        query = f"""
+            SELECT * 
+            FROM `{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}` 
+            ORDER BY calendar_date DESC 
+            LIMIT 100
+        """
+        job_config = bigquery.QueryJobConfig()
 
-        query_job = bigquery_client.query(query, job_config=job_config)
-        results = query_job.result()
+    try:
+        query_job = bq_client.query(query, job_config=job_config)
+        results = [dict(row) for row in query_job]
+        return jsonify(results)
+    except Exception as e:
+        print(f"An error occurred during BigQuery query: {e}")
+        return jsonify({"error": "Failed to fetch data from database."}), 500
 
-        existing_records = []
-        for row in results:
-            existing_records.append({
-                "calendar_date": str(row.calendar_date),
-                "storeNbr": row.storeNbr,
-                "rating": row.rating,
-                "store_notes": row.store_notes[:100] + "..." if len(row.store_notes) > 100 else row.store_notes
-            })
+@app.route('/api/analyze-visit', methods=['POST'])
+def analyze_visit():
+    if not model:
+        return jsonify({"error": "AI Model not initialized."}), 500
 
-        return {
-            "is_duplicate": len(existing_records) > 0,
-            "existing_records": existing_records
+    data = request.get_json()
+    if not data or 'image_data' not in data:
+        return jsonify({"error": "No image data provided"}), 400
+
+    image_b64 = data['image_data']
+    mime_type = data.get('mime_type', 'image/jpeg')
+
+    print("Received image for analysis...")
+
+    # Construct the prompt
+    text_prompt = """
+    You are an AI assistant helping a District Manager digitize their handwritten store visit notes.
+    Analyze the provided image of a handwritten note.
+    
+    Extract the following information and return it as a JSON object:
+    1. "storeNbr": The store number (usually a 4-digit number like 1234).
+    2. "calendar_date": The date of the visit in YYYY-MM-DD format.
+    3. "rating": The store rating. It will be one of: "Green", "Yellow", or "Red".
+    4. "store_notes": The general notes/comments about the store condition.
+    5. "mkt_notes": Any notes specific to the market or competition (if any).
+    6. "good": A list of strings listing what was good.
+    7. "top_3": A list of strings listing the top 3 opportunities/things needed.
+
+    If a field is not found, use null or an empty string. 
+    Ensure the output is valid JSON. Do not include Markdown formatting (```json).
+    """
+
+    try:
+        image_part = Part.from_data(
+            data=base64.decodebytes(image_b64.encode('utf-8')),
+            mime_type=mime_type
+        )
+        
+        generation_config = {
+            "max_output_tokens": 8192,
+            "temperature": 1,
+            "top_p": 0.95,
+            "response_mime_type": "application/json",
         }
 
-    except Exception as e:
-        print(f"Error checking duplicates: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"An error occurred while checking for duplicates: {str(e)}"
+        responses = model.generate_content(
+            [image_part, text_prompt],
+            generation_config=generation_config,
+            stream=False,
         )
+        
+        # Parse the response
+        response_text = responses.text
+        # Clean up any potential markdown formatting just in case
+        response_text = response_text.replace("```json", "").replace("```", "").strip()
+        
+        parsed_result = json.loads(response_text)
+        print("Analysis complete:", parsed_result)
+        return jsonify(parsed_result)
 
-@app.post("/api/save-visit", summary="Save Visit Data to BigQuery")
-async def save_visit_notes(data: NoteSchema):
-    """
-    Receives parsed visit data and saves it to BigQuery.
-    """
+    except Exception as e:
+        print(f"Error analyzing image: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/save-visit', methods=['POST'])
+def save_visit():
+    if not bq_client:
+        return jsonify({"error": "Database not connected"}), 500
+
+    data = request.get_json()
+    
+    # Simple validation
+    required_fields = ['storeNbr', 'calendar_date', 'rating']
+    for field in required_fields:
+        if field not in data:
+            return jsonify({"error": f"Missing required field: {field}"}), 400
+
     try:
-        # Convert to BigQuery format
-        row_to_insert = convert_data_for_bigquery(data.model_dump())
+        # Prepare data for BigQuery
+        # Convert lists to strings if necessary, or store as REPEATED fields if your schema supports it.
+        # Assuming schema is simple strings for now based on previous interactions.
+        
+        row_to_insert = {
+            "storeNbr": str(data.get('storeNbr', '')),
+            "calendar_date": data.get('calendar_date'), # YYYY-MM-DD
+            "rating": data.get('rating'),
+            "store_notes": data.get('store_notes', ''),
+            "mkt_notes": data.get('mkt_notes', ''),
+            # Join lists into a single string for storage if table isn't set up for arrays
+            # Or assume the table can handle string arrays. 
+            # Let's stringify them for safety unless we know the schema matches.
+            # Actually, let's try to pass them as provided, if BQ fails we'll know.
+            # But to be safe with standard tables:
+            "good": "\n".join(data.get('good', [])) if isinstance(data.get('good'), list) else str(data.get('good', '')),
+            "top_3": "\n".join(data.get('top_3', [])) if isinstance(data.get('top_3'), list) else str(data.get('top_3', '')),
+        }
 
-        # Insert the row into BigQuery
-        print(f"Inserting row into {TABLE_ID}: {row_to_insert}")
-        errors = bigquery_client.insert_rows_json(TABLE_ID, [row_to_insert])
-
+        errors = bq_client.insert_rows_json(f"{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}", [row_to_insert])
+        
         if errors:
-            print(f"Error inserting to BigQuery: {errors}")
-            raise HTTPException(
-                status_code=500,
-                detail=f"BigQuery insertion failed: {errors}"
-            )
+            print(f"BigQuery Insert Errors: {errors}")
+            return jsonify({"error": f"Failed to insert rows: {errors}"}), 500
+            
+        return jsonify({"message": "Visit saved successfully", "data": row_to_insert})
 
-        print("Row successfully inserted into BigQuery.")
-        return {"success": True, "message": "Data saved successfully"}
-
-    except HTTPException:
-        raise
     except Exception as e:
         print(f"Error saving to BigQuery: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"An error occurred while saving: {str(e)}"
-        )
+        return jsonify({"error": str(e)}), 500
 
-# --- Run the Server ---
+@app.route('/api/check-duplicate', methods=['GET'])
+def check_duplicate():
+    if not bq_client:
+        return jsonify({"is_duplicate": False, "existing_records": []})
+
+    store_nbr = request.args.get('storeNbr')
+    calendar_date = request.args.get('calendar_date')
+
+    if not store_nbr or not calendar_date:
+        return jsonify({"error": "Missing parameters"}), 400
+
+    query = f"""
+        SELECT *
+        FROM `{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}`
+        WHERE storeNbr = @store_nbr AND calendar_date = @calendar_date
+    """
+    
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("store_nbr", "STRING", store_nbr),
+            bigquery.ScalarQueryParameter("calendar_date", "DATE", calendar_date),
+        ]
+    )
+
+    try:
+        query_job = bq_client.query(query, job_config=job_config)
+        results = [dict(row) for row in query_job]
+        
+        return jsonify({
+            "is_duplicate": len(results) > 0,
+            "existing_records": results
+        })
+    except Exception as e:
+        print(f"Error checking duplicate: {e}")
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == "__main__":
-    """
-    This allows you to run the server directly using `python main.py`
-    """
-    print(f"Starting server... (Project: {GOOGLE_PROJECT_ID}, BQ Table: {TABLE_ID})")
-    print("Go to http://127.0.0.1:8000/docs for API docs.")
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
