@@ -99,20 +99,124 @@ def analyze_visit():
 
     # Construct the prompt
     text_prompt = """
-    You are an AI assistant helping a District Manager digitize their handwritten store visit notes.
-    Analyze the provided image of a handwritten note.
-    
-    Extract the following information and return it as a JSON object:
-    1. "storeNbr": The store number (usually a 4-digit number like 1234).
-    2. "calendar_date": The date of the visit in YYYY-MM-DD format.
-    3. "rating": The store rating. It will be one of: "Green", "Yellow", or "Red".
-    4. "store_notes": The general notes/comments about the store condition.
-    5. "mkt_notes": Any notes specific to the market or competition (if any).
-    6. "good": A list of strings listing what was good.
-    7. "top_3": A list of strings listing the top 3 opportunities/things needed.
+You are an AI assistant specializing in digitizing handwritten store visit notes for a District Manager.
 
-    If a field is not found, use null or an empty string. 
-    Ensure the output is valid JSON. Do not include Markdown formatting (```json).
+Your primary task is to carefully read and transcribe ALL handwritten text from the provided image with high accuracy.
+
+⚠️ CRITICAL - DO NOT HALLUCINATE:
+- ONLY extract information that is explicitly written on the paper
+- DO NOT invent, assume, or fill in any information that is not clearly visible
+- DO NOT make up store numbers, dates, ratings, or notes
+- If you cannot read something clearly, use null rather than guessing
+- If a section is blank or not present, return null or empty array [] - DO NOT create placeholder content
+- When uncertain about a word, either transcribe your best reading of what's actually written OR use null
+- DO NOT add context, explanations, or interpretations beyond what is written
+- DO NOT standardize or "clean up" the notes - preserve the original wording exactly as written
+
+CRITICAL INSTRUCTIONS FOR HANDWRITING EXTRACTION:
+- Read every word carefully, even if handwriting is messy or unclear
+- If a word is difficult to read, make your best interpretation based on context AND what's actually written
+- Preserve the original meaning and wording as closely as possible
+- Pay special attention to numbers, dates, and metrics
+- Look for common retail abbreviations (comp, WTD, MTD, etc.)
+- Each distinct thought or observation should be treated as a separate note/bullet point
+- If something is truly illegible, use null instead of guessing
+
+EXTRACT AND STRUCTURE THE FOLLOWING INFORMATION AS JSON:
+
+1. "storeNbr": The store number (typically 3-4 digits, may be written as "Store #1234" or "#1234" or "1234")
+   - ONLY if actually written on the page, otherwise null
+
+2. "calendar_date": Visit date in YYYY-MM-DD format (look for dates written as MM/DD/YY, MM-DD-YYYY, or written out)
+   - ONLY if a date is actually present, otherwise null
+
+3. "rating": Overall store rating - must be one of: "Green", "Yellow", or "Red" (may be written as G/Y/R or color-coded)
+   - ONLY if explicitly marked/written, otherwise null
+
+4. "store_notes": General observations about store condition. 
+   - Extract ALL general comments as separate bullet points
+   - Each distinct observation = one bullet point
+   - Preserve specific details (names, departments, issues mentioned) EXACTLY as written
+   - If no notes present, return empty array []
+   - DO NOT create generic or assumed notes
+
+5. "mkt_notes": Market or competitive notes (if present)
+   - Look for mentions of competitors, market conditions, external factors
+   - Return as separate bullet points
+   - If no market notes present, return empty array []
+
+6. "good": What's working well - extract as an array of strings
+   - Each positive observation = one array item
+   - Look for phrases like "good job", "well done", "excellent", team wins
+   - ONLY include items explicitly noted as positive
+   - If nothing is marked as "good" or positive, return empty array []
+
+7. "top_3": Top 3 opportunities/focus areas - extract as an array of strings
+   - Look for action items, problems to fix, coaching opportunities
+   - Should prioritize the most critical issues mentioned
+   - ONLY include what's actually written - may be 0, 1, 2, or 3 items
+   - DO NOT invent opportunities if fewer than 3 are listed
+
+8. "metrics": An object containing the following numerical metrics (use null if not found):
+   {
+     "sales_comp_yest": number or percentage (ONLY if written),
+     "sales_index_yest": number (ONLY if written),
+     "sales_comp_wtd": number or percentage (ONLY if written),
+     "sales_index_wtd": number (ONLY if written),
+     "sales_comp_mtd": number or percentage (ONLY if written),
+     "sales_index_mtd": number (ONLY if written),
+     "vizpick": number or percentage (ONLY if written),
+     "overstock": number (ONLY if written),
+     "picks": number (ONLY if written),
+     "vizfashion": number or percentage (ONLY if written),
+     "modflex": number or percentage (ONLY if written),
+     "tag_errors": number (ONLY if written),
+     "mods": number (ONLY if written),
+     "pcs": number (ONLY if written),
+     "pinpoint": number or percentage (ONLY if written)
+   }
+   - Each metric should be null if not found on the page
+   - DO NOT calculate or derive metrics from other numbers
+
+HANDWRITING INTERPRETATION GUIDANCE:
+- Common word confusions: "a" vs "o", "n" vs "u", "r" vs "v"
+- Numbers: "1" vs "7", "5" vs "S", "0" vs "O"
+- When uncertain, consider the retail context (e.g., if you see "cl__n", it's likely "clean")
+- Abbreviations are common: dept (department), mgr (manager), assoc (associate), merch (merchandise)
+- When truly illegible: use null rather than making something up
+
+OUTPUT FORMAT:
+Return ONLY valid JSON with no markdown formatting, no ```json blocks, no explanations.
+If a field cannot be found or determined, use null for objects/numbers or empty array [] for lists.
+
+Example structure:
+{
+  "storeNbr": "1234",
+  "calendar_date": "2024-12-05",
+  "rating": "Green",
+  "store_notes": [
+    "Store looks great, well zoned",
+    "Heidi doing excellent job with team",
+    "Backroom organized and clean"
+  ],
+  "mkt_notes": [],
+  "good": [
+    "Strong customer service",
+    "Clean salesfloor",
+    "Team morale high"
+  ],
+  "top_3": [
+    "Work on features - need more endcaps filled",
+    "Apparel folding needs attention"
+  ],
+  "metrics": {
+    "sales_comp_yest": 5.2,
+    "sales_index_yest": 102,
+    "sales_comp_wtd": null,
+    "sales_index_wtd": null,
+    ...
+  }
+}
     """
 
     try:
@@ -227,6 +331,44 @@ def check_duplicate():
     except Exception as e:
         print(f"Error checking duplicate: {e}")
         return jsonify({"error": str(e)}), 500
+
+@app.route('/api/summary', methods=['GET'])
+def get_summary():
+    if not bq_client:
+        return jsonify({"error": "Server is not configured to connect to BigQuery."}), 500
+
+    print("Querying for store summary.")
+    query = f"""
+        SELECT 
+            storeNbr, 
+            ARRAY_AGG(STRUCT(rating, calendar_date) ORDER BY calendar_date DESC LIMIT 2) as recent_visits
+        FROM `{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}`
+        GROUP BY storeNbr
+        ORDER BY storeNbr
+    """
+    
+    try:
+        query_job = bq_client.query(query)
+        # Process results to make them JSON serializable (Dates need conversion)
+        results = []
+        for row in query_job:
+            store_data = {
+                "storeNbr": row["storeNbr"],
+                "recent_visits": [
+                    {
+                        "rating": v["rating"], 
+                        "calendar_date": v["calendar_date"].isoformat() if v["calendar_date"] else None
+                    } 
+                    for v in row["recent_visits"]
+                ]
+            }
+            results.append(store_data)
+            
+        return jsonify(results)
+    except Exception as e:
+        print(f"An error occurred during BigQuery query: {e}")
+        return jsonify({"error": str(e)}), 500
+
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))

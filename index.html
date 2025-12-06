@@ -13,13 +13,31 @@
                     fontFamily: {
                         sans: ['Inter', 'sans-serif'],
                     },
+                    padding: {
+                        'safe': 'env(safe-area-inset-bottom)',
+                    }
                 },
             },
         }
     </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .pb-safe {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        /* Custom hide utility to ensure specificity */
+        .hidden-view {
+            display: none !important;
+        }
+    </style>
 </head>
-<body class="h-full flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-    <div class="max-w-2xl w-full space-y-8 p-10 bg-white rounded-2xl shadow-xl">
+<body class="bg-gray-50 h-full">
+    <!-- Views Container -->
+    <div id="main-content" class="h-full overflow-y-auto pb-24">
+
+        <!-- VIEW: HOME (Upload Form) -->
+        <div id="view-home" class="flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+            <div class="max-w-2xl w-full space-y-8 p-10 bg-white rounded-2xl shadow-xl">
         <div>
             <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
                 Store Visit Note Uploader
@@ -36,16 +54,28 @@
                     Handwritten Note Photo
                 </label>
                 <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg">
-                    <div class="space-y-1 text-center">
-                        <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
-                            <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                        </svg>
-                        <div class="flex text-sm text-gray-600">
+                    <div class="space-y-3 text-center">
+                        
+                        <!-- Camera Button -->
+                        <button type="button" onclick="document.getElementById('camera-input').click()" class="inline-flex items-center px-4 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 w-full justify-center">
+                            <i class="fas fa-camera mr-2"></i> Take Photo
+                        </button>
+                        <input id="camera-input" type="file" accept="image/*" capture="environment" class="sr-only">
+
+                        <div class="relative">
+                            <div class="absolute inset-0 flex items-center">
+                                <div class="w-full border-t border-gray-300"></div>
+                            </div>
+                            <div class="relative flex justify-center text-sm">
+                                <span class="px-2 bg-white text-gray-500">Or</span>
+                            </div>
+                        </div>
+
+                        <div class="flex text-sm text-gray-600 justify-center">
                             <label for="image-upload" class="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500">
-                                <span>Upload a file</span>
+                                <span>Upload from Gallery</span>
                                 <input id="image-upload" name="image-upload" type="file" class="sr-only" accept="image/*">
                             </label>
-                            <p class="pl-1">or drag and drop</p>
                         </div>
                         <p class="text-xs text-gray-500">
                             PNG, JPG, GIF up to 10MB
@@ -162,11 +192,345 @@
             </div>
         </div>
 
+        </div>
+    </div> <!-- End view-home -->
+
+    <!-- VIEW: VISITS (History List) -->
+    <div id="view-visits" class="hidden-view p-4 max-w-2xl mx-auto">
+         <div class="flex justify-between items-center mb-4">
+             <h2 class="text-2xl font-bold text-gray-900">Visits</h2>
+             <button onclick="loadVisits()" class="text-sm text-indigo-600 hover:text-indigo-800">
+                 <i class="fas fa-sync-alt mr-1"></i> Refresh
+             </button>
+         </div>
+         
+         <div class="bg-white rounded-lg shadow overflow-hidden">
+             <div class="overflow-x-auto">
+                 <table class="min-w-full divide-y divide-gray-200">
+                     <thead class="bg-gray-50">
+                         <tr>
+                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Store</th>
+                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rating</th>
+                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Top 3 Opportunities</th>
+                         </tr>
+                     </thead>
+                     <tbody id="visits-table-body" class="bg-white divide-y divide-gray-200">
+                         <!-- Rows will be inserted here -->
+                         <tr>
+                             <td colspan="3" class="px-6 py-4 text-center text-sm text-gray-500">
+                                 Loading visits...
+                             </td>
+                         </tr>
+                     </tbody>
+                 </table>
+             </div>
+         </div>
     </div>
 
+    <!-- VIEW: SUMMARY -->
+    <div id="view-summary" class="hidden-view p-4 max-w-2xl mx-auto">
+         <div class="flex justify-between items-center mb-4">
+             <h2 class="text-2xl font-bold text-gray-900">Store Ratings Summary</h2>
+             <button onclick="loadSummary()" class="text-sm text-indigo-600 hover:text-indigo-800">
+                 <i class="fas fa-sync-alt mr-1"></i> Refresh
+             </button>
+         </div>
+
+         <!-- Store Ratings Card -->
+         <div class="bg-white rounded-lg shadow overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                <h3 class="text-lg font-medium text-gray-900">Recent Performance</h3>
+                <p class="text-sm text-gray-500">Last 2 ratings per store</p>
+            </div>
+            
+            <div class="overflow-x-auto">
+                 <table class="min-w-full divide-y divide-gray-200">
+                     <thead class="bg-white">
+                         <tr>
+                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Store</th>
+                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Most Recent</th>
+                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Previous</th>
+                         </tr>
+                     </thead>
+                     <tbody id="summary-table-body" class="bg-white divide-y divide-gray-200">
+                         <tr>
+                             <td colspan="3" class="px-6 py-4 text-center text-sm text-gray-500">
+                                 Loading summary...
+                             </td>
+                         </tr>
+                     </tbody>
+                 </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- VIEW: PRIOR TOURS -->
+    <div id="view-prior-tours" class="hidden-view p-4 max-w-2xl mx-auto">
+         <h2 class="text-2xl font-bold text-gray-900 mb-4">Prior Tours</h2>
+         
+         <!-- Search Section -->
+         <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <label for="prior-store-nbr" class="block text-sm font-medium text-gray-700 mb-2">Store Number</label>
+            <div class="flex gap-2">
+                <input type="text" id="prior-store-nbr" placeholder="e.g. 1234" class="flex-1 appearance-none rounded-md border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-500 focus:z-10 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm">
+                <button id="btn-search-prior" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                    Search
+                </button>
+            </div>
+         </div>
+
+         <!-- Results Section -->
+         <div id="prior-results" class="space-y-4">
+             <!-- Results will be injected here -->
+             <div class="text-center text-gray-500 py-8">
+                <i class="fas fa-search text-4xl text-gray-300 mb-2"></i>
+                <p>Enter a store number to view past tours.</p>
+             </div>
+         </div>
+    </div>
+
+    </div> <!-- End main-content -->
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="fixed bottom-0 w-full bg-white border-t border-gray-200 pb-safe z-50">
+        <div class="grid grid-cols-4 h-16">
+            <!-- Home Tab -->
+            <button onclick="switchTab('home')" class="nav-btn w-full h-full flex flex-col items-center justify-center space-y-1 text-indigo-600 focus:outline-none transition-colors" data-target="view-home">
+                <i class="fas fa-home text-xl"></i>
+                <span class="text-xs font-medium">Home</span>
+            </button>
+            
+            <!-- Visits Tab -->
+            <button onclick="switchTab('visits')" class="nav-btn w-full h-full flex flex-col items-center justify-center space-y-1 text-gray-500 hover:text-indigo-600 focus:outline-none transition-colors" data-target="view-visits">
+                <i class="fas fa-clipboard-list text-xl"></i>
+                <span class="text-xs font-medium">Visits</span>
+            </button>
+            
+            <!-- Summary Tab -->
+            <button onclick="switchTab('summary')" class="nav-btn w-full h-full flex flex-col items-center justify-center space-y-1 text-gray-500 hover:text-indigo-600 focus:outline-none transition-colors" data-target="view-summary">
+                <i class="fas fa-chart-pie text-xl"></i>
+                <span class="text-xs font-medium">Summary</span>
+            </button>
+
+            <!-- Prior Tours Tab -->
+            <button onclick="switchTab('prior-tours')" class="nav-btn w-full h-full flex flex-col items-center justify-center space-y-1 text-gray-500 hover:text-indigo-600 focus:outline-none transition-colors" data-target="view-prior-tours">
+                <i class="fas fa-history text-xl"></i>
+                <span class="text-xs font-medium text-center leading-tight">Prior<br>Tours</span>
+            </button>
+        </div>
+    </nav>
+
     <script>
-        // --- DOM Elements ---
+        // --- Navigation Logic ---
+        
+        async function loadVisits() {
+            const tbody = document.getElementById('visits-table-body');
+            
+            // Show loading state if table is empty or we want to refresh visual
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="3" class="px-6 py-12 text-center">
+                        <svg class="animate-spin h-8 w-8 text-indigo-600 mx-auto mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <p class="text-sm text-gray-500">Loading recent visits...</p>
+                    </td>
+                </tr>
+            `;
+
+            try {
+                const response = await fetch('/api/visits');
+                if (!response.ok) throw new Error('Failed to fetch visits');
+                
+                const data = await response.json();
+                
+                if (data.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="3" class="px-6 py-8 text-center text-gray-500">
+                                No visits recorded yet.
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                // Render rows
+                tbody.innerHTML = data.map(visit => {
+                    // Rating styling
+                    let badgeClass = 'bg-gray-100 text-gray-800';
+                    if (visit.rating === 'Green') badgeClass = 'bg-green-100 text-green-800';
+                    else if (visit.rating === 'Yellow') badgeClass = 'bg-yellow-100 text-yellow-800';
+                    else if (visit.rating === 'Red') badgeClass = 'bg-red-100 text-red-800';
+                    
+                    // Format date (remove time if present)
+                    const dateStr = visit.calendar_date ? new Date(visit.calendar_date).toLocaleDateString() : 'N/A';
+
+                    // Parse Top 3
+                    let top3Html = '<span class="text-gray-400 italic text-xs">None</span>';
+                    if (visit.top_3) {
+                        const items = visit.top_3.split('\n').filter(i => i.trim());
+                        if (items.length > 0) {
+                            top3Html = `<ul class="list-disc list-inside text-xs text-gray-600 space-y-1 max-w-xs">
+                                ${items.map(item => `<li class="truncate" title="${item}">${item}</li>`).join('')}
+                            </ul>`;
+                        }
+                    }
+
+                    return `
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                #${visit.storeNbr || '?'}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                ${dateStr}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${badgeClass}">
+                                    ${visit.rating || 'N/A'}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-500">
+                                ${top3Html}
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+                
+            } catch (error) {
+                console.error(error);
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="3" class="px-6 py-8 text-center text-red-500">
+                            Error loading visits. <br>
+                            <button onclick="loadVisits()" class="mt-2 underline text-indigo-600">Try Again</button>
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        async function loadSummary() {
+            const tbody = document.getElementById('summary-table-body');
+            
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="3" class="px-6 py-12 text-center">
+                        <svg class="animate-spin h-8 w-8 text-indigo-600 mx-auto mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <p class="text-sm text-gray-500">Calculating metrics...</p>
+                    </td>
+                </tr>
+            `;
+
+            try {
+                const response = await fetch('/api/summary');
+                if (!response.ok) throw new Error('Failed to fetch summary');
+                
+                const data = await response.json();
+                
+                if (data.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="3" class="px-6 py-8 text-center text-gray-500">
+                                No store data available.
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                // Helper for rating badges
+                const getRatingBadge = (rating, date) => {
+                    if (!rating) return '<span class="text-gray-400 text-xs italic">No Data</span>';
+                    
+                    let colorClass = 'bg-gray-100 text-gray-800';
+                    if (rating === 'Green') colorClass = 'bg-green-100 text-green-800';
+                    if (rating === 'Yellow') colorClass = 'bg-yellow-100 text-yellow-800';
+                    if (rating === 'Red') colorClass = 'bg-red-100 text-red-800';
+                    
+                    const dateStr = date ? new Date(date).toLocaleDateString() : '';
+                    
+                    return `
+                        <div class="flex flex-col items-start">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${colorClass} mb-1">
+                                ${rating}
+                            </span>
+                            <span class="text-xs text-gray-500">${dateStr}</span>
+                        </div>
+                    `;
+                };
+
+                // Render rows
+                tbody.innerHTML = data.map(store => {
+                    // recent_visits is ordered DESC (0 is most recent, 1 is previous)
+                    const mostRecent = store.recent_visits[0] || {};
+                    const previous = store.recent_visits[1] || {};
+
+                    return `
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                #${store.storeNbr}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                ${getRatingBadge(mostRecent.rating, mostRecent.calendar_date)}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                ${getRatingBadge(previous.rating, previous.calendar_date)}
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+
+            } catch (error) {
+                console.error(error);
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="3" class="px-6 py-8 text-center text-red-500">
+                            Error loading summary.
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        function switchTab(tabName) {
+            // Hide all views
+            ['view-home', 'view-visits', 'view-summary', 'view-prior-tours'].forEach(id => {
+                document.getElementById(id).classList.add('hidden-view');
+            });
+            
+            // Show target view
+            const targetId = 'view-' + tabName;
+            document.getElementById(targetId).classList.remove('hidden-view');
+            
+            // Load data if needed
+            if (tabName === 'visits') {
+                loadVisits();
+            } else if (tabName === 'summary') {
+                loadSummary();
+            }
+            
+            // Update active state of buttons
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                const isTarget = btn.getAttribute('data-target') === targetId;
+                if (isTarget) {
+                    btn.classList.add('text-indigo-600');
+                    btn.classList.remove('text-gray-500');
+                } else {
+                    btn.classList.remove('text-indigo-600');
+                    btn.classList.add('text-gray-500');
+                }
+            });
+        }
+        
+        // --- Existing DOM Elements ---
         const imageUpload = document.getElementById('image-upload');
+        const cameraInput = document.getElementById('camera-input');
         const imagePreview = document.getElementById('image-preview');
         const imagePreviewContainer = document.getElementById('image-preview-container');
         const analyzeButton = document.getElementById('analyze-button');
@@ -190,12 +554,107 @@
         const duplicateCancelBtn = document.getElementById('duplicate-cancel-btn');
         const duplicateSubmitBtn = document.getElementById('duplicate-submit-btn');
 
+        // Prior Tours Elements
+        const btnSearchPrior = document.getElementById('btn-search-prior');
+        const inputPriorStoreNbr = document.getElementById('prior-store-nbr');
+        const divPriorResults = document.getElementById('prior-results');
+
         let base64ImageData = null;
         let fileMimeType = null;
         let currentParsedData = null; // Store parsed data for saving later
 
         // --- Event Listeners ---
-        imageUpload.addEventListener('change', (event) => {
+        
+        // Prior Tours Search
+        btnSearchPrior.addEventListener('click', async () => {
+            const storeNbr = inputPriorStoreNbr.value.trim();
+            if (!storeNbr) {
+                alert('Please enter a store number');
+                return;
+            }
+
+            // Show loading state
+            divPriorResults.innerHTML = `
+                <div class="text-center py-8">
+                    <svg class="animate-spin h-8 w-8 text-indigo-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <p class="mt-2 text-sm text-gray-500">Searching records...</p>
+                </div>
+            `;
+
+            try {
+                const response = await fetch(`/api/visits?storeNbr=${encodeURIComponent(storeNbr)}`);
+                if (!response.ok) throw new Error('Failed to fetch visits');
+                
+                const data = await response.json();
+                
+                if (data.length === 0) {
+                    divPriorResults.innerHTML = `
+                        <div class="text-center py-8 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                            <p class="text-gray-500">No prior tours found for store #${storeNbr}</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                // Render Results
+                divPriorResults.innerHTML = data.map(visit => {
+                    // Determine rating color
+                    let ratingClass = 'bg-gray-100 text-gray-800';
+                    if (visit.rating === 'Green') ratingClass = 'bg-green-100 text-green-800';
+                    if (visit.rating === 'Yellow') ratingClass = 'bg-yellow-100 text-yellow-800';
+                    if (visit.rating === 'Red') ratingClass = 'bg-red-100 text-red-800';
+
+                    // Parse top_3 (it might be a string with newlines or already an array depending on storage)
+                    // The backend code joins it with \n before saving.
+                    let top3List = [];
+                    if (visit.top_3) {
+                        top3List = visit.top_3.split('\n').filter(item => item.trim() !== '');
+                    }
+
+                    return `
+                        <div class="bg-white p-5 rounded-lg shadow border border-gray-100">
+                            <div class="flex justify-between items-start mb-3">
+                                <div>
+                                    <span class="text-sm text-gray-500">Date</span>
+                                    <p class="font-bold text-gray-900">${visit.calendar_date || 'N/A'}</p>
+                                </div>
+                                <span class="px-3 py-1 rounded-full text-xs font-bold ${ratingClass}">
+                                    ${visit.rating || 'N/A'}
+                                </span>
+                            </div>
+                            
+                            <div class="mt-3">
+                                <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Top 3 Opportunities</h4>
+                                ${top3List.length > 0 
+                                    ? `<ul class="space-y-1">
+                                        ${top3List.map(item => `
+                                            <li class="flex items-start text-sm text-gray-700">
+                                                <i class="fas fa-exclamation-circle text-yellow-500 mt-1 mr-2 text-xs"></i>
+                                                <span>${item}</span>
+                                            </li>
+                                        `).join('')}
+                                       </ul>`
+                                    : '<p class="text-sm text-gray-400 italic">No top 3 notes recorded.</p>'
+                                }
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+            } catch (error) {
+                console.error(error);
+                divPriorResults.innerHTML = `
+                    <div class="p-4 bg-red-50 text-red-700 rounded-lg">
+                        Error loading visits: ${error.message}
+                    </div>
+                `;
+            }
+        });
+
+        const handleImageSelect = (event) => {
             const file = event.target.files[0];
             if (file) {
                 // Check file type
@@ -221,7 +680,12 @@
                 
                 hideError();
             }
-        });
+        };
+
+        imageUpload.addEventListener('change', handleImageSelect);
+        if (cameraInput) {
+            cameraInput.addEventListener('change', handleImageSelect);
+        }
 
         analyzeButton.addEventListener('click', async () => {
             if (!base64ImageData || !fileMimeType) {
