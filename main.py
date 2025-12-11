@@ -313,11 +313,17 @@ def save_visit():
     try:
         cursor = conn.cursor()
 
+        # Extract metrics from nested object
+        metrics = data.get('metrics', {})
+
         # Prepare data for PostgreSQL
         query = """
             INSERT INTO store_visits
-            ("storeNbr", calendar_date, rating, store_notes, mkt_notes, good, top_3)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ("storeNbr", calendar_date, rating, store_notes, mkt_notes, good, top_3,
+             sales_comp_yest, sales_index_yest, sales_comp_wtd, sales_index_wtd,
+             sales_comp_mtd, sales_index_mtd, vizpick, overstock, picks, vizfashion,
+             modflex, tag_errors, mods, pcs, pinpoint, ftpr, presub)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
 
         values = (
@@ -327,7 +333,25 @@ def save_visit():
             data.get('store_notes', ''),
             data.get('mkt_notes', ''),
             "\n".join(data.get('good', [])) if isinstance(data.get('good'), list) else str(data.get('good', '')),
-            "\n".join(data.get('top_3', [])) if isinstance(data.get('top_3'), list) else str(data.get('top_3', ''))
+            "\n".join(data.get('top_3', [])) if isinstance(data.get('top_3'), list) else str(data.get('top_3', '')),
+            # Metrics
+            metrics.get('sales_comp_yest'),
+            metrics.get('sales_index_yest'),
+            metrics.get('sales_comp_wtd'),
+            metrics.get('sales_index_wtd'),
+            metrics.get('sales_comp_mtd'),
+            metrics.get('sales_index_mtd'),
+            metrics.get('vizpick'),
+            metrics.get('overstock'),
+            metrics.get('picks'),
+            metrics.get('vizfashion'),
+            metrics.get('modflex'),
+            metrics.get('tag_errors'),
+            metrics.get('mods'),
+            metrics.get('pcs'),
+            metrics.get('pinpoint'),
+            metrics.get('ftpr'),
+            metrics.get('presub')
         )
 
         cursor.execute(query, values)
