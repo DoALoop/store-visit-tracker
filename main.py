@@ -176,9 +176,11 @@ EXTRACT AND STRUCTURE THE FOLLOWING INFORMATION AS JSON:
    - DO NOT create generic or assumed notes
 
 5. "mkt_notes": Market or competitive notes (if present)
-   - Look for mentions of competitors, market conditions, external factors
+   - Look for sections labeled as: "Market", "Mkt", "Me", "me", "M:", "Market Notes", or similar variations
+   - Also look for mentions of competitors, market conditions, external factors even if not explicitly labeled
    - Return as separate bullet points
    - If no market notes present, return empty array []
+   - Common abbreviations: "Me" often means "Market", case-insensitive
 
 6. "good": What's working well - extract as an array of strings
    - Each positive observation = one array item
@@ -194,24 +196,27 @@ EXTRACT AND STRUCTURE THE FOLLOWING INFORMATION AS JSON:
 
 8. "metrics": An object containing the following numerical metrics (use null if not found):
    {
-     "sales_comp_yest": number or percentage (ONLY if written),
-     "sales_index_yest": number (ONLY if written),
-     "sales_comp_wtd": number or percentage (ONLY if written),
-     "sales_index_wtd": number (ONLY if written),
-     "sales_comp_mtd": number or percentage (ONLY if written),
-     "sales_index_mtd": number (ONLY if written),
-     "vizpick": number or percentage (ONLY if written),
-     "overstock": number (ONLY if written),
-     "picks": number (ONLY if written),
-     "vizfashion": number or percentage (ONLY if written),
-     "modflex": number or percentage (ONLY if written),
-     "tag_errors": number (ONLY if written),
-     "mods": number (ONLY if written),
-     "pcs": number (ONLY if written),
-     "pinpoint": number or percentage (ONLY if written)
+     "sales_comp_yest": number or percentage - Look for: "Comp Yest", "Comp Y", "Yesterday Comp", "Yest Comp"
+     "sales_index_yest": number - Look for: "Index Yest", "Index Y", "Yesterday Index", "Yest Index"
+     "sales_comp_wtd": number or percentage - Look for: "Comp WTD", "WTD Comp", "Week Comp"
+     "sales_index_wtd": number - Look for: "Index WTD", "WTD Index", "Week Index"
+     "sales_comp_mtd": number or percentage - Look for: "Comp MTD", "MTD Comp", "Month Comp"
+     "sales_index_mtd": number - Look for: "Index MTD", "MTD Index", "Month Index"
+     "vizpick": number or percentage - Look for: "Vizpick", "Viz Pick", "VizP", "VP" (often on left side)
+     "overstock": number - Look for: "Overstock", "OS", "O/S", "Over Stock"
+     "picks": number - Look for: "Picks", "Pick", "P" (context-dependent)
+     "vizfashion": number or percentage - Look for: "Viz Fashion", "VizFashion", "Fashion", "Viz F", "VF" (often on left side, may just say "Fashion")
+     "modflex": number or percentage - Look for: "Modflex", "Mod Flex", "MF", "Flex"
+     "tag_errors": number - Look for: "Tag Errors", "Tags", "Tag Err", "TE"
+     "mods": number - Look for: "Mods", "Mod", "M" (context-dependent)
+     "pcs": number - Look for: "PCS", "Pcs", "Pieces", "PC"
+     "pinpoint": number or percentage - Look for: "Pinpoint", "Pin Point", "PP"
    }
+   - CRITICAL: Pay special attention to the LEFT SIDE of the paper where metrics like Vizpick, Overstock, Picks, and Viz Fashion are often written
    - Each metric should be null if not found on the page
    - DO NOT calculate or derive metrics from other numbers
+   - Extract the number exactly as written (include decimals, percentages)
+   - If you see just "Fashion" on the left side, it likely refers to "vizfashion"
 
 HANDWRITING INTERPRETATION GUIDANCE:
 - Common word confusions: "a" vs "o", "n" vs "u", "r" vs "v"
