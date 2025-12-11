@@ -290,8 +290,27 @@ Example structure:
         return jsonify(parsed_result)
 
     except Exception as e:
-        print(f"Error analyzing image: {e}")
-        return jsonify({"error": str(e)}), 500
+        error_message = str(e)
+        print(f"Error analyzing image: {error_message}")
+
+        # Check for quota-specific errors
+        if "quota" in error_message.lower() or "429" in error_message or "resourceExhausted" in error_message:
+            return jsonify({
+                "error": "AI quota limit reached. Please try again later.",
+                "error_type": "quota_exceeded",
+                "details": error_message
+            }), 429
+        elif "503" in error_message or "unavailable" in error_message.lower():
+            return jsonify({
+                "error": "AI service temporarily unavailable. Please try again.",
+                "error_type": "service_unavailable",
+                "details": error_message
+            }), 503
+        else:
+            return jsonify({
+                "error": error_message,
+                "error_type": "analysis_error"
+            }), 500
 
 @app.route('/api/save-visit', methods=['POST'])
 def save_visit():
