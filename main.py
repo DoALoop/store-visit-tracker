@@ -211,6 +211,8 @@ EXTRACT AND STRUCTURE THE FOLLOWING INFORMATION AS JSON:
      "mods": number - Look for: "Mods", "Mod", "M" (context-dependent)
      "pcs": number - Look for: "PCS", "Pcs", "Pieces", "PC"
      "pinpoint": number or percentage - Look for: "Pinpoint", "Pin Point", "PP"
+     "ftpr": number or percentage - Look for: "FTPR", "FTPr", "FT PR", "First Time Pass Rate"
+     "presub": number or percentage - Look for: "Presub", "Pre-Sub", "Pre Sub", "PS"
    }
    - CRITICAL: Pay special attention to the LEFT SIDE of the paper where metrics like Vizpick, Overstock, Picks, and Viz Fashion are often written
    - Each metric should be null if not found on the page
