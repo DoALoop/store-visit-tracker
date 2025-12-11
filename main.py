@@ -494,6 +494,137 @@ def get_summary():
         return jsonify({"error": str(e)}), 500
     finally:
         release_db_connection(conn)
+@app.route('/api/market-notes', methods=['GET'])
+def get_market_notes():
+    """Get all market notes from all visits with their completion status"""
+    if not db_pool:
+        return jsonify({"error": "Server is not configured to connect to database."}), 500
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Query to get all visits with market notes and their completion status
+        query = """
+            SELECT
+                sv.id as visit_id,
+                sv."storeNbr" as store_nbr,
+                sv.calendar_date,
+                sv.mkt_notes,
+                COALESCE(
+                    json_agg(
+                        json_build_object(
+                            'note_text', mnc.note_text,
+                            'completed', mnc.completed,
+                            'completed_at', mnc.completed_at
+                        )
+                    ) FILTER (WHERE mnc.note_text IS NOT NULL),
+                    '[]'::json
+                ) as completions
+            FROM store_visits sv
+            LEFT JOIN market_note_completions mnc ON sv.id = mnc.visit_id
+            WHERE sv.mkt_notes IS NOT NULL AND sv.mkt_notes != ''
+            GROUP BY sv.id, sv."storeNbr", sv.calendar_date, sv.mkt_notes
+            ORDER BY sv.calendar_date DESC
+        """
+
+        cursor.execute(query)
+        results = cursor.fetchall()
+        cursor.close()
+
+        # Process results to expand market notes into individual items
+        market_notes = []
+        for row in results:
+            mkt_notes_text = row['mkt_notes']
+            if not mkt_notes_text:
+                continue
+
+            # Split market notes by newline to get individual notes
+            notes_list = [note.strip() for note in mkt_notes_text.split('\n') if note.strip()]
+
+            # Create completion lookup
+            completions_dict = {}
+            for comp in row['completions']:
+                if comp and 'note_text' in comp:
+                    completions_dict[comp['note_text']] = comp['completed']
+
+            # Create an item for each note
+            for note_text in notes_list:
+                market_notes.append({
+                    "visit_id": row['visit_id'],
+                    "store_nbr": row['store_nbr'],
+                    "calendar_date": row['calendar_date'].isoformat() if row['calendar_date'] else None,
+                    "note_text": note_text,
+                    "completed": completions_dict.get(note_text, False)
+                })
+
+        return jsonify(market_notes)
+
+    except Exception as e:
+        print(f"Error fetching market notes: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/market-notes/toggle', methods=['POST'])
+def toggle_market_note():
+    """Toggle the completion status of a market note"""
+    if not db_pool:
+        return jsonify({"error": "Database not connected"}), 500
+
+    data = request.get_json()
+
+    # Validate required fields
+    if not all(key in data for key in ['visit_id', 'note_text', 'completed']):
+        return jsonify({"error": "Missing required fields: visit_id, note_text, completed"}), 400
+
+    visit_id = data['visit_id']
+    note_text = data['note_text']
+    completed = data['completed']
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor()
+
+        # Insert or update the completion status
+        from datetime import datetime
+
+        query = """
+            INSERT INTO market_note_completions (visit_id, note_text, completed, completed_at)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (visit_id, note_text)
+            DO UPDATE SET
+                completed = EXCLUDED.completed,
+                completed_at = EXCLUDED.completed_at
+        """
+
+        completed_at = datetime.now() if completed else None
+
+        cursor.execute(query, (
+            visit_id,
+            note_text,
+            completed,
+            completed_at
+        ))
+
+        conn.commit()
+        cursor.close()
+
+        return jsonify({"success": True, "message": "Market note status updated"})
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error toggling market note: {e}")
+        return jsonify({"error": str(e), "success": False}), 500
+    finally:
+        release_db_connection(conn)
 
 
 if __name__ == "__main__":
