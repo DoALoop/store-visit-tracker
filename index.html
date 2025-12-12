@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Store Visit Note Analyzer</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    padding: {
+                        'safe': 'env(safe-area-inset-bottom)',
+                    }
+                },
+            },
+        }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .pb-safe {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        /* Custom hide utility to ensure specificity */
+        .hidden-view {
+            display: none !important;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 h-full">
+    <!-- Views Container -->
+    <div id="main-content" class="h-full overflow-y-auto pb-24">
+
+        <!-- VIEW: HOME (Upload Form) -->
+        <div id="view-home" class="flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+            <div class="max-w-2xl w-full space-y-8 p-10 bg-white rounded-2xl shadow-xl">
+        <div>
+            <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
+                Store Visit Note Uploader
+            </h2>
+            <p class="mt-2 text-center text-sm text-gray-600">
+                Upload a photo of your handwritten notes to automatically categorize them.
+            </p>
+        </div>
+        
+        <!-- File Upload Area -->
+        <div class="space-y-6">
+            <div>
+                <label for="image-upload" class="block text-sm font-medium text-gray-700">
+                    Handwritten Note Photo
+                </label>
+                <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg">
+                    <div class="space-y-3 text-center">
+                        
+                        <!-- Camera Button -->
+                        <button type="button" onclick="document.getElementById('camera-input').click()" class="inline-flex items-center px-4 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 w-full justify-center">
+                            <i class="fas fa-camera mr-2"></i> Take Photo
+                        </button>
+                        <input id="camera-input" type="file" accept="image/*" capture="environment" class="sr-only">
+
+                        <div class="relative">
+                            <div class="absolute inset-0 flex items-center">
+                                <div class="w-full border-t border-gray-300"></div>
+                            </div>
+                            <div class="relative flex justify-center text-sm">
+                                <span class="px-2 bg-white text-gray-500">Or</span>
+                            </div>
+                        </div>
+
+                        <div class="flex text-sm text-gray-600 justify-center">
+                            <label for="image-upload" class="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500">
+                                <span>Upload from Gallery</span>
+                                <input id="image-upload" name="image-upload" type="file" class="sr-only" accept="image/*">
+                            </label>
+                        </div>
+                        <p class="text-xs text-gray-500">
+                            PNG, JPG, GIF up to 10MB
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Preview Image -->
+            <div id="image-preview-container" class="hidden">
+                <p class="block text-sm font-medium text-gray-700">Image Preview:</p>
+                <img id="image-preview" src="" alt="Image preview" class="mt-2 rounded-lg shadow-md max-h-60 w-auto mx-auto"/>
+            </div>
+
+            <div>
+                <button id="analyze-button" type="submit" class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-gray-400">
+                    Analyze Notes
+                </button>
+            </div>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div id="loading-spinner" class="hidden text-center">
+            <svg class="animate-spin -ml-1 mr-3 h-8 w-8 text-indigo-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p class="mt-2 text-sm text-gray-600">Analyzing handwriting... this may take a moment.</p>
+        </div>
+
+        <!-- Error Message -->
+        <div id="error-message" class="hidden p-4 bg-red-100 text-red-700 rounded-lg">
+            <p><strong>Error:</strong> <span id="error-text"></span></p>
+        </div>
+
+        <!-- Duplicate Warning Modal -->
+        <div id="duplicate-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+            <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-96 shadow-lg rounded-md bg-white">
+                <div class="mt-3">
+                    <div class="flex items-center justify-center w-12 h-12 mx-auto bg-yellow-100 rounded-full">
+                        <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-medium text-gray-900 text-center mt-4">Potential Duplicate</h3>
+                    <div class="mt-4 px-4 py-3 bg-yellow-50 rounded-lg">
+                        <p class="text-sm text-gray-700 mb-2">An entry for this store and date already exists:</p>
+                        <div id="duplicate-details" class="text-sm font-mono text-gray-800">
+                            <!-- Details will be inserted by JavaScript -->
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-600 text-center mt-4">Would you like to submit this entry anyway?</p>
+                    <div class="flex gap-4 mt-4">
+                        <button id="duplicate-cancel-btn" class="flex-1 px-4 py-2 bg-gray-200 text-gray-800 text-base font-medium rounded-md shadow-sm hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-300">
+                            Cancel
+                        </button>
+                        <button id="duplicate-submit-btn" class="flex-1 px-4 py-2 bg-indigo-600 text-white text-base font-medium rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            Submit Anyway
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div id="results-container" class="hidden space-y-6">
+            <h3 class="text-2xl font-bold text-gray-900">Analysis Results</h3>
+
+            <!-- Store Rating Section - Prominent Display -->
+            <div class="bg-white border-2 p-6 rounded-lg shadow-lg text-center">
+                <h4 class="text-lg font-semibold text-gray-800 mb-3">Store Rating</h4>
+                <div id="result-rating" class="inline-flex items-center justify-center px-6 py-3 text-2xl font-bold rounded-full">
+                    <!-- Rating badge will be inserted here by JavaScript -->
+                </div>
+            </div>
+
+            <!-- Date and Store Number -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-indigo-50 p-6 rounded-lg shadow-inner">
+                    <h4 class="text-lg font-semibold text-indigo-800">Tour Date</h4>
+                    <p id="result-calendar-date" class="mt-2 text-xl font-bold text-indigo-900"></p>
+                </div>
+
+                <div class="bg-indigo-50 p-6 rounded-lg shadow-inner">
+                    <h4 class="text-lg font-semibold text-indigo-800">Store Number</h4>
+                    <p id="result-store-nbr" class="mt-2 text-xl font-bold text-indigo-900"></p>
+                </div>
+            </div>
+
+            <!-- Store Notes (TO Store) -->
+            <div class="bg-gray-50 p-6 rounded-lg shadow-inner">
+                <h4 class="text-lg font-semibold text-gray-800">Store Notes</h4>
+                <p id="result-store-notes" class="mt-2 text-sm text-gray-700 whitespace-pre-wrap font-mono"></p>
+            </div>
+
+            <!-- Market Notes (FROM Store) -->
+            <div class="bg-purple-50 p-6 rounded-lg shadow-inner">
+                <h4 class="text-lg font-semibold text-purple-800">Market Notes</h4>
+                <p id="result-mkt-notes" class="mt-2 text-sm text-purple-700 whitespace-pre-wrap font-mono"></p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Good -->
+                <div class="bg-green-50 p-6 rounded-lg shadow-inner">
+                    <h4 class="text-lg font-semibold text-green-800">What's Good</h4>
+                    <p id="result-good" class="mt-2 text-sm text-green-700 whitespace-pre-wrap font-mono"></p>
+                </div>
+
+                <!-- Top 3 -->
+                <div class="bg-yellow-50 p-6 rounded-lg shadow-inner">
+                    <h4 class="text-lg font-semibold text-yellow-800">Top 3 Things Needed</h4>
+                    <p id="result-top-3" class="mt-2 text-sm text-yellow-700 whitespace-pre-wrap font-mono"></p>
+                </div>
+            </div>
+        </div>
+
+        </div>
+    </div> <!-- End view-home -->
+
+    <!-- VIEW: VISITS (History List) -->
+    <div id="view-visits" class="hidden-view p-4 max-w-2xl mx-auto">
+         <div class="flex justify-between items-center mb-4">
+             <h2 class="text-2xl font-bold text-gray-900">Visits</h2>
+             <button onclick="loadVisits()" class="text-sm text-indigo-600 hover:text-indigo-800">
+                 <i class="fas fa-sync-alt mr-1"></i> Refresh
+             </button>
+         </div>
+         
+         <div class="bg-white rounded-lg shadow overflow-hidden">
+             <div class="overflow-x-auto">
+                 <table class="min-w-full divide-y divide-gray-200">
+                     <thead class="bg-gray-50">
+                         <tr>
+                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Store</th>
+                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rating</th>
+                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Top 3 Opportunities</th>
+                         </tr>
+                     </thead>
+                     <tbody id="visits-table-body" class="bg-white divide-y divide-gray-200">
+                         <!-- Rows will be inserted here -->
+                         <tr>
+                             <td colspan="3" class="px-6 py-4 text-center text-sm text-gray-500">
+                                 Loading visits...
+                             </td>
+                         </tr>
+                     </tbody>
+                 </table>
+             </div>
+         </div>
+    </div>
+
+    <!-- VIEW: SUMMARY -->
+    <div id="view-summary" class="hidden-view p-4 max-w-2xl mx-auto">
+         <div class="flex justify-between items-center mb-4">
+             <h2 class="text-2xl font-bold text-gray-900">Store Ratings Summary</h2>
+             <button onclick="loadSummary()" class="text-sm text-indigo-600 hover:text-indigo-800">
+                 <i class="fas fa-sync-alt mr-1"></i> Refresh
+             </button>
+         </div>
+
+         <!-- Store Ratings Card -->
+         <div class="bg-white rounded-lg shadow overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                <h3 class="text-lg font-medium text-gray-900">Recent Performance</h3>
+                <p class="text-sm text-gray-500">Last 2 ratings per store</p>
+            </div>
+            
+            <div class="overflow-x-auto">
+                 <table class="min-w-full divide-y divide-gray-200">
+                     <thead class="bg-white">
+                         <tr>
+                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Store</th>
+                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Most Recent</th>
+                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Previous</th>
+                         </tr>
+                     </thead>
+                     <tbody id="summary-table-body" class="bg-white divide-y divide-gray-200">
+                         <tr>
+                             <td colspan="3" class="px-6 py-4 text-center text-sm text-gray-500">
+                                 Loading summary...
+                             </td>
+                         </tr>
+                     </tbody>
+                 </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- VIEW: PRIOR TOURS -->
+    <div id="view-prior-tours" class="hidden-view p-4 max-w-2xl mx-auto">
+         <h2 class="text-2xl font-bold text-gray-900 mb-4">Prior Tours</h2>
+         
+         <!-- Search Section -->
+         <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <label for="prior-store-nbr" class="block text-sm font-medium text-gray-700 mb-2">Store Number</label>
+            <div class="flex gap-2">
+                <input type="text" id="prior-store-nbr" placeholder="e.g. 1234" class="flex-1 appearance-none rounded-md border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-500 focus:z-10 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm">
+                <button id="btn-search-prior" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                    Search
+                </button>
+            </div>
+         </div>
+
+         <!-- Results Section -->
+         <div id="prior-results" class="space-y-4">
+             <!-- Results will be injected here -->
+             <div class="text-center text-gray-500 py-8">
+                <i class="fas fa-search text-4xl text-gray-300 mb-2"></i>
+                <p>Enter a store number to view past tours.</p>
+             </div>
+         </div>
+    </div>
+
+    </div> <!-- End main-content -->
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="fixed bottom-0 w-full bg-white border-t border-gray-200 pb-safe z-50">
+        <div class="grid grid-cols-4 h-16">
+            <!-- Home Tab -->
+            <button onclick="switchTab('home')" class="nav-btn w-full h-full flex flex-col items-center justify-center space-y-1 text-indigo-600 focus:outline-none transition-colors" data-target="view-home">
+                <i class="fas fa-home text-xl"></i>
+                <span class="text-xs font-medium">Home</span>
+            </button>
+            
+            <!-- Visits Tab -->
+            <button onclick="switchTab('visits')" class="nav-btn w-full h-full flex flex-col items-center justify-center space-y-1 text-gray-500 hover:text-indigo-600 focus:outline-none transition-colors" data-target="view-visits">
+                <i class="fas fa-clipboard-list text-xl"></i>
+                <span class="text-xs font-medium">Visits</span>
+            </button>
+            
+            <!-- Summary Tab -->
+            <button onclick="switchTab('summary')" class="nav-btn w-full h-full flex flex-col items-center justify-center space-y-1 text-gray-500 hover:text-indigo-600 focus:outline-none transition-colors" data-target="view-summary">
+                <i class="fas fa-chart-pie text-xl"></i>
+                <span class="text-xs font-medium">Summary</span>
+            </button>
+
+            <!-- Prior Tours Tab -->
+            <button onclick="switchTab('prior-tours')" class="nav-btn w-full h-full flex flex-col items-center justify-center space-y-1 text-gray-500 hover:text-indigo-600 focus:outline-none transition-colors" data-target="view-prior-tours">
+                <i class="fas fa-history text-xl"></i>
+                <span class="text-xs font-medium text-center leading-tight">Prior<br>Tours</span>
+            </button>
+        </div>
+    </nav>
+
+    <script>
+        // --- Navigation Logic ---
+        
+        async function loadVisits() {
+            const tbody = document.getElementById('visits-table-body');
+            
+            // Show loading state if table is empty or we want to refresh visual
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="3" class="px-6 py-12 text-center">
+                        <svg class="animate-spin h-8 w-8 text-indigo-600 mx-auto mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <p class="text-sm text-gray-500">Loading recent visits...</p>
+                    </td>
+                </tr>
+            `;
+
+            try {
+                const response = await fetch('/api/visits');
+                if (!response.ok) throw new Error('Failed to fetch visits');
+                
+                const data = await response.json();
+                
+                if (data.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="3" class="px-6 py-8 text-center text-gray-500">
+                                No visits recorded yet.
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                // Render rows
+                tbody.innerHTML = data.map(visit => {
+                    // Rating styling
+                    let badgeClass = 'bg-gray-100 text-gray-800';
+                    if (visit.rating === 'Green') badgeClass = 'bg-green-100 text-green-800';
+                    else if (visit.rating === 'Yellow') badgeClass = 'bg-yellow-100 text-yellow-800';
+                    else if (visit.rating === 'Red') badgeClass = 'bg-red-100 text-red-800';
+                    
+                    // Format date (remove time if present)
+                    const dateStr = visit.calendar_date ? new Date(visit.calendar_date).toLocaleDateString() : 'N/A';
+
+                    // Parse Top 3
+                    let top3Html = '<span class="text-gray-400 italic text-xs">None</span>';
+                    if (visit.top_3) {
+                        const items = visit.top_3.split('\n').filter(i => i.trim());
+                        if (items.length > 0) {
+                            top3Html = `<ul class="list-disc list-inside text-xs text-gray-600 space-y-1 max-w-xs">
+                                ${items.map(item => `<li class="truncate" title="${item}">${item}</li>`).join('')}
+                            </ul>`;
+                        }
+                    }
+
+                    return `
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                #${visit.storeNbr || '?'}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                ${dateStr}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${badgeClass}">
+                                    ${visit.rating || 'N/A'}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-500">
+                                ${top3Html}
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+                
+            } catch (error) {
+                console.error(error);
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="3" class="px-6 py-8 text-center text-red-500">
+                            Error loading visits. <br>
+                            <button onclick="loadVisits()" class="mt-2 underline text-indigo-600">Try Again</button>
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        async function loadSummary() {
+            const tbody = document.getElementById('summary-table-body');
+            
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="3" class="px-6 py-12 text-center">
+                        <svg class="animate-spin h-8 w-8 text-indigo-600 mx-auto mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <p class="text-sm text-gray-500">Calculating metrics...</p>
+                    </td>
+                </tr>
+            `;
+
+            try {
+                const response = await fetch('/api/summary');
+                if (!response.ok) throw new Error('Failed to fetch summary');
+                
+                const data = await response.json();
+                
+                if (data.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="3" class="px-6 py-8 text-center text-gray-500">
+                                No store data available.
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                // Helper for rating badges
+                const getRatingBadge = (rating, date) => {
+                    if (!rating) return '<span class="text-gray-400 text-xs italic">No Data</span>';
+                    
+                    let colorClass = 'bg-gray-100 text-gray-800';
+                    if (rating === 'Green') colorClass = 'bg-green-100 text-green-800';
+                    if (rating === 'Yellow') colorClass = 'bg-yellow-100 text-yellow-800';
+                    if (rating === 'Red') colorClass = 'bg-red-100 text-red-800';
+                    
+                    const dateStr = date ? new Date(date).toLocaleDateString() : '';
+                    
+                    return `
+                        <div class="flex flex-col items-start">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${colorClass} mb-1">
+                                ${rating}
+                            </span>
+                            <span class="text-xs text-gray-500">${dateStr}</span>
+                        </div>
+                    `;
+                };
+
+                // Render rows
+                tbody.innerHTML = data.map(store => {
+                    // recent_visits is ordered DESC (0 is most recent, 1 is previous)
+                    const mostRecent = store.recent_visits[0] || {};
+                    const previous = store.recent_visits[1] || {};
+
+                    return `
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                #${store.storeNbr}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                ${getRatingBadge(mostRecent.rating, mostRecent.calendar_date)}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                ${getRatingBadge(previous.rating, previous.calendar_date)}
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+
+            } catch (error) {
+                console.error(error);
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="3" class="px-6 py-8 text-center text-red-500">
+                            Error loading summary.
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        function switchTab(tabName) {
+            // Hide all views
+            ['view-home', 'view-visits', 'view-summary', 'view-prior-tours'].forEach(id => {
+                document.getElementById(id).classList.add('hidden-view');
+            });
+            
+            // Show target view
+            const targetId = 'view-' + tabName;
+            document.getElementById(targetId).classList.remove('hidden-view');
+            
+            // Load data if needed
+            if (tabName === 'visits') {
+                loadVisits();
+            } else if (tabName === 'summary') {
+                loadSummary();
+            }
+            
+            // Update active state of buttons
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                const isTarget = btn.getAttribute('data-target') === targetId;
+                if (isTarget) {
+                    btn.classList.add('text-indigo-600');
+                    btn.classList.remove('text-gray-500');
+                } else {
+                    btn.classList.remove('text-indigo-600');
+                    btn.classList.add('text-gray-500');
+                }
+            });
+        }
+        
+        // --- Existing DOM Elements ---
+        const imageUpload = document.getElementById('image-upload');
+        const cameraInput = document.getElementById('camera-input');
+        const imagePreview = document.getElementById('image-preview');
+        const imagePreviewContainer = document.getElementById('image-preview-container');
+        const analyzeButton = document.getElementById('analyze-button');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const resultsContainer = document.getElementById('results-container');
+        const errorMessage = document.getElementById('error-message');
+        const errorText = document.getElementById('error-text');
+        
+        // Result fields
+        const resultRating = document.getElementById('result-rating');
+        const resultCalendarDate = document.getElementById('result-calendar-date');
+        const resultStoreNbr = document.getElementById('result-store-nbr');
+        const resultStoreNotes = document.getElementById('result-store-notes');
+        const resultMktNotes = document.getElementById('result-mkt-notes');
+        const resultGood = document.getElementById('result-good');
+        const resultTop3 = document.getElementById('result-top-3');
+
+        // Duplicate modal elements
+        const duplicateModal = document.getElementById('duplicate-modal');
+        const duplicateDetails = document.getElementById('duplicate-details');
+        const duplicateCancelBtn = document.getElementById('duplicate-cancel-btn');
+        const duplicateSubmitBtn = document.getElementById('duplicate-submit-btn');
+
+        // Prior Tours Elements
+        const btnSearchPrior = document.getElementById('btn-search-prior');
+        const inputPriorStoreNbr = document.getElementById('prior-store-nbr');
+        const divPriorResults = document.getElementById('prior-results');
+
+        let base64ImageData = null;
+        let fileMimeType = null;
+        let currentParsedData = null; // Store parsed data for saving later
+
+        // --- Event Listeners ---
+        
+        // Prior Tours Search
+        btnSearchPrior.addEventListener('click', async () => {
+            const storeNbr = inputPriorStoreNbr.value.trim();
+            if (!storeNbr) {
+                alert('Please enter a store number');
+                return;
+            }
+
+            // Show loading state
+            divPriorResults.innerHTML = `
+                <div class="text-center py-8">
+                    <svg class="animate-spin h-8 w-8 text-indigo-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <p class="mt-2 text-sm text-gray-500">Searching records...</p>
+                </div>
+            `;
+
+            try {
+                const response = await fetch(`/api/visits?storeNbr=${encodeURIComponent(storeNbr)}`);
+                if (!response.ok) throw new Error('Failed to fetch visits');
+                
+                const data = await response.json();
+                
+                if (data.length === 0) {
+                    divPriorResults.innerHTML = `
+                        <div class="text-center py-8 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                            <p class="text-gray-500">No prior tours found for store #${storeNbr}</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                // Render Results
+                divPriorResults.innerHTML = data.map(visit => {
+                    // Determine rating color
+                    let ratingClass = 'bg-gray-100 text-gray-800';
+                    if (visit.rating === 'Green') ratingClass = 'bg-green-100 text-green-800';
+                    if (visit.rating === 'Yellow') ratingClass = 'bg-yellow-100 text-yellow-800';
+                    if (visit.rating === 'Red') ratingClass = 'bg-red-100 text-red-800';
+
+                    // Parse top_3 (it might be a string with newlines or already an array depending on storage)
+                    // The backend code joins it with \n before saving.
+                    let top3List = [];
+                    if (visit.top_3) {
+                        top3List = visit.top_3.split('\n').filter(item => item.trim() !== '');
+                    }
+
+                    return `
+                        <div class="bg-white p-5 rounded-lg shadow border border-gray-100">
+                            <div class="flex justify-between items-start mb-3">
+                                <div>
+                                    <span class="text-sm text-gray-500">Date</span>
+                                    <p class="font-bold text-gray-900">${visit.calendar_date || 'N/A'}</p>
+                                </div>
+                                <span class="px-3 py-1 rounded-full text-xs font-bold ${ratingClass}">
+                                    ${visit.rating || 'N/A'}
+                                </span>
+                            </div>
+                            
+                            <div class="mt-3">
+                                <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Top 3 Opportunities</h4>
+                                ${top3List.length > 0 
+                                    ? `<ul class="space-y-1">
+                                        ${top3List.map(item => `
+                                            <li class="flex items-start text-sm text-gray-700">
+                                                <i class="fas fa-exclamation-circle text-yellow-500 mt-1 mr-2 text-xs"></i>
+                                                <span>${item}</span>
+                                            </li>
+                                        `).join('')}
+                                       </ul>`
+                                    : '<p class="text-sm text-gray-400 italic">No top 3 notes recorded.</p>'
+                                }
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+            } catch (error) {
+                console.error(error);
+                divPriorResults.innerHTML = `
+                    <div class="p-4 bg-red-50 text-red-700 rounded-lg">
+                        Error loading visits: ${error.message}
+                    </div>
+                `;
+            }
+        });
+
+        const handleImageSelect = (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                // Check file type
+                if (!file.type.startsWith('image/')) {
+                    showError('Please upload an image file (PNG, JPG, etc.).');
+                    return;
+                }
+                
+                fileMimeType = file.type;
+                
+                // Show preview
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    imagePreview.src = e.target.result;
+                    imagePreviewContainer.classList.remove('hidden');
+                    
+                    // Convert to base64 for API
+                    // e.target.result is a data URL (e.g., "data:image/jpeg;base64,.....")
+                    // We need to strip the prefix
+                    base64ImageData = e.target.result.split(',')[1];
+                };
+                reader.readAsDataURL(file);
+                
+                hideError();
+            }
+        };
+
+        imageUpload.addEventListener('change', handleImageSelect);
+        if (cameraInput) {
+            cameraInput.addEventListener('change', handleImageSelect);
+        }
+
+        analyzeButton.addEventListener('click', async () => {
+            if (!base64ImageData || !fileMimeType) {
+                showError('Please upload an image first.');
+                return;
+            }
+
+            // --- Show loading state ---
+            setLoading(true);
+
+            try {
+                // Step 1: Analyze the image (no save)
+                const analyzeUrl = '/api/analyze-visit';
+
+                const backendPayload = {
+                    mime_type: fileMimeType,
+                    image_data: base64ImageData
+                };
+
+                // --- Exponential Backoff ---
+                const fetchWithBackoff = async (url, options, retries = 5, delay = 1000) => {
+                    for (let i = 0; i < retries; i++) {
+                        try {
+                            const response = await fetch(url, options);
+                            if (response.status === 429 || response.status >= 500) {
+                                throw new Error(`Retryable error: ${response.status}`);
+                            }
+                            return response;
+                        } catch (error) {
+                            if (!error.message.startsWith('Retryable')) {
+                                throw error;
+                            }
+                            if (i === retries - 1) throw error;
+                            await new Promise(res => setTimeout(res, delay * Math.pow(2, i)));
+                        }
+                    }
+                };
+
+                const response = await fetchWithBackoff(analyzeUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(backendPayload)
+                });
+
+                if (!response.ok) {
+                    const errorBody = await response.json();
+                    throw new Error(`API request failed with status ${response.status}: ${errorBody.detail || 'Unknown error'}`);
+                }
+
+                const parsedData = await response.json();
+                currentParsedData = parsedData; // Store for later save
+
+                // Display the results
+                displayResults(parsedData);
+
+                // Step 2: Check for duplicates
+                await checkAndSave(parsedData);
+
+            } catch (err) {
+                console.error('Analysis failed:', err);
+                if (err.message.includes('Failed to fetch')) {
+                    showError('Could not connect to the backend server. Is it running? (python main.py)');
+                } else {
+                    showError(err.message);
+                }
+            } finally {
+                setLoading(false);
+            }
+        });
+
+        // Check for duplicates and handle save logic
+        async function checkAndSave(data) {
+            try {
+                // Check for duplicates
+                const checkUrl = `/api/check-duplicate?storeNbr=${encodeURIComponent(data.storeNbr)}&calendar_date=${encodeURIComponent(data.calendar_date)}`;
+
+                const checkResponse = await fetch(checkUrl);
+                if (!checkResponse.ok) {
+                    console.warn('Duplicate check failed, proceeding to save anyway');
+                    await saveToBackend(data);
+                    return;
+                }
+
+                const checkResult = await checkResponse.json();
+
+                if (checkResult.is_duplicate && checkResult.existing_records.length > 0) {
+                    // Show duplicate warning modal
+                    showDuplicateModal(checkResult.existing_records);
+                } else {
+                    // No duplicate, save automatically
+                    await saveToBackend(data);
+                }
+
+            } catch (error) {
+                console.error('Error checking duplicates:', error);
+                // If check fails, ask user what to do
+                if (confirm('Could not check for duplicates. Save anyway?')) {
+                    await saveToBackend(data);
+                }
+            }
+        }
+
+        // Save data to backend
+        async function saveToBackend(data) {
+            try {
+                const saveUrl = '/api/save-visit';
+                const saveResponse = await fetch(saveUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (!saveResponse.ok) {
+                    const errorBody = await saveResponse.json();
+                    throw new Error(`Save failed: ${errorBody.detail || 'Unknown error'}`);
+                }
+
+                const result = await saveResponse.json();
+                console.log('Data saved successfully:', result);
+                // Could show a success message to user here
+
+            } catch (error) {
+                console.error('Error saving data:', error);
+                showError('Failed to save data to BigQuery: ' + error.message);
+            }
+        }
+
+        // Show duplicate warning modal
+        function showDuplicateModal(existingRecords) {
+            const record = existingRecords[0]; // Show first duplicate
+            duplicateDetails.innerHTML = `
+                <p><strong>Store:</strong> ${record.storeNbr}</p>
+                <p><strong>Date:</strong> ${record.calendar_date}</p>
+                <p><strong>Rating:</strong> ${record.rating}</p>
+                <p class="mt-2 text-xs"><strong>Notes:</strong> ${record.store_notes}</p>
+            `;
+            duplicateModal.classList.remove('hidden');
+        }
+
+        // Duplicate modal: Cancel button
+        duplicateCancelBtn.addEventListener('click', () => {
+            duplicateModal.classList.add('hidden');
+            // Don't save, just close modal
+        });
+
+        // Duplicate modal: Submit Anyway button
+        duplicateSubmitBtn.addEventListener('click', async () => {
+            duplicateModal.classList.add('hidden');
+            await saveToBackend(currentParsedData);
+        });
+
+        // --- Helper Functions ---
+        
+        function setLoading(isLoading) {
+            if (isLoading) {
+                loadingSpinner.classList.remove('hidden');
+                analyzeButton.disabled = true;
+                analyzeButton.classList.add('disabled:bg-gray-400');
+                resultsContainer.classList.add('hidden');
+                hideError();
+            } else {
+                loadingSpinner.classList.add('hidden');
+                analyzeButton.disabled = false;
+                analyzeButton.classList.remove('disabled:bg-gray-400');
+            }
+        }
+
+        function displayResults(data) {
+            // Helper to format arrays
+            const formatArray = (arr) => {
+                if (!arr || arr.length === 0) return 'N/A';
+                return arr.map(item => `• ${item}`).join('\n');
+            };
+
+            // Display store rating with color-coded badge
+            const rating = data.rating || 'Not Rated';
+            let ratingClass = '';
+
+            if (rating === 'Red') {
+                ratingClass = 'bg-red-100 text-red-800 border-red-300';
+            } else if (rating === 'Yellow') {
+                ratingClass = 'bg-yellow-100 text-yellow-800 border-yellow-300';
+            } else if (rating === 'Green') {
+                ratingClass = 'bg-green-100 text-green-800 border-green-300';
+            } else {
+                ratingClass = 'bg-gray-100 text-gray-800 border-gray-300';
+            }
+
+            resultRating.className = `inline-flex items-center justify-center px-6 py-3 text-2xl font-bold rounded-full border-2 ${ratingClass}`;
+            resultRating.textContent = rating;
+
+            // Display calendar date and store number
+            resultCalendarDate.textContent = data.calendar_date || 'N/A';
+            resultStoreNbr.textContent = data.storeNbr || 'N/A';
+
+            // Display notes
+            resultStoreNotes.textContent = data.store_notes || 'N/A';
+            resultMktNotes.textContent = data.mkt_notes || 'N/A';
+
+            // Display arrays
+            resultGood.textContent = formatArray(data.good);
+            resultTop3.textContent = formatArray(data.top_3);
+
+            resultsContainer.classList.remove('hidden');
+        }
+
+        function showError(message) {
+            errorText.textContent = message;
+            errorMessage.classList.remove('hidden');
+        }
+
+        function hideError() {
+            errorMessage.classList.add('hidden');
+        }
+
+    </script>
+</body>
+</html>
