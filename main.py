@@ -118,6 +118,44 @@ def get_visits():
     finally:
         release_db_connection(conn)
 
+@app.route('/api/visit/<int:visit_id>', methods=['GET'])
+def get_visit_detail(visit_id):
+    """Get full details of a single visit by ID"""
+    if not db_pool:
+        return jsonify({"error": "Server is not configured to connect to database."}), 500
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        query = """
+            SELECT *
+            FROM store_visits
+            WHERE id = %s
+        """
+        cursor.execute(query, (visit_id,))
+        result = cursor.fetchone()
+        cursor.close()
+
+        if not result:
+            return jsonify({"error": "Visit not found"}), 404
+
+        # Convert date object to ISO format string
+        if result.get('calendar_date'):
+            result['calendar_date'] = result['calendar_date'].isoformat()
+        if result.get('created_at'):
+            result['created_at'] = result['created_at'].isoformat()
+
+        return jsonify(result)
+    except Exception as e:
+        print(f"An error occurred while fetching visit detail: {e}")
+        return jsonify({"error": "Failed to fetch visit details"}), 500
+    finally:
+        release_db_connection(conn)
+
 @app.route('/api/analyze-visit', methods=['POST'])
 def analyze_visit():
     if not model:
