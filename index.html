@@ -292,6 +292,93 @@
 
     </div> <!-- End main-content -->
 
+    <!-- Visit Detail Modal -->
+    <div id="visit-detail-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end sm:items-center sm:justify-center">
+        <div class="bg-white w-full sm:max-w-2xl sm:rounded-lg rounded-t-2xl max-h-screen sm:max-h-[90vh] overflow-y-auto">
+            <!-- Modal Header -->
+            <div class="sticky top-0 flex justify-between items-center p-6 border-b border-gray-200 bg-white">
+                <h2 class="text-2xl font-bold text-gray-900">Visit Details</h2>
+                <button onclick="closeVisitDetailModal()" class="text-gray-400 hover:text-gray-600 focus:outline-none">
+                    <i class="fas fa-times text-2xl"></i>
+                </button>
+            </div>
+            
+            <!-- Modal Content -->
+            <div class="p-6 space-y-6">
+                <!-- Store & Date Info -->
+                <div class="grid grid-cols-3 gap-4">
+                    <div>
+                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Store</p>
+                        <p id="modal-store-nbr" class="text-2xl font-bold text-gray-900 mt-1">-</p>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Date</p>
+                        <p id="modal-date" class="text-lg font-semibold text-gray-900 mt-1">-</p>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Rating</p>
+                        <div id="modal-rating" class="mt-1 inline-block px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-800">-</div>
+                    </div>
+                </div>
+
+                <!-- Store Notes -->
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center">
+                        <i class="fas fa-sticky-note text-indigo-600 mr-2"></i>Store Notes
+                    </h3>
+                    <div id="modal-store-notes" class="bg-gray-50 rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap">
+                        -
+                    </div>
+                </div>
+
+                <!-- Market Notes -->
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center">
+                        <i class="fas fa-globe text-indigo-600 mr-2"></i>Market Notes
+                    </h3>
+                    <div id="modal-mkt-notes" class="bg-gray-50 rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap">
+                        -
+                    </div>
+                </div>
+
+                <!-- Good Things -->
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center">
+                        <i class="fas fa-check-circle text-green-600 mr-2"></i>What's Working Well
+                    </h3>
+                    <div id="modal-good" class="bg-green-50 rounded-lg p-4 space-y-2 text-sm text-gray-700">
+                        -
+                    </div>
+                </div>
+
+                <!-- Top 3 Opportunities -->
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center">
+                        <i class="fas fa-lightbulb text-yellow-600 mr-2"></i>Top 3 Opportunities
+                    </h3>
+                    <div id="modal-top3" class="bg-yellow-50 rounded-lg p-4 space-y-2 text-sm text-gray-700">
+                        -
+                    </div>
+                </div>
+
+                <!-- Metrics Section -->
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center">
+                        <i class="fas fa-chart-bar text-blue-600 mr-2"></i>Metrics
+                    </h3>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-4" id="modal-metrics">
+                        <!-- Metrics will be dynamically inserted here -->
+                    </div>
+                </div>
+
+                <!-- Timestamp -->
+                <div class="pt-4 border-t border-gray-200 text-xs text-gray-500">
+                    <p>Recorded: <span id="modal-created-at">-</span></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Bottom Navigation Bar -->
     <nav class="fixed bottom-0 w-full bg-white border-t border-gray-200 pb-safe z-50">
         <div class="grid grid-cols-4 h-16">
@@ -615,7 +702,7 @@
                     }
 
                     return `
-                        <div class="bg-white p-5 rounded-lg shadow border border-gray-100">
+                        <div class="bg-white p-5 rounded-lg shadow border border-gray-100 cursor-pointer hover:shadow-lg hover:border-indigo-300 transition-all" onclick="openVisitDetail(${visit.id})">
                             <div class="flex justify-between items-start mb-3">
                                 <div>
                                     <span class="text-sm text-gray-500">Date</span>
@@ -639,6 +726,12 @@
                                        </ul>`
                                     : '<p class="text-sm text-gray-400 italic">No top 3 notes recorded.</p>'
                                 }
+                            </div>
+                            <div class="mt-4 pt-3 border-t border-gray-100">
+                                <p class="text-xs text-indigo-600 font-medium flex items-center hover:text-indigo-700">
+                                    <span>View Full Details</span>
+                                    <i class="fas fa-arrow-right ml-2"></i>
+                                </p>
                             </div>
                         </div>
                     `;
@@ -900,6 +993,148 @@
         function hideError() {
             errorMessage.classList.add('hidden');
         }
+
+        // --- Visit Detail Modal Functions ---
+        
+        async function openVisitDetail(visitId) {
+            const modal = document.getElementById('visit-detail-modal');
+            
+            // Show modal with loading state
+            modal.classList.remove('hidden');
+            setModalLoading(true);
+            
+            try {
+                // Fetch full visit details from backend
+                const response = await fetch(`/api/visit/${visitId}`);
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch visit details: ${response.status}`);
+                }
+                
+                const visit = await response.json();
+                displayVisitDetail(visit);
+                setModalLoading(false);
+                
+            } catch (error) {
+                console.error('Error loading visit detail:', error);
+                setModalLoading(false);
+                document.getElementById('modal-store-notes').innerHTML = `
+                    <div class="text-red-600">
+                        <i class="fas fa-exclamation-circle mr-2"></i>
+                        Error loading visit details: ${error.message}
+                    </div>
+                `;
+            }
+        }
+        
+        function displayVisitDetail(visit) {
+            // Helper to format lists
+            const formatList = (text) => {
+                if (!text || text.trim() === '') return '(None)';
+                return text.split('\n').filter(item => item.trim()).map(item => 
+                    `<li class="flex items-start"><i class="fas fa-check-circle text-indigo-600 mt-1 mr-2 text-sm"></i><span>${item}</span></li>`
+                ).join('');
+            };
+            
+            // Set rating color
+            const ratingElement = document.getElementById('modal-rating');
+            let ratingClass = 'bg-gray-100 text-gray-800';
+            if (visit.rating === 'Green') ratingClass = 'bg-green-100 text-green-800';
+            if (visit.rating === 'Yellow') ratingClass = 'bg-yellow-100 text-yellow-800';
+            if (visit.rating === 'Red') ratingClass = 'bg-red-100 text-red-800';
+            ratingElement.className = `inline-block px-3 py-1 rounded-full text-xs font-bold ${ratingClass}`;
+            
+            // Populate basic info
+            document.getElementById('modal-store-nbr').textContent = `#${visit.storeNbr || '?'}`;
+            document.getElementById('modal-date').textContent = visit.calendar_date ? new Date(visit.calendar_date).toLocaleDateString() : 'N/A';
+            document.getElementById('modal-rating').textContent = visit.rating || 'N/A';
+            
+            // Populate notes
+            document.getElementById('modal-store-notes').innerHTML = visit.store_notes ? 
+                `<ul class="space-y-2">${formatList(visit.store_notes)}</ul>` :
+                '<p class="text-gray-400 italic">(None)</p>';
+            
+            document.getElementById('modal-mkt-notes').innerHTML = visit.mkt_notes ? 
+                `<ul class="space-y-2">${formatList(visit.mkt_notes)}</ul>` :
+                '<p class="text-gray-400 italic">(None)</p>';
+            
+            // Good things
+            document.getElementById('modal-good').innerHTML = visit.good ? 
+                `<ul class="space-y-2">${formatList(visit.good)}</ul>` :
+                '<p class="text-gray-400 italic">(None)</p>';
+            
+            // Top 3
+            document.getElementById('modal-top3').innerHTML = visit.top_3 ? 
+                `<ul class="space-y-2">${formatList(visit.top_3)}</ul>` :
+                '<p class="text-gray-400 italic">(None)</p>';
+            
+            // Metrics
+            const metricsData = [
+                { label: 'Sales Comp (Yest)', value: visit.sales_comp_yest, format: '%' },
+                { label: 'Sales Index (Yest)', value: visit.sales_index_yest },
+                { label: 'Sales Comp (WTD)', value: visit.sales_comp_wtd, format: '%' },
+                { label: 'Sales Index (WTD)', value: visit.sales_index_wtd },
+                { label: 'Sales Comp (MTD)', value: visit.sales_comp_mtd, format: '%' },
+                { label: 'Sales Index (MTD)', value: visit.sales_index_mtd },
+                { label: 'Vizpick', value: visit.vizpick, format: '%' },
+                { label: 'Overstock', value: visit.overstock },
+                { label: 'Picks', value: visit.picks },
+                { label: 'Viz Fashion', value: visit.vizfashion, format: '%' },
+                { label: 'Modflex', value: visit.modflex, format: '%' },
+                { label: 'Tag Errors', value: visit.tag_errors },
+                { label: 'Mods', value: visit.mods },
+                { label: 'PCS', value: visit.pcs },
+                { label: 'Pinpoint', value: visit.pinpoint, format: '%' },
+                { label: 'FTPR', value: visit.ftpr, format: '%' },
+                { label: 'Presub', value: visit.presub, format: '%' }
+            ];
+            
+            const metricsContainer = document.getElementById('modal-metrics');
+            metricsContainer.innerHTML = metricsData
+                .filter(m => m.value !== null && m.value !== undefined)
+                .map(m => `
+                    <div class="bg-blue-50 rounded-lg p-3">
+                        <p class="text-xs font-semibold text-gray-600">${m.label}</p>
+                        <p class="text-lg font-bold text-blue-600 mt-1">${m.value}${m.format || ''}</p>
+                    </div>
+                `).join('');
+            
+            if (metricsData.filter(m => m.value !== null).length === 0) {
+                metricsContainer.innerHTML = '<p class="col-span-full text-gray-400 italic text-sm">No metrics recorded</p>';
+            }
+            
+            // Timestamp
+            if (visit.created_at) {
+                const createdDate = new Date(visit.created_at);
+                document.getElementById('modal-created-at').textContent = createdDate.toLocaleString();
+            }
+        }
+        
+        function setModalLoading(isLoading) {
+            const notesContainer = document.getElementById('modal-store-notes');
+            if (isLoading) {
+                notesContainer.innerHTML = `
+                    <div class="text-center py-8">
+                        <svg class="animate-spin h-6 w-6 text-indigo-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <p class="text-sm text-gray-500 mt-2">Loading visit details...</p>
+                    </div>
+                `;
+            }
+        }
+        
+        function closeVisitDetailModal() {
+            const modal = document.getElementById('visit-detail-modal');
+            modal.classList.add('hidden');
+        }
+        
+        // Close modal when clicking outside (on the background)
+        document.getElementById('visit-detail-modal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeVisitDetailModal();
+            }
+        });
 
     </script>
 </body>
