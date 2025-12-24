@@ -1,124 +1,560 @@
-Python Store Visit Tracker (Google Cloud Version)
+# Store Visit Tracker 🐕
 
-This is a web application built with Python (Flask) that allows you to log store visits and use Vertex AI to parse handwritten notes from an image. All data is stored in Google BigQuery.
+**A powerful web and mobile application for digitizing and analyzing store visit notes using AI.**
 
-Setup Instructions
+---
 
-This version requires a Google Cloud Project and a Service Account for authentication.
+## 📍 GitHub Project
 
-1. Google Cloud Project Setup
+**Repository:** https://gecgithub01.walmart.com/tjbarnh/store-visit-tracker  
+**Owner:** tjbarnh  
+**Access:** Walmart Internal Git (Requires VPN/Corporate Network)
 
-Create a Project: Go to the Google Cloud Console and create a new project (or use an existing one). Note your Project ID.
+---
 
-Enable APIs: In your project, go to "APIs & Services" > "Library" and enable the following two APIs:
+## 🎯 Project Overview
 
-Vertex AI API
+Store Visit Tracker is a full-stack application designed to help District Managers digitize handwritten store visit notes and analyze them using AI. The system includes:
 
-BigQuery API
+### Core Features
 
-2. Create BigQuery Table
+✅ **Upload & AI Analysis**
+- Take a photo of handwritten notes with your camera or upload from gallery
+- Vertex AI (Gemini Vision) automatically transcribes and categorizes the notes
+- Extract structured data: store number, date, rating, notes, metrics
+- Intelligent duplicate detection before saving
 
-In the Cloud Console, navigate to BigQuery.
+✅ **Visit Management**
+- Browse all store visits in a clean table view
+- Search prior tours by store number
+- Click any visit brief to see full details
+- View comprehensive metrics and observations
 
-Create a Dataset: In the "Explorer" panel, click the three dots next to your project ID and select "Create dataset".
+✅ **Metrics Tracking**
+- 17 operational & sales metrics automatically extracted:
+  - Sales Comp (Yesterday, WTD, MTD)
+  - Sales Index (Yesterday, WTD, MTD)
+  - Vizpick, Overstock, Picks, Viz Fashion
+  - Modflex, Tag Errors, Mods, PCS
+  - Pinpoint, FTPR, Presub
 
-Dataset ID: Give it a name, like store_tracker.
+✅ **Market Intelligence**
+- Track market notes and competitive insights
+- Mark market items as completed/incomplete
+- Dashboard view of store health summaries
 
-Location: Choose a location (e.g., us-central1).
+✅ **Mobile Android App**
+- Native Android application for field use
+- Search prior visits by store number
+- View visit briefs with quick stats
+- Click to see full visit details
+- Synchronized with web backend
 
-Create a Table: Click the three dots next to your new dataset and select "Create table".
+---
 
-Table name: Give it a name, like visits.
+## 🏗️ Architecture
 
-Switch to the "Query" editor and paste the following SQL to create the table with the correct schema. Replace the table name in the first line with your own project/dataset/table ID.
+### Stack
 
-CREATE TABLE `your-project-id.your-dataset-name.your-table-name` (
-  id STRING OPTIONS(description="Unique UUID for the visit log"),
-  visitDate DATE,
-  storeNumber INT64,
-  rating STRING,
-  storeNotes STRING,
-  goodNotes STRING,
-  top3GoDos STRING,
-  needsFromMe STRING,
-  createdAt TIMESTAMP
+| Component | Technology | Details |
+|-----------|-----------|----------|
+| **Backend** | Python 3.10 | Flask web framework |
+| **Frontend** | HTML/CSS/JS | Tailwind CSS, Responsive design |
+| **Database** | PostgreSQL | store_visits table with 30+ columns |
+| **AI/ML** | Google Vertex AI | Gemini 2.5 Flash for vision analysis |
+| **Deployment** | Docker/Gunicorn | Container-ready, systemd service |
+| **Version Control** | Git | GitHub (Walmart internal) |
+
+### Deployment Targets
+
+- **Web Frontend:** http://your-server/
+- **API Backend:** http://your-server/api/*
+- **Execution:** Proxmox VM (storeapp user)
+- **Service:** systemd (store-visit-tracker)
+
+---
+
+## 📁 Project Structure
+
+```
+store-visit-tracker/
+├── main.py                    # Flask app with 8 API endpoints
+├── index.html                 # Web frontend (55KB, fully responsive)
+├── requirements.txt           # Python dependencies
+├── schema.sql                 # PostgreSQL table schema
+├── Dockerfile                 # Docker container configuration
+├── Procfile                   # Heroku/Cloud Run deployment
+├── API_ENDPOINTS.md           # Complete API documentation
+├── README.md                  # This file
+│
+├── Deployment Scripts
+├── deploy.sh                  # Local: commit & push to GitHub
+├── update.sh                  # Server: pull & restart service
+├── start_app.sh               # Server: start the app
+├── migrate_database.sh        # Setup: run database migrations
+│
+├── Database Schemas
+├── create_market_notes_table.sql  # Market notes tracking table
+├── add_metrics_columns.sql        # Add new metric columns
+├── show_columns.sql               # Inspect table structure
+│
+└── Utility Scripts
+    ├── verify_setup.py        # Verify environment & connections
+    ├── check_models.py        # Validate data models
+    ├── test_gemini.py         # Test Vertex AI connection
+    └── scaffold_android.py    # Android client scaffolding
+```
+
+---
+
+## 🚀 Deployment Guide
+
+### Local Development Setup
+
+#### 1. Clone Repository
+
+```bash
+git clone https://gecgithub01.walmart.com/tjbarnh/store-visit-tracker.git
+cd store-visit-tracker
+```
+
+#### 2. Install Dependencies
+
+```bash
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install packages
+pip install -r requirements.txt
+```
+
+#### 3. Configure Environment
+
+Create a `.env` file in the project root:
+
+```bash
+# Google Cloud / Vertex AI
+GOOGLE_PROJECT_ID=your-gcp-project-id
+GOOGLE_LOCATION=us-central1
+
+# PostgreSQL Database
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=store_visits
+DB_USER=store_tracker
+DB_PASSWORD=your-secure-password
+```
+
+#### 4. Setup Database
+
+```bash
+# Connect to your PostgreSQL instance
+psql -h localhost -U postgres -d store_visits
+
+# Run schema
+\i schema.sql
+
+# Verify table created
+\d store_visits
+```
+
+#### 5. Run Locally
+
+```bash
+python main.py
+```
+
+Visit: http://127.0.0.1:5000
+
+---
+
+### Production Deployment (Proxmox Server)
+
+#### Prerequisites
+
+- Proxmox VM with Ubuntu 20.04+
+- Python 3.10+
+- PostgreSQL 12+
+- Git installed
+- Systemd for service management
+
+#### One-Time Setup
+
+```bash
+# SSH into your Proxmox server
+ssh your-proxmox-ip
+
+# Create app user and directory
+sudo useradd -m -d /home/storeapp storeapp
+sudo mkdir -p /home/storeapp/store-visit-tracker
+sudo chown storeapp:storeapp /home/storeapp/store-visit-tracker
+
+# Clone the repository
+sudo -u storeapp git clone https://gecgithub01.walmart.com/tjbarnh/store-visit-tracker.git /home/storeapp/store-visit-tracker
+cd /home/storeapp/store-visit-tracker
+
+# Create virtual environment
+sudo -u storeapp python3 -m venv /home/storeapp/store-visit-tracker/venv
+
+# Create .env file
+sudo -u storeapp nano /home/storeapp/store-visit-tracker/.env
+# Add your configuration here
+
+# Install dependencies
+sudo -u storeapp /home/storeapp/store-visit-tracker/venv/bin/pip install -r requirements.txt
+
+# Setup database
+sudo -u storeapp /home/storeapp/store-visit-tracker/migrate_database.sh
+```
+
+#### Create Systemd Service
+
+Create `/etc/systemd/system/store-visit-tracker.service`:
+
+```ini
+[Unit]
+Description=Store Visit Tracker Application
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=notify
+User=storeapp
+Group=storeapp
+WorkingDirectory=/home/storeapp/store-visit-tracker
+Environment="PATH=/home/storeapp/store-visit-tracker/venv/bin"
+Environment="FLASK_APP=main.py"
+Environment="PORT=8080"
+ExecStart=/home/storeapp/store-visit-tracker/venv/bin/gunicorn --bind 0.0.0.0:8080 --workers 4 --threads 8 --timeout 120 main:app
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+KillSignal=SIGQUIT
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable the service:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable store-visit-tracker
+sudo systemctl start store-visit-tracker
+```
+
+#### Deploy Updates to Production
+
+**Step 1: Commit & Push to GitHub (Your Local Machine)**
+
+```bash
+cd /path/to/store-visit-tracker
+./deploy.sh
+# or manually:
+git add .
+git commit -m "Your commit message"
+git push origin main
+```
+
+**Step 2: Pull & Restart on Server**
+
+```bash
+# SSH into your server
+ssh your-proxmox-ip
+
+# Run the update script
+sudo -u storeapp /home/storeapp/store-visit-tracker/update.sh
+```
+
+This will:
+- Pull latest code from GitHub
+- Install/update Python dependencies
+- Restart the systemd service
+- Verify it's running
+
+#### Verify Deployment
+
+```bash
+# Check service status
+sudo systemctl status store-visit-tracker
+
+# View live logs
+sudo journalctl -u store-visit-tracker -f
+
+# View last 50 log lines
+sudo journalctl -u store-visit-tracker -n 50
+
+# Test API endpoint
+curl http://your-proxmox-ip:8080/api/visits
+```
+
+---
+
+## 📡 API Endpoints
+
+All endpoints are documented in [API_ENDPOINTS.md](./API_ENDPOINTS.md).
+
+### Quick Reference
+
+| Method | Endpoint | Purpose |
+|--------|----------|----------|
+| GET | `/` | Web frontend |
+| GET | `/api/visits?storeNbr=1234` | List visit briefs |
+| **GET** | **`/api/visit/<id>`** | **Full visit details** ⭐ NEW |
+| POST | `/api/analyze-visit` | AI analyze image |
+| POST | `/api/save-visit` | Save visit to DB |
+| GET | `/api/check-duplicate` | Check for duplicates |
+| GET | `/api/summary` | Store health summary |
+| GET | `/api/market-notes` | Get all market notes |
+| POST | `/api/market-notes/toggle` | Mark note complete |
+
+**See [API_ENDPOINTS.md](./API_ENDPOINTS.md) for full documentation with examples.**
+
+---
+
+## 🔄 Workflow
+
+### Web/Desktop User Flow
+
+1. **Upload Notes**
+   - User clicks "Home" tab
+   - Takes photo or uploads image of handwritten notes
+   - Clicks "Analyze Notes"
+   - Vertex AI transcribes and structures the data
+
+2. **Review & Save**
+   - System checks for duplicates
+   - Shows detected data (store, date, rating, metrics, notes)
+   - User confirms and saves
+
+3. **Browse Visits**
+   - Click "Visits" tab to see all recent visits
+   - Click "Prior Tours" to search by store
+   - Click any visit brief to see full details
+   - View all metrics and notes in detail modal
+
+4. **Market Intelligence**
+   - Click "Summary" to see store health
+   - Check market notes from all visits
+   - Mark completed items as done
+
+### Mobile (Android) User Flow
+
+1. Search for store number
+2. View list of prior visit briefs
+3. Click to view full visit details
+4. See all information with proper formatting
+
+---
+
+## 🗄️ Database Schema
+
+### store_visits Table
+
+```sql
+CREATE TABLE store_visits (
+    id SERIAL PRIMARY KEY,
+    "storeNbr" VARCHAR(50) NOT NULL,
+    calendar_date DATE NOT NULL,
+    rating VARCHAR(20),                -- Green, Yellow, Red
+    
+    -- Notes & Observations
+    store_notes TEXT,                  -- Store observations (newline-separated)
+    mkt_notes TEXT,                    -- Market/competitive notes
+    good TEXT,                         -- What's working well
+    top_3 TEXT,                        -- Top 3 opportunities
+    
+    -- Sales Metrics
+    sales_comp_yest DECIMAL(10,2),     -- Sales comp vs yesterday (%)
+    sales_index_yest DECIMAL(10,2),    -- Sales index vs yesterday
+    sales_comp_wtd DECIMAL(10,2),      -- Sales comp WTD (%)
+    sales_index_wtd DECIMAL(10,2),     -- Sales index WTD
+    sales_comp_mtd DECIMAL(10,2),      -- Sales comp MTD (%)
+    sales_index_mtd DECIMAL(10,2),     -- Sales index MTD
+    
+    -- Operational Metrics
+    vizpick DECIMAL(10,2),             -- Vizpick score (%)
+    overstock INTEGER,                 -- Overstock count
+    picks INTEGER,                     -- Picks count
+    vizfashion DECIMAL(10,2),          -- Viz Fashion score (%)
+    modflex DECIMAL(10,2),             -- Modflex score (%)
+    tag_errors INTEGER,                -- Tag errors count
+    mods INTEGER,                      -- Mods count
+    pcs INTEGER,                       -- PCS count
+    pinpoint DECIMAL(10,2),            -- Pinpoint score (%)
+    ftpr DECIMAL(10,2),                -- FTPR score (%)
+    presub DECIMAL(10,2),              -- Presub score (%)
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Indexes for performance
+CREATE INDEX idx_store_date ON store_visits("storeNbr", calendar_date);
+CREATE INDEX idx_calendar_date ON store_visits(calendar_date DESC);
+CREATE INDEX idx_store_nbr ON store_visits("storeNbr");
+```
 
-Run the query to create the table.
+### market_note_completions Table
 
-3. Create Service Account
+Tracks completion status of market notes:
 
-Go to "IAM & Admin" > "Service Accounts".
+```sql
+CREATE TABLE market_note_completions (
+    id SERIAL PRIMARY KEY,
+    visit_id INTEGER NOT NULL REFERENCES store_visits(id),
+    note_text TEXT NOT NULL,
+    completed BOOLEAN DEFAULT FALSE,
+    completed_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(visit_id, note_text)
+);
+```
 
-Click "Create Service Account".
+---
 
-Give it a name (e.g., store-tracker-sa).
+## 🛠️ Configuration
 
-Grant Roles: Assign the following roles to this service account:
+### Environment Variables
 
-Vertex AI User (for processing notes)
+```bash
+# Google Cloud / Vertex AI
+GOOGLE_PROJECT_ID=your-gcp-project-id
+GOOGLE_LOCATION=us-central1
 
-BigQuery Data Editor (to read/write data)
+# PostgreSQL
+DB_HOST=localhost          # or your remote DB host
+DB_PORT=5432
+DB_NAME=store_visits
+DB_USER=store_tracker
+DB_PASSWORD=secure-password
 
-BigQuery Job User (to run queries)
+# Flask
+FLASK_ENV=production
+PORT=8080
+```
 
-Click "Done".
+### Performance Settings
 
-Find your new service account, click the three dots under "Actions", and select "Manage keys".
+**Gunicorn Configuration** (in update.sh):
 
-Click "Add Key" > "Create new key".
+```bash
+gunicorn --bind 0.0.0.0:8080 --workers 4 --threads 8 --timeout 120 main:app
+```
 
-Choose JSON and click "Create". A JSON key file will download.
+- **workers**: Process count (increase for high load)
+- **threads**: Threads per worker
+- **timeout**: Request timeout in seconds
 
-4. Set Up Your Project
+---
 
-Save the app.py, requirements.txt, and README.md files into a new folder on your server (e.g., store-tracker-app).
+## 📊 Recent Updates
 
-CRITICAL: Inside that folder, create a new folder named templates.
+### Latest Features (December 2024)
 
-Move index.html inside the templates folder.
+#### ✨ Full Visit Details Modal
 
-Move the downloaded JSON key file into the main folder (alongside app.py).
+**Commit:** e4c460c  
+**Date:** December 18, 2024
 
-Create a file named .env in the main folder.
+- Added clickable visit briefs on Prior Tours page
+- New modal displays complete visit information
+- Includes all 17 metrics with color-coded cards
+- Responsive design (mobile/desktop)
+- Loading states and error handling
+- Click X or outside to close
 
-Open the .env file and add the following, filling in your specific values:
+#### 🆕 API Endpoint for Full Visit Data
 
-# 1. Path to your service account key file
-GOOGLE_APPLICATION_CREDENTIALS="your-key-file-name.json"
+**Commit:** 1611242  
+**Date:** December 18, 2024
 
-# 2. Your GCP Project ID
-PROJECT_ID="your-project-id"
+- New `GET /api/visit/<visit_id>` endpoint
+- Returns complete visit record with all fields
+- Enables Android app to show full details
+- Proper error handling (404, 500)
 
-# 3. Your BigQuery Dataset & Table names
-BIGQUERY_DATASET="store_tracker"
-BIGQUERY_TABLE="visits"
+---
 
-# 4. The location for Vertex AI (must match your dataset)
-LOCATION="us-central1"
+## 🐛 Troubleshooting
 
+### Service Won't Start
 
-5. Install Python Dependencies
+```bash
+# Check logs
+sudo journalctl -u store-visit-tracker -n 100
 
-Open a terminal in your project folder.
+# Verify Python environment
+sudo -u storeapp /home/storeapp/store-visit-tracker/venv/bin/python --version
 
-Create and activate a virtual environment:
+# Test import
+sudo -u storeapp /home/storeapp/store-visit-tracker/venv/bin/python -c "import flask; print(flask.__version__)"
+```
 
-python -m venv venv
-source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
+### Database Connection Issues
 
+```bash
+# Test PostgreSQL connection
+sudo -u storeapp psql -h DB_HOST -U DB_USER -d DB_NAME -c "SELECT 1"
 
-Install the new libraries:
+# Check credentials in .env
+sudo -u storeapp cat /home/storeapp/store-visit-tracker/.env
+```
 
-pip install -r requirements.txt
+### AI Analysis Not Working
 
+```bash
+# Test Vertex AI connection
+sudo -u storeapp python /home/storeapp/store-visit-tracker/test_gemini.py
 
-6. Run the Application
+# Verify GCP credentials
+sudo -u storeapp cat $GOOGLE_APPLICATION_CREDENTIALS
+```
 
-In your terminal, run the app:
+### Port Already in Use
 
-python app.py
+```bash
+# Change PORT in .env or systemd service
+# Find process using port 8080
+sudo lsof -i :8080
 
+# Kill if needed
+sudo kill -9 <PID>
+```
 
-Open http://127.0.0.1:5000 in your browser.
+---
+
+## 📚 Additional Resources
+
+- **API Documentation:** [API_ENDPOINTS.md](./API_ENDPOINTS.md)
+- **Database Schema:** [schema.sql](./schema.sql)
+- **Google Cloud Setup:** [Google Cloud Console](https://console.cloud.google.com)
+- **Vertex AI Docs:** [Vertex AI Documentation](https://cloud.google.com/vertex-ai/docs)
+- **Flask Documentation:** [Flask Docs](https://flask.palletsprojects.com)
+- **PostgreSQL Documentation:** [PostgreSQL Docs](https://www.postgresql.org/docs)
+
+---
+
+## 👤 Project Owner
+
+**Tim Barnhill** (tjbarnh)  
+Walmart Store Operations
+
+---
+
+## 📄 License
+
+Internal Walmart Project - All Rights Reserved
+
+---
+
+## 🐕 Made with ❤️ by Radar
+
+*Code Puppy - Making software development fun, one woof at a time!*
+
+---
+
+**Last Updated:** December 18, 2024  
+**Version:** 1.2.0  
+**Status:** ✅ Production Ready
