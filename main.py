@@ -132,9 +132,9 @@ def get_notes_from_db(cursor, visit_id, note_type):
     
     return [
         {
-            'id': row[0],
-            'text': row[1],
-            'sequence': row[2]
+            'id': row['id'],
+            'text': row['note_text'],
+            'sequence': row['sequence']
         }
         for row in rows
     ]
