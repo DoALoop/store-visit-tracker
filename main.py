@@ -50,6 +50,94 @@ def release_db_connection(conn):
     if db_pool and conn:
         db_pool.putconn(conn)
 
+# Helper functions for normalized note handling
+def save_notes_to_db(cursor, visit_id, note_type, notes_list):
+    """
+    Save notes to the appropriate normalized table.
+    
+    Args:
+        cursor: Database cursor
+        visit_id: The visit ID to associate notes with
+        note_type: One of 'store', 'market', 'good', 'improvement'
+        notes_list: List of note strings
+    """
+    if not notes_list:
+        return
+    
+    # Map note types to table names
+    table_map = {
+        'store': 'store_visit_notes',
+        'market': 'store_market_notes',
+        'good': 'store_good_notes',
+        'improvement': 'store_improvement_notes'
+    }
+    
+    table_name = table_map.get(note_type)
+    if not table_name:
+        raise ValueError(f"Invalid note type: {note_type}")
+    
+    # Convert to list if needed
+    if isinstance(notes_list, str):
+        # Handle old format (newline-separated string)
+        notes_list = [n.strip() for n in notes_list.split('\n') if n.strip()]
+    elif not isinstance(notes_list, list):
+        notes_list = []
+    
+    # Insert each note with sequence number
+    for sequence, note_text in enumerate(notes_list, 1):
+        if note_text and note_text.strip():  # Only insert non-empty notes
+            query = f"""
+                INSERT INTO {table_name} (visit_id, note_text, sequence)
+                VALUES (%s, %s, %s)
+            """
+            cursor.execute(query, (visit_id, note_text.strip(), sequence))
+
+def get_notes_from_db(cursor, visit_id, note_type):
+    """
+    Retrieve notes from the appropriate normalized table.
+    
+    Args:
+        cursor: Database cursor
+        visit_id: The visit ID to retrieve notes for
+        note_type: One of 'store', 'market', 'good', 'improvement'
+    
+    Returns:
+        List of note dictionaries with id, text, and sequence
+    """
+    # Map note types to table names
+    table_map = {
+        'store': 'store_visit_notes',
+        'market': 'store_market_notes',
+        'good': 'store_good_notes',
+        'improvement': 'store_improvement_notes'
+    }
+    
+    table_name = table_map.get(note_type)
+    if not table_name:
+        raise ValueError(f"Invalid note type: {note_type}")
+    
+    query = f"""
+        SELECT id, note_text, sequence
+        FROM {table_name}
+        WHERE visit_id = %s
+        ORDER BY sequence ASC
+    """
+    cursor.execute(query, (visit_id,))
+    rows = cursor.fetchall()
+    
+    return [
+        {
+            'id': row[0],
+            'text': row[1],
+            'sequence': row[2]
+        }
+        for row in rows
+    ]
+
+def release_db_connection(conn):
+    if db_pool and conn:
+        db_pool.putconn(conn)
+
 # Initialize Vertex AI
 try:
     vertexai.init(project=PROJECT_ID, location=LOCATION)
@@ -104,13 +192,22 @@ def get_visits():
             cursor.execute(query)
 
         results = cursor.fetchall()
-        cursor.close()
 
-        # Convert date objects to ISO format strings
+        # Add notes from normalized tables to each visit
         for row in results:
+            visit_id = row.get('id')
+            if visit_id:
+                # Query notes from each normalized table
+                row['store_notes'] = get_notes_from_db(cursor, visit_id, 'store')
+                row['mkt_notes'] = get_notes_from_db(cursor, visit_id, 'market')
+                row['good'] = get_notes_from_db(cursor, visit_id, 'good')
+                row['top_3'] = get_notes_from_db(cursor, visit_id, 'improvement')
+            
+            # Convert date objects to ISO format strings
             if row.get('calendar_date'):
                 row['calendar_date'] = row['calendar_date'].isoformat()
 
+        cursor.close()
         return jsonify(results)
     except Exception as e:
         print(f"An error occurred during query: {e}")
@@ -138,10 +235,16 @@ def get_visit_detail(visit_id):
         """
         cursor.execute(query, (visit_id,))
         result = cursor.fetchone()
-        cursor.close()
 
         if not result:
+            cursor.close()
             return jsonify({"error": "Visit not found"}), 404
+
+        # Add notes from normalized tables
+        result['store_notes'] = get_notes_from_db(cursor, visit_id, 'store')
+        result['mkt_notes'] = get_notes_from_db(cursor, visit_id, 'market')
+        result['good'] = get_notes_from_db(cursor, visit_id, 'good')
+        result['top_3'] = get_notes_from_db(cursor, visit_id, 'improvement')
 
         # Convert date object to ISO format string
         if result.get('calendar_date'):
@@ -149,6 +252,7 @@ def get_visit_detail(visit_id):
         if result.get('created_at'):
             result['created_at'] = result['created_at'].isoformat()
 
+        cursor.close()
         return jsonify(result)
     except Exception as e:
         print(f"An error occurred while fetching visit detail: {e}")
@@ -373,24 +477,21 @@ def save_visit():
         # Extract metrics from nested object
         metrics = data.get('metrics', {})
 
-        # Prepare data for PostgreSQL
-        query = """
+        # Step 1: Insert visit without notes (normalized structure)
+        visit_query = """
             INSERT INTO store_visits
-            ("storeNbr", calendar_date, rating, store_notes, mkt_notes, good, top_3,
+            ("storeNbr", calendar_date, rating,
              sales_comp_yest, sales_index_yest, sales_comp_wtd, sales_index_wtd,
              sales_comp_mtd, sales_index_mtd, vizpick, overstock, picks, vizfashion,
              modflex, tag_errors, mods, pcs, pinpoint, ftpr, presub)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
         """
 
-        values = (
+        visit_values = (
             str(data.get('storeNbr', '')),
             data.get('calendar_date'),  # YYYY-MM-DD
             data.get('rating'),
-            data.get('store_notes', ''),
-            data.get('mkt_notes', ''),
-            "\n".join(data.get('good', [])) if isinstance(data.get('good'), list) else str(data.get('good', '')),
-            "\n".join(data.get('top_3', [])) if isinstance(data.get('top_3'), list) else str(data.get('top_3', '')),
             # Metrics
             metrics.get('sales_comp_yest'),
             metrics.get('sales_index_yest'),
@@ -411,11 +512,20 @@ def save_visit():
             metrics.get('presub')
         )
 
-        cursor.execute(query, values)
+        cursor.execute(visit_query, visit_values)
+        visit_id = cursor.fetchone()[0]
+
+        # Step 2: Insert notes into normalized tables
+        save_notes_to_db(cursor, visit_id, 'store', data.get('store_notes', []))
+        save_notes_to_db(cursor, visit_id, 'market', data.get('mkt_notes', []))
+        save_notes_to_db(cursor, visit_id, 'good', data.get('good', []))
+        save_notes_to_db(cursor, visit_id, 'improvement', data.get('top_3', []))
+
+        # Commit all changes at once (transaction)
         conn.commit()
         cursor.close()
 
-        return jsonify({"message": "Visit saved successfully", "data": data})
+        return jsonify({"message": "Visit saved successfully", "visit_id": visit_id, "data": data})
 
     except Exception as e:
         conn.rollback()
@@ -450,12 +560,21 @@ def check_duplicate():
 
         cursor.execute(query, (store_nbr, calendar_date))
         results = cursor.fetchall()
-        cursor.close()
 
-        # Convert date objects to ISO format
+        # Add notes from normalized tables to each visit
         for row in results:
+            visit_id = row.get('id')
+            if visit_id:
+                row['store_notes'] = get_notes_from_db(cursor, visit_id, 'store')
+                row['mkt_notes'] = get_notes_from_db(cursor, visit_id, 'market')
+                row['good'] = get_notes_from_db(cursor, visit_id, 'good')
+                row['top_3'] = get_notes_from_db(cursor, visit_id, 'improvement')
+            
+            # Convert date objects to ISO format
             if row.get('calendar_date'):
                 row['calendar_date'] = row['calendar_date'].isoformat()
+        
+        cursor.close()
 
         return jsonify({
             "is_duplicate": len(results) > 0,

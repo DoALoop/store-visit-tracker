@@ -947,9 +947,14 @@
         }
 
         function displayResults(data) {
-            // Helper to format arrays
+            // Helper to format arrays (handles both old and new format)
             const formatArray = (arr) => {
                 if (!arr || arr.length === 0) return 'N/A';
+                // Check if array contains objects with 'text' property (new format)
+                if (arr[0] && typeof arr[0] === 'object' && arr[0].text) {
+                    return arr.map(item => `• ${item.text}`).join('\n');
+                }
+                // Otherwise treat as array of strings (old format)
                 return arr.map(item => `• ${item}`).join('\n');
             };
 
@@ -974,9 +979,20 @@
             resultCalendarDate.textContent = data.calendar_date || 'N/A';
             resultStoreNbr.textContent = data.storeNbr || 'N/A';
 
-            // Display notes
-            resultStoreNotes.textContent = data.store_notes || 'N/A';
-            resultMktNotes.textContent = data.mkt_notes || 'N/A';
+            // Display notes (handles both old and new format)
+            // For store_notes: can be array of objects or string
+            if (Array.isArray(data.store_notes)) {
+                resultStoreNotes.textContent = formatArray(data.store_notes);
+            } else {
+                resultStoreNotes.textContent = data.store_notes || 'N/A';
+            }
+            
+            // For mkt_notes: can be array of objects or string
+            if (Array.isArray(data.mkt_notes)) {
+                resultMktNotes.textContent = formatArray(data.mkt_notes);
+            } else {
+                resultMktNotes.textContent = data.mkt_notes || 'N/A';
+            }
 
             // Display arrays
             resultGood.textContent = formatArray(data.good);
@@ -1028,9 +1044,34 @@
         
         function displayVisitDetail(visit) {
             // Helper to format lists
-            const formatList = (text) => {
-                if (!text || text.trim() === '') return '(None)';
-                return text.split('\n').filter(item => item.trim()).map(item => 
+            // Helper function to format notes (handles both old string format and new array format)
+            const formatNotes = (notes) => {
+                if (!notes) return '(None)';
+                
+                let noteArray = [];
+                
+                // Check if notes is an array of objects (new format)
+                if (Array.isArray(notes)) {
+                    if (notes.length === 0) return '(None)';
+                    // If array of objects with 'text' property
+                    if (notes[0] && typeof notes[0] === 'object' && notes[0].text) {
+                        noteArray = notes.map(n => n.text);
+                    } else if (notes[0] && typeof notes[0] === 'string') {
+                        // If array of strings
+                        noteArray = notes;
+                    } else {
+                        return '(None)';
+                    }
+                } else if (typeof notes === 'string') {
+                    // Old format: string with newlines
+                    noteArray = notes.split('\n').filter(item => item.trim());
+                } else {
+                    return '(None)';
+                }
+                
+                if (noteArray.length === 0) return '(None)';
+                
+                return noteArray.map(item => 
                     `<li class="flex items-start"><i class="fas fa-check-circle text-indigo-600 mt-1 mr-2 text-sm"></i><span>${item}</span></li>`
                 ).join('');
             };
@@ -1048,24 +1089,28 @@
             document.getElementById('modal-date').textContent = visit.calendar_date ? new Date(visit.calendar_date).toLocaleDateString() : 'N/A';
             document.getElementById('modal-rating').textContent = visit.rating || 'N/A';
             
-            // Populate notes
-            document.getElementById('modal-store-notes').innerHTML = visit.store_notes ? 
-                `<ul class="space-y-2">${formatList(visit.store_notes)}</ul>` :
-                '<p class="text-gray-400 italic">(None)</p>';
+            // Populate notes (handles both old and new format)
+            const storeNotesHtml = formatNotes(visit.store_notes);
+            document.getElementById('modal-store-notes').innerHTML = storeNotesHtml === '(None)' 
+                ? '<p class="text-gray-400 italic">(None)</p>'
+                : `<ul class="space-y-2">${storeNotesHtml}</ul>`;
             
-            document.getElementById('modal-mkt-notes').innerHTML = visit.mkt_notes ? 
-                `<ul class="space-y-2">${formatList(visit.mkt_notes)}</ul>` :
-                '<p class="text-gray-400 italic">(None)</p>';
+            const mktNotesHtml = formatNotes(visit.mkt_notes);
+            document.getElementById('modal-mkt-notes').innerHTML = mktNotesHtml === '(None)' 
+                ? '<p class="text-gray-400 italic">(None)</p>'
+                : `<ul class="space-y-2">${mktNotesHtml}</ul>`;
             
             // Good things
-            document.getElementById('modal-good').innerHTML = visit.good ? 
-                `<ul class="space-y-2">${formatList(visit.good)}</ul>` :
-                '<p class="text-gray-400 italic">(None)</p>';
+            const goodHtml = formatNotes(visit.good);
+            document.getElementById('modal-good').innerHTML = goodHtml === '(None)' 
+                ? '<p class="text-gray-400 italic">(None)</p>'
+                : `<ul class="space-y-2">${goodHtml}</ul>`;
             
             // Top 3
-            document.getElementById('modal-top3').innerHTML = visit.top_3 ? 
-                `<ul class="space-y-2">${formatList(visit.top_3)}</ul>` :
-                '<p class="text-gray-400 italic">(None)</p>';
+            const top3Html = formatNotes(visit.top_3);
+            document.getElementById('modal-top3').innerHTML = top3Html === '(None)' 
+                ? '<p class="text-gray-400 italic">(None)</p>'
+                : `<ul class="space-y-2">${top3Html}</ul>`;
             
             // Metrics
             const metricsData = [
