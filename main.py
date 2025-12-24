@@ -1,4 +1,9 @@
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
 import json
 import base64
 import vertexai
@@ -133,10 +138,6 @@ def get_notes_from_db(cursor, visit_id, note_type):
         }
         for row in rows
     ]
-
-def release_db_connection(conn):
-    if db_pool and conn:
-        db_pool.putconn(conn)
 
 # Initialize Vertex AI
 try:
