@@ -4,6 +4,61 @@
 
 ---
 
+## Quick Deploy Cheat Sheet
+
+### Step 1: Push from your Mac (test machine)
+
+```bash
+cd ~/Desktop/Coding/store-visit-tracker
+
+# Add all changes, commit, and push
+git add .
+git commit -m "your message here"
+git push origin main
+```
+
+Or use the deploy script:
+```bash
+./deploy.sh
+```
+
+### Step 2: SSH into your Proxmox server
+
+```bash
+ssh storeapp@192.168.1.9
+```
+
+### Step 3: Pull and restart on the server
+
+```bash
+cd /home/storeapp/store-visit-tracker
+git pull origin main
+sudo systemctl restart store-visit-tracker
+```
+
+Or use the update script (does pull + restart):
+```bash
+/home/storeapp/store-visit-tracker/update.sh
+```
+
+### Useful server commands
+
+```bash
+# Check if service is running
+sudo systemctl status store-visit-tracker
+
+# View live logs
+sudo journalctl -u store-visit-tracker -f
+
+# Restart service only (no pull)
+sudo systemctl restart store-visit-tracker
+
+# Stop service
+sudo systemctl stop store-visit-tracker
+```
+
+---
+
 ## 📍 GitHub Project
 
 **Repository:** https://gecgithub01.walmart.com/tjbarnh/store-visit-tracker  
