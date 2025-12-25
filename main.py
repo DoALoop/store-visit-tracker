@@ -665,59 +665,35 @@ def get_market_notes():
     try:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Query to get all visits with market notes and their completion status
+        # Query to get all market notes from normalized table with completion status
         query = """
             SELECT
                 sv.id as visit_id,
                 sv."storeNbr" as store_nbr,
                 sv.calendar_date,
-                sv.mkt_notes,
-                COALESCE(
-                    json_agg(
-                        json_build_object(
-                            'note_text', mnc.note_text,
-                            'completed', mnc.completed,
-                            'completed_at', mnc.completed_at
-                        )
-                    ) FILTER (WHERE mnc.note_text IS NOT NULL),
-                    '[]'::json
-                ) as completions
-            FROM store_visits sv
-            LEFT JOIN market_note_completions mnc ON sv.id = mnc.visit_id
-            WHERE sv.mkt_notes IS NOT NULL AND sv.mkt_notes != ''
-            GROUP BY sv.id, sv."storeNbr", sv.calendar_date, sv.mkt_notes
-            ORDER BY sv.calendar_date DESC
+                smn.note_text,
+                COALESCE(mnc.completed, FALSE) as completed
+            FROM store_market_notes smn
+            JOIN store_visits sv ON smn.visit_id = sv.id
+            LEFT JOIN market_note_completions mnc
+                ON smn.visit_id = mnc.visit_id AND smn.note_text = mnc.note_text
+            ORDER BY sv.calendar_date DESC, smn.sequence
         """
 
         cursor.execute(query)
         results = cursor.fetchall()
         cursor.close()
 
-        # Process results to expand market notes into individual items
+        # Build response from normalized data
         market_notes = []
         for row in results:
-            mkt_notes_text = row['mkt_notes']
-            if not mkt_notes_text:
-                continue
-
-            # Split market notes by newline to get individual notes
-            notes_list = [note.strip() for note in mkt_notes_text.split('\n') if note.strip()]
-
-            # Create completion lookup
-            completions_dict = {}
-            for comp in row['completions']:
-                if comp and 'note_text' in comp:
-                    completions_dict[comp['note_text']] = comp['completed']
-
-            # Create an item for each note
-            for note_text in notes_list:
-                market_notes.append({
-                    "visit_id": row['visit_id'],
-                    "store_nbr": row['store_nbr'],
-                    "calendar_date": row['calendar_date'].isoformat() if row['calendar_date'] else None,
-                    "note_text": note_text,
-                    "completed": completions_dict.get(note_text, False)
-                })
+            market_notes.append({
+                "visit_id": row['visit_id'],
+                "store_nbr": row['store_nbr'],
+                "calendar_date": row['calendar_date'].isoformat() if row['calendar_date'] else None,
+                "note_text": row['note_text'],
+                "completed": row['completed']
+            })
 
         return jsonify(market_notes)
 

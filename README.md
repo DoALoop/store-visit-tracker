@@ -407,19 +407,15 @@ All endpoints are documented in [API_ENDPOINTS.md](./API_ENDPOINTS.md).
 
 ### store_visits Table
 
+Main table storing visit metadata and metrics:
+
 ```sql
 CREATE TABLE store_visits (
     id SERIAL PRIMARY KEY,
     "storeNbr" VARCHAR(50) NOT NULL,
     calendar_date DATE NOT NULL,
     rating VARCHAR(20),                -- Green, Yellow, Red
-    
-    -- Notes & Observations
-    store_notes TEXT,                  -- Store observations (newline-separated)
-    mkt_notes TEXT,                    -- Market/competitive notes
-    good TEXT,                         -- What's working well
-    top_3 TEXT,                        -- Top 3 opportunities
-    
+
     -- Sales Metrics
     sales_comp_yest DECIMAL(10,2),     -- Sales comp vs yesterday (%)
     sales_index_yest DECIMAL(10,2),    -- Sales index vs yesterday
@@ -427,7 +423,7 @@ CREATE TABLE store_visits (
     sales_index_wtd DECIMAL(10,2),     -- Sales index WTD
     sales_comp_mtd DECIMAL(10,2),      -- Sales comp MTD (%)
     sales_index_mtd DECIMAL(10,2),     -- Sales index MTD
-    
+
     -- Operational Metrics
     vizpick DECIMAL(10,2),             -- Vizpick score (%)
     overstock INTEGER,                 -- Overstock count
@@ -440,14 +436,31 @@ CREATE TABLE store_visits (
     pinpoint DECIMAL(10,2),            -- Pinpoint score (%)
     ftpr DECIMAL(10,2),                -- FTPR score (%)
     presub DECIMAL(10,2),              -- Presub score (%)
-    
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+```
 
--- Indexes for performance
-CREATE INDEX idx_store_date ON store_visits("storeNbr", calendar_date);
-CREATE INDEX idx_calendar_date ON store_visits(calendar_date DESC);
-CREATE INDEX idx_store_nbr ON store_visits("storeNbr");
+### Normalized Note Tables
+
+Notes are stored in separate tables (one row per note):
+
+| Table | Purpose |
+|-------|---------|
+| `store_visit_notes` | Store observations |
+| `store_market_notes` | Market/competitive notes |
+| `store_good_notes` | What's working well |
+| `store_improvement_notes` | Top 3 opportunities |
+
+```sql
+-- Example: store_visit_notes (same structure for all note tables)
+CREATE TABLE store_visit_notes (
+    id SERIAL PRIMARY KEY,
+    visit_id INTEGER REFERENCES store_visits(id) ON DELETE CASCADE,
+    note_text TEXT NOT NULL,
+    sequence INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 ```
 
 ### market_note_completions Table

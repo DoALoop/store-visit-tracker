@@ -1,10 +1,6 @@
 -- PostgreSQL Schema for Store Visit Tracker
--- Normalized Note Structure (v2.0)
+-- Normalized Note Structure (v2.1)
 -- Run this file to create the database schema
---
--- IMPORTANT: If you have an existing installation with data, run:
---   psql -U [user] -d [database] -f migrations/001_normalize_notes.sql
--- to migrate to the new normalized structure.
 
 -- ============================================================================
 -- Main store_visits table (metrics and visit overview)
@@ -79,17 +75,6 @@ CREATE TABLE IF NOT EXISTS store_improvement_notes (
 );
 
 -- ============================================================================
--- DEPRECATED COLUMNS (v1.0 - kept for backward compatibility)
--- These will be removed in a future version
--- Use the normalized note tables above instead
--- ============================================================================
-
-ALTER TABLE store_visits ADD COLUMN IF NOT EXISTS store_notes TEXT;
-ALTER TABLE store_visits ADD COLUMN IF NOT EXISTS mkt_notes TEXT;
-ALTER TABLE store_visits ADD COLUMN IF NOT EXISTS good TEXT;
-ALTER TABLE store_visits ADD COLUMN IF NOT EXISTS top_3 TEXT;
-
--- ============================================================================
 -- Indexes for common queries
 -- ============================================================================
 
@@ -113,7 +98,7 @@ CREATE INDEX IF NOT EXISTS idx_improvement_notes_text ON store_improvement_notes
 -- ============================================================================
 -- Display schema info
 -- ============================================================================
-\echo 'Store Visit Tracker Schema Created Successfully (v2.0 - Normalized)'
+\echo 'Store Visit Tracker Schema Created Successfully (v2.1 - Normalized)'
 \echo ''
 \echo 'Main table:'
 \d store_visits
