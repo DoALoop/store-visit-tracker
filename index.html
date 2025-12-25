@@ -1,15 +1,21 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-gray-50">
+<html lang="en" class="h-full bg-gray-100">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Store Visit Note Analyzer</title>
-    <!-- Load Tailwind CSS -->
+    <title>Market Manager Tool</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
             theme: {
                 extend: {
+                    colors: {
+                        'walmart-blue': '#0071CE',
+                        'walmart-dark-blue': '#004C91',
+                        'walmart-light-blue': '#78B9E7',
+                        'walmart-yellow': '#FFC220',
+                        'walmart-green': '#00A342',
+                    },
                     fontFamily: {
                         sans: ['Inter', 'sans-serif'],
                     },
@@ -22,356 +28,420 @@
     </script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        .pb-safe {
-            padding-bottom: env(safe-area-inset-bottom);
-        }
-        /* Custom hide utility to ensure specificity */
-        .hidden-view {
-            display: none !important;
-        }
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+        .hidden-view { display: none !important; }
     </style>
 </head>
-<body class="bg-gray-50 h-full">
+<body class="bg-gray-100 h-full">
+    <!-- Top Header Bar -->
+    <header class="fixed top-0 w-full bg-walmart-blue z-50 shadow-md">
+        <div class="flex items-center justify-between px-4 h-14">
+            <button id="menu-btn" class="text-white p-2">
+                <i class="fas fa-bars text-xl"></i>
+            </button>
+            <h1 class="text-white text-lg font-semibold">Market Manager Tool</h1>
+            <div class="flex items-center space-x-2">
+                <button class="text-white p-2"><i class="fas fa-comment text-lg"></i></button>
+                <button class="text-white p-2"><i class="fas fa-user text-lg"></i></button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Side Drawer -->
+    <div id="drawer-overlay" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50" onclick="closeDrawer()"></div>
+    <div id="drawer" class="fixed top-0 left-0 h-full w-64 bg-white z-50 transform -translate-x-full transition-transform duration-300">
+        <div class="bg-walmart-blue px-4 py-6">
+            <h2 class="text-white text-xl font-bold">Market Manager Tool</h2>
+        </div>
+        <nav class="p-4">
+            <button onclick="switchTab('home'); closeDrawer();" class="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg flex items-center">
+                <i class="fas fa-home w-6 text-walmart-blue"></i><span class="ml-3">Dashboard</span>
+            </button>
+            <button onclick="switchTab('log-visit'); closeDrawer();" class="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg flex items-center">
+                <i class="fas fa-camera w-6 text-walmart-blue"></i><span class="ml-3">Log Visit</span>
+            </button>
+            <button onclick="switchTab('visits'); closeDrawer();" class="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg flex items-center">
+                <i class="fas fa-clipboard-list w-6 text-walmart-blue"></i><span class="ml-3">Visit Tracker</span>
+            </button>
+            <button onclick="switchTab('prior-tours'); closeDrawer();" class="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg flex items-center">
+                <i class="fas fa-history w-6 text-walmart-blue"></i><span class="ml-3">Prior Visits</span>
+            </button>
+            <hr class="my-4">
+            <button class="w-full text-left px-4 py-3 text-gray-500 hover:bg-gray-100 rounded-lg flex items-center justify-between">
+                <span>Settings</span><i class="fas fa-chevron-right text-sm"></i>
+            </button>
+            <button class="w-full text-left px-4 py-3 text-gray-500 hover:bg-gray-100 rounded-lg flex items-center justify-between">
+                <span>Help & Support</span><i class="fas fa-chevron-right text-sm"></i>
+            </button>
+        </nav>
+    </div>
+
     <!-- Views Container -->
-    <div id="main-content" class="h-full overflow-y-auto pb-24">
+    <div id="main-content" class="h-full overflow-y-auto pt-14 pb-20">
 
-        <!-- VIEW: HOME (Upload Form) -->
-        <div id="view-home" class="flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-            <div class="max-w-2xl w-full space-y-8 p-10 bg-white rounded-2xl shadow-xl">
-        <div>
-            <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
-                Store Visit Note Uploader
-            </h2>
-            <p class="mt-2 text-center text-sm text-gray-600">
-                Upload a photo of your handwritten notes to automatically categorize them.
-            </p>
+        <!-- VIEW: HOME (Dashboard) -->
+        <div id="view-home" class="p-4 bg-gray-100 min-h-full">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-gray-900">Dashboard Summary</h2>
+            </div>
+
+            <!-- Metric Cards - 2x2 Grid -->
+            <div class="grid grid-cols-2 gap-4" id="dashboard-cards">
+                <!-- Red Stores Card -->
+                <div class="bg-white rounded-xl shadow-md p-4 cursor-pointer hover:shadow-lg transition-shadow" onclick="filterByRating('Red')">
+                    <div class="flex justify-between items-start mb-1">
+                        <h3 class="text-sm font-bold text-gray-900">Red Stores</h3>
+                        <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
+                    </div>
+                    <p id="red-stores-count" class="text-3xl font-bold text-red-600 mb-1">-</p>
+                    <p class="text-xs text-gray-500">Immediate attention</p>
+                </div>
+
+                <!-- Yellow Stores Card -->
+                <div class="bg-white rounded-xl shadow-md p-4 cursor-pointer hover:shadow-lg transition-shadow" onclick="filterByRating('Yellow')">
+                    <div class="flex justify-between items-start mb-1">
+                        <h3 class="text-sm font-bold text-gray-900">Yellow Stores</h3>
+                        <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
+                    </div>
+                    <p id="yellow-stores-count" class="text-3xl font-bold text-yellow-500 mb-1">-</p>
+                    <p class="text-xs text-gray-500">Needs review</p>
+                </div>
+
+                <!-- Green Stores Card -->
+                <div class="bg-white rounded-xl shadow-md p-4 cursor-pointer hover:shadow-lg transition-shadow" onclick="filterByRating('Green')">
+                    <div class="flex justify-between items-start mb-1">
+                        <h3 class="text-sm font-bold text-gray-900">Green Stores</h3>
+                        <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
+                    </div>
+                    <p id="green-stores-count" class="text-3xl font-bold text-green-600 mb-1">-</p>
+                    <p class="text-xs text-gray-500">On track</p>
+                </div>
+
+                <!-- Outstanding Market Notes Card -->
+                <div class="bg-white rounded-xl shadow-md p-4 cursor-pointer hover:shadow-lg transition-shadow" onclick="switchTab('market-notes')">
+                    <div class="flex justify-between items-start mb-1">
+                        <h3 class="text-sm font-bold text-gray-900">Market Notes</h3>
+                        <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
+                    </div>
+                    <p id="market-notes-count" class="text-3xl font-bold text-walmart-blue mb-1">-</p>
+                    <p class="text-xs text-gray-500">Outstanding items</p>
+                </div>
+            </div>
         </div>
-        
-        <!-- File Upload Area -->
-        <div class="space-y-6">
-            <div>
-                <label for="image-upload" class="block text-sm font-medium text-gray-700">
-                    Handwritten Note Photo
-                </label>
-                <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg">
-                    <div class="space-y-3 text-center">
-                        
-                        <!-- Camera Button -->
-                        <button type="button" onclick="document.getElementById('camera-input').click()" class="inline-flex items-center px-4 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 w-full justify-center">
-                            <i class="fas fa-camera mr-2"></i> Take Photo
-                        </button>
-                        <input id="camera-input" type="file" accept="image/*" capture="environment" class="sr-only">
 
-                        <div class="relative">
-                            <div class="absolute inset-0 flex items-center">
-                                <div class="w-full border-t border-gray-300"></div>
-                            </div>
-                            <div class="relative flex justify-center text-sm">
-                                <span class="px-2 bg-white text-gray-500">Or</span>
-                            </div>
-                        </div>
+        <!-- VIEW: LOG VISIT (Upload Form) -->
+        <div id="view-log-visit" class="hidden-view flex flex-col items-center py-6 px-4">
+            <div class="max-w-2xl w-full space-y-6 p-6 bg-white rounded-xl shadow-lg">
+                <div class="text-center">
+                    <h2 class="text-2xl font-bold text-gray-900">Log Store Visit</h2>
+                    <p class="mt-2 text-sm text-gray-600">Upload a photo of your handwritten notes to automatically categorize them.</p>
+                </div>
 
-                        <div class="flex text-sm text-gray-600 justify-center">
-                            <label for="image-upload" class="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500">
+                <!-- File Upload Area -->
+                <div class="space-y-4">
+                    <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-xl bg-gray-50">
+                        <div class="space-y-3 text-center">
+                            <button type="button" onclick="document.getElementById('camera-input').click()" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-walmart-blue hover:bg-walmart-dark-blue focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-walmart-blue w-full justify-center">
+                                <i class="fas fa-camera mr-2"></i> Take Photo
+                            </button>
+                            <input id="camera-input" type="file" accept="image/*" capture="environment" class="sr-only">
+
+                            <div class="relative">
+                                <div class="absolute inset-0 flex items-center">
+                                    <div class="w-full border-t border-gray-300"></div>
+                                </div>
+                                <div class="relative flex justify-center text-sm">
+                                    <span class="px-2 bg-gray-50 text-gray-500">Or</span>
+                                </div>
+                            </div>
+
+                            <label for="image-upload" class="cursor-pointer text-walmart-blue hover:text-walmart-dark-blue font-medium">
                                 <span>Upload from Gallery</span>
-                                <input id="image-upload" name="image-upload" type="file" class="sr-only" accept="image/*">
+                                <input id="image-upload" type="file" class="sr-only" accept="image/*">
                             </label>
-                        </div>
-                        <p class="text-xs text-gray-500">
-                            PNG, JPG, GIF up to 10MB
-                        </p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Preview Image -->
-            <div id="image-preview-container" class="hidden">
-                <p class="block text-sm font-medium text-gray-700">Image Preview:</p>
-                <img id="image-preview" src="" alt="Image preview" class="mt-2 rounded-lg shadow-md max-h-60 w-auto mx-auto"/>
-            </div>
-
-            <div>
-                <button id="analyze-button" type="submit" class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-gray-400">
-                    Analyze Notes
-                </button>
-            </div>
-        </div>
-
-        <!-- Loading Spinner -->
-        <div id="loading-spinner" class="hidden text-center">
-            <svg class="animate-spin -ml-1 mr-3 h-8 w-8 text-indigo-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            <p class="mt-2 text-sm text-gray-600">Analyzing handwriting... this may take a moment.</p>
-        </div>
-
-        <!-- Error Message -->
-        <div id="error-message" class="hidden p-4 bg-red-100 text-red-700 rounded-lg">
-            <p><strong>Error:</strong> <span id="error-text"></span></p>
-        </div>
-
-        <!-- Duplicate Warning Modal -->
-        <div id="duplicate-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-            <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-96 shadow-lg rounded-md bg-white">
-                <div class="mt-3">
-                    <div class="flex items-center justify-center w-12 h-12 mx-auto bg-yellow-100 rounded-full">
-                        <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                        </svg>
-                    </div>
-                    <h3 class="text-lg font-medium text-gray-900 text-center mt-4">Potential Duplicate</h3>
-                    <div class="mt-4 px-4 py-3 bg-yellow-50 rounded-lg">
-                        <p class="text-sm text-gray-700 mb-2">An entry for this store and date already exists:</p>
-                        <div id="duplicate-details" class="text-sm font-mono text-gray-800">
-                            <!-- Details will be inserted by JavaScript -->
+                            <p class="text-xs text-gray-500">PNG, JPG up to 10MB</p>
                         </div>
                     </div>
-                    <p class="text-sm text-gray-600 text-center mt-4">Would you like to submit this entry anyway?</p>
-                    <div class="flex gap-4 mt-4">
-                        <button id="duplicate-cancel-btn" class="flex-1 px-4 py-2 bg-gray-200 text-gray-800 text-base font-medium rounded-md shadow-sm hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-300">
-                            Cancel
-                        </button>
-                        <button id="duplicate-submit-btn" class="flex-1 px-4 py-2 bg-indigo-600 text-white text-base font-medium rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                            Submit Anyway
-                        </button>
+
+                    <!-- Preview Image -->
+                    <div id="image-preview-container" class="hidden">
+                        <p class="block text-sm font-medium text-gray-700">Preview:</p>
+                        <img id="image-preview" src="" alt="Preview" class="mt-2 rounded-lg shadow-md max-h-48 w-auto mx-auto"/>
+                    </div>
+
+                    <button id="analyze-button" class="w-full py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-walmart-blue hover:bg-walmart-dark-blue focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-walmart-blue disabled:bg-gray-400">
+                        Analyze Notes
+                    </button>
+                </div>
+
+                <!-- Loading Spinner -->
+                <div id="loading-spinner" class="hidden text-center py-6">
+                    <svg class="animate-spin h-10 w-10 text-walmart-blue mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <p class="mt-3 text-sm text-gray-600">Analyzing with Gemini...</p>
+                </div>
+
+                <!-- Error Message -->
+                <div id="error-message" class="hidden p-4 bg-red-100 text-red-700 rounded-lg">
+                    <p><strong>Error:</strong> <span id="error-text"></span></p>
+                </div>
+
+                <!-- Duplicate Warning Modal -->
+                <div id="duplicate-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+                    <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-96 shadow-lg rounded-xl bg-white">
+                        <div class="mt-3">
+                            <div class="flex items-center justify-center w-12 h-12 mx-auto bg-yellow-100 rounded-full">
+                                <i class="fas fa-exclamation-triangle text-yellow-600 text-xl"></i>
+                            </div>
+                            <h3 class="text-lg font-medium text-gray-900 text-center mt-4">Potential Duplicate</h3>
+                            <div class="mt-4 px-4 py-3 bg-yellow-50 rounded-lg">
+                                <p class="text-sm text-gray-700 mb-2">An entry for this store and date already exists:</p>
+                                <div id="duplicate-details" class="text-sm font-mono text-gray-800"></div>
+                            </div>
+                            <p class="text-sm text-gray-600 text-center mt-4">Submit this entry anyway?</p>
+                            <div class="flex gap-4 mt-4">
+                                <button id="duplicate-cancel-btn" class="flex-1 px-4 py-2 bg-gray-200 text-gray-800 font-medium rounded-lg hover:bg-gray-300">Cancel</button>
+                                <button id="duplicate-submit-btn" class="flex-1 px-4 py-2 bg-walmart-blue text-white font-medium rounded-lg hover:bg-walmart-dark-blue">Submit Anyway</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results Section -->
+                <div id="results-container" class="hidden space-y-4">
+                    <h3 class="text-xl font-bold text-gray-900">Analysis Results</h3>
+
+                    <!-- Store Rating -->
+                    <div class="bg-white border-2 p-4 rounded-xl text-center">
+                        <h4 class="text-sm font-semibold text-gray-600 mb-2">Store Rating</h4>
+                        <div id="result-rating" class="inline-flex items-center justify-center px-6 py-2 text-xl font-bold rounded-full"></div>
+                    </div>
+
+                    <!-- Date and Store Number -->
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-blue-50 p-4 rounded-xl">
+                            <h4 class="text-sm font-semibold text-walmart-blue">Tour Date</h4>
+                            <p id="result-calendar-date" class="mt-1 text-lg font-bold text-gray-900"></p>
+                        </div>
+                        <div class="bg-blue-50 p-4 rounded-xl">
+                            <h4 class="text-sm font-semibold text-walmart-blue">Store Number</h4>
+                            <p id="result-store-nbr" class="mt-1 text-lg font-bold text-gray-900"></p>
+                        </div>
+                    </div>
+
+                    <!-- Notes -->
+                    <div class="bg-gray-50 p-4 rounded-xl">
+                        <h4 class="text-sm font-semibold text-gray-700">Store Notes</h4>
+                        <p id="result-store-notes" class="mt-2 text-sm text-gray-700 whitespace-pre-wrap"></p>
+                    </div>
+
+                    <div class="bg-purple-50 p-4 rounded-xl">
+                        <h4 class="text-sm font-semibold text-purple-700">Market Notes</h4>
+                        <p id="result-mkt-notes" class="mt-2 text-sm text-purple-700 whitespace-pre-wrap"></p>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-green-50 p-4 rounded-xl">
+                            <h4 class="text-sm font-semibold text-green-700">What's Good</h4>
+                            <p id="result-good" class="mt-2 text-sm text-gray-700 whitespace-pre-wrap"></p>
+                        </div>
+                        <div class="bg-yellow-50 p-4 rounded-xl">
+                            <h4 class="text-sm font-semibold text-yellow-700">Top 3 Opportunities</h4>
+                            <p id="result-top-3" class="mt-2 text-sm text-gray-700 whitespace-pre-wrap"></p>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Results Section -->
-        <div id="results-container" class="hidden space-y-6">
-            <h3 class="text-2xl font-bold text-gray-900">Analysis Results</h3>
-
-            <!-- Store Rating Section - Prominent Display -->
-            <div class="bg-white border-2 p-6 rounded-lg shadow-lg text-center">
-                <h4 class="text-lg font-semibold text-gray-800 mb-3">Store Rating</h4>
-                <div id="result-rating" class="inline-flex items-center justify-center px-6 py-3 text-2xl font-bold rounded-full">
-                    <!-- Rating badge will be inserted here by JavaScript -->
+        <!-- VIEW: VISITS (Visit Tracker) -->
+        <div id="view-visits" class="hidden-view p-4 bg-gray-100 min-h-full">
+            <!-- Active Rating Filter Badge -->
+            <div id="rating-filter-badge" class="hidden mb-3">
+                <div class="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium">
+                    <span>Showing:</span>
+                    <span id="rating-filter-label" class="px-2 py-1 rounded-full text-xs font-bold"></span>
+                    <button onclick="clearRatingFilter()" class="ml-1 text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-times"></i> Clear
+                    </button>
                 </div>
             </div>
 
-            <!-- Date and Store Number -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="bg-indigo-50 p-6 rounded-lg shadow-inner">
-                    <h4 class="text-lg font-semibold text-indigo-800">Tour Date</h4>
-                    <p id="result-calendar-date" class="mt-2 text-xl font-bold text-indigo-900"></p>
-                </div>
-
-                <div class="bg-indigo-50 p-6 rounded-lg shadow-inner">
-                    <h4 class="text-lg font-semibold text-indigo-800">Store Number</h4>
-                    <p id="result-store-nbr" class="mt-2 text-xl font-bold text-indigo-900"></p>
+            <!-- Store Summary - Last Visit per Store -->
+            <div class="mb-4">
+                <h3 class="text-sm font-semibold text-gray-600 uppercase mb-2">Store Status</h3>
+                <div id="store-summary-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                    <div class="text-center text-gray-400 text-sm py-4 col-span-full">Loading...</div>
                 </div>
             </div>
 
-            <!-- Store Notes (TO Store) -->
-            <div class="bg-gray-50 p-6 rounded-lg shadow-inner">
-                <h4 class="text-lg font-semibold text-gray-800">Store Notes</h4>
-                <p id="result-store-notes" class="mt-2 text-sm text-gray-700 whitespace-pre-wrap font-mono"></p>
-            </div>
-
-            <!-- Market Notes (FROM Store) -->
-            <div class="bg-purple-50 p-6 rounded-lg shadow-inner">
-                <h4 class="text-lg font-semibold text-purple-800">Market Notes</h4>
-                <p id="result-mkt-notes" class="mt-2 text-sm text-purple-700 whitespace-pre-wrap font-mono"></p>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <!-- Good -->
-                <div class="bg-green-50 p-6 rounded-lg shadow-inner">
-                    <h4 class="text-lg font-semibold text-green-800">What's Good</h4>
-                    <p id="result-good" class="mt-2 text-sm text-green-700 whitespace-pre-wrap font-mono"></p>
-                </div>
-
-                <!-- Top 3 -->
-                <div class="bg-yellow-50 p-6 rounded-lg shadow-inner">
-                    <h4 class="text-lg font-semibold text-yellow-800">Top 3 Things Needed</h4>
-                    <p id="result-top-3" class="mt-2 text-sm text-yellow-700 whitespace-pre-wrap font-mono"></p>
-                </div>
-            </div>
-        </div>
-
-        </div>
-    </div> <!-- End view-home -->
-
-    <!-- VIEW: VISITS (History List) -->
-    <div id="view-visits" class="hidden-view p-4 max-w-2xl mx-auto">
-         <div class="flex justify-between items-center mb-4">
-             <h2 class="text-2xl font-bold text-gray-900">Visits</h2>
-             <button onclick="loadVisits()" class="text-sm text-indigo-600 hover:text-indigo-800">
-                 <i class="fas fa-sync-alt mr-1"></i> Refresh
-             </button>
-         </div>
-         
-         <div class="bg-white rounded-lg shadow overflow-hidden">
-             <div class="overflow-x-auto">
-                 <table class="min-w-full divide-y divide-gray-200">
-                     <thead class="bg-gray-50">
-                         <tr>
-                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Store</th>
-                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rating</th>
-                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Top 3 Opportunities</th>
-                         </tr>
-                     </thead>
-                     <tbody id="visits-table-body" class="bg-white divide-y divide-gray-200">
-                         <!-- Rows will be inserted here -->
-                         <tr>
-                             <td colspan="3" class="px-6 py-4 text-center text-sm text-gray-500">
-                                 Loading visits...
-                             </td>
-                         </tr>
-                     </tbody>
-                 </table>
-             </div>
-         </div>
-    </div>
-
-    <!-- VIEW: SUMMARY -->
-    <div id="view-summary" class="hidden-view p-4 max-w-2xl mx-auto">
-         <div class="flex justify-between items-center mb-4">
-             <h2 class="text-2xl font-bold text-gray-900">Store Ratings Summary</h2>
-             <button onclick="loadSummary()" class="text-sm text-indigo-600 hover:text-indigo-800">
-                 <i class="fas fa-sync-alt mr-1"></i> Refresh
-             </button>
-         </div>
-
-         <!-- Store Ratings Card -->
-         <div class="bg-white rounded-lg shadow overflow-hidden">
-            <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
-                <h3 class="text-lg font-medium text-gray-900">Recent Performance</h3>
-                <p class="text-sm text-gray-500">Last 2 ratings per store</p>
-            </div>
-            
-            <div class="overflow-x-auto">
-                 <table class="min-w-full divide-y divide-gray-200">
-                     <thead class="bg-white">
-                         <tr>
-                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Store</th>
-                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Most Recent</th>
-                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Previous</th>
-                         </tr>
-                     </thead>
-                     <tbody id="summary-table-body" class="bg-white divide-y divide-gray-200">
-                         <tr>
-                             <td colspan="3" class="px-6 py-4 text-center text-sm text-gray-500">
-                                 Loading summary...
-                             </td>
-                         </tr>
-                     </tbody>
-                 </table>
-            </div>
-        </div>
-    </div>
-
-    <!-- VIEW: PRIOR TOURS -->
-    <div id="view-prior-tours" class="hidden-view p-4 max-w-2xl mx-auto">
-         <h2 class="text-2xl font-bold text-gray-900 mb-4">Prior Tours</h2>
-         
-         <!-- Search Section -->
-         <div class="bg-white p-6 rounded-lg shadow-md mb-6">
-            <label for="prior-store-nbr" class="block text-sm font-medium text-gray-700 mb-2">Store Number</label>
-            <div class="flex gap-2">
-                <input type="text" id="prior-store-nbr" placeholder="e.g. 1234" class="flex-1 appearance-none rounded-md border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-500 focus:z-10 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm">
-                <button id="btn-search-prior" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
-                    Search
+            <!-- Store Filter Dropdown -->
+            <div class="mb-4">
+                <button id="store-filter-btn" class="w-full bg-white px-4 py-3 rounded-lg shadow flex items-center justify-between">
+                    <span id="store-filter-text" class="text-gray-900 font-medium">All Stores</span>
+                    <i class="fas fa-chevron-down text-walmart-blue"></i>
                 </button>
+                <div id="store-filter-dropdown" class="hidden absolute left-4 right-4 mt-1 bg-white rounded-lg shadow-lg z-40 max-h-64 overflow-y-auto">
+                    <!-- Options will be inserted by JS -->
+                </div>
             </div>
-         </div>
 
-         <!-- Results Section -->
-         <div id="prior-results" class="space-y-4">
-             <!-- Results will be injected here -->
-             <div class="text-center text-gray-500 py-8">
-                <i class="fas fa-search text-4xl text-gray-300 mb-2"></i>
-                <p>Enter a store number to view past tours.</p>
-             </div>
-         </div>
+            <!-- Table Header -->
+            <div class="bg-white rounded-t-lg shadow-sm">
+                <div class="grid grid-cols-12 gap-2 px-4 py-3 text-xs font-bold text-gray-600 uppercase border-b">
+                    <div class="col-span-2 cursor-pointer flex items-center" onclick="sortVisits('store')">
+                        Store# <i id="sort-store-icon" class="fas fa-sort ml-1 text-gray-400"></i>
+                    </div>
+                    <div class="col-span-3 cursor-pointer flex items-center" onclick="sortVisits('date')">
+                        Date <i id="sort-date-icon" class="fas fa-sort ml-1 text-gray-400"></i>
+                    </div>
+                    <div class="col-span-2 cursor-pointer flex items-center" onclick="sortVisits('rating')">
+                        Rating <i id="sort-rating-icon" class="fas fa-sort ml-1 text-gray-400"></i>
+                    </div>
+                    <div class="col-span-5">Top Notes</div>
+                </div>
+            </div>
+
+            <!-- Table Body -->
+            <div id="visits-table-body" class="bg-white rounded-b-lg shadow-sm divide-y divide-gray-100">
+                <div class="p-8 text-center text-gray-500">Loading visits...</div>
+            </div>
+        </div>
+
+        <!-- VIEW: PRIOR TOURS (Prior Visits) -->
+        <div id="view-prior-tours" class="hidden-view p-4 bg-gray-100 min-h-full">
+            <h2 class="text-xl font-bold text-gray-900 mb-4">Prior Visits</h2>
+
+            <!-- Search Section -->
+            <div class="bg-white p-4 rounded-xl shadow-md mb-4">
+                <label for="prior-store-nbr" class="block text-sm font-medium text-gray-700 mb-2">Enter Store Number</label>
+                <div class="flex gap-2">
+                    <input type="text" id="prior-store-nbr" placeholder="e.g. 1234" class="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-gray-900 focus:border-walmart-blue focus:ring-walmart-blue">
+                    <button id="btn-search-prior" class="bg-walmart-blue text-white px-6 py-2 rounded-lg hover:bg-walmart-dark-blue font-medium">
+                        Get Prior Visit Summary
+                    </button>
+                </div>
+            </div>
+
+            <!-- Results Section -->
+            <div id="prior-results" class="space-y-4">
+                <div class="text-center text-gray-500 py-8">
+                    <i class="fas fa-search text-4xl text-gray-300 mb-3"></i>
+                    <p>Enter a store number to see the prior visit summary.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- VIEW: MARKET NOTES (To-Do List) -->
+        <div id="view-market-notes" class="hidden-view p-4 bg-gray-100 min-h-full">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-gray-900">Market Notes</h2>
+                <span id="market-notes-progress" class="text-sm text-gray-500"></span>
+            </div>
+
+            <!-- Filter by Store -->
+            <div class="mb-4">
+                <button id="market-store-filter-btn" class="w-full bg-white px-4 py-3 rounded-lg shadow flex items-center justify-between">
+                    <span id="market-store-filter-text" class="text-gray-900 font-medium">All Stores</span>
+                    <i class="fas fa-chevron-down text-walmart-blue"></i>
+                </button>
+                <div id="market-store-filter-dropdown" class="hidden absolute left-4 right-4 mt-1 bg-white rounded-lg shadow-lg z-40 max-h-64 overflow-y-auto">
+                    <!-- Options will be inserted by JS -->
+                </div>
+            </div>
+
+            <!-- Market Notes List (Outstanding) -->
+            <div id="market-notes-list" class="space-y-3">
+                <div class="text-center py-8">
+                    <svg class="animate-spin h-8 w-8 text-walmart-blue mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <p class="mt-3 text-gray-500">Loading market notes...</p>
+                </div>
+            </div>
+
+            <!-- Completed Section (Collapsible) -->
+            <div id="completed-section" class="hidden mt-6">
+                <button onclick="toggleCompletedSection()" class="w-full bg-gray-200 hover:bg-gray-300 rounded-lg px-4 py-3 flex items-center justify-between transition-colors">
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-check-circle text-green-500"></i>
+                        <span class="font-medium text-gray-700">Completed</span>
+                        <span id="completed-count-badge" class="bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+                    </div>
+                    <i id="completed-chevron" class="fas fa-chevron-down text-gray-500 transition-transform"></i>
+                </button>
+                <div id="completed-notes-container" class="hidden mt-3 space-y-3">
+                    <!-- Completed notes will be inserted here -->
+                </div>
+            </div>
+        </div>
+
     </div>
-
-    </div> <!-- End main-content -->
 
     <!-- Visit Detail Modal -->
     <div id="visit-detail-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end sm:items-center sm:justify-center">
-        <div class="bg-white w-full sm:max-w-2xl sm:rounded-lg rounded-t-2xl max-h-screen sm:max-h-[90vh] overflow-y-auto">
-            <!-- Modal Header -->
-            <div class="sticky top-0 flex justify-between items-center p-6 border-b border-gray-200 bg-white">
-                <h2 class="text-2xl font-bold text-gray-900">Visit Details</h2>
-                <button onclick="closeVisitDetailModal()" class="text-gray-400 hover:text-gray-600 focus:outline-none">
-                    <i class="fas fa-times text-2xl"></i>
+        <div class="bg-white w-full sm:max-w-2xl sm:rounded-xl rounded-t-2xl max-h-screen sm:max-h-[90vh] overflow-y-auto">
+            <div class="sticky top-0 flex justify-between items-center p-4 border-b border-gray-200 bg-white">
+                <h2 class="text-xl font-bold text-gray-900">Visit Details</h2>
+                <button onclick="closeVisitDetailModal()" class="text-gray-400 hover:text-gray-600 p-2">
+                    <i class="fas fa-times text-xl"></i>
                 </button>
             </div>
-            
-            <!-- Modal Content -->
-            <div class="p-6 space-y-6">
-                <!-- Store & Date Info -->
+
+            <div class="p-4 space-y-4">
                 <div class="grid grid-cols-3 gap-4">
                     <div>
-                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Store</p>
-                        <p id="modal-store-nbr" class="text-2xl font-bold text-gray-900 mt-1">-</p>
+                        <p class="text-xs font-semibold text-gray-500 uppercase">Store</p>
+                        <p id="modal-store-nbr" class="text-2xl font-bold text-gray-900">-</p>
                     </div>
                     <div>
-                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Date</p>
-                        <p id="modal-date" class="text-lg font-semibold text-gray-900 mt-1">-</p>
+                        <p class="text-xs font-semibold text-gray-500 uppercase">Date</p>
+                        <p id="modal-date" class="text-lg font-semibold text-gray-900">-</p>
                     </div>
                     <div>
-                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Rating</p>
-                        <div id="modal-rating" class="mt-1 inline-block px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-800">-</div>
+                        <p class="text-xs font-semibold text-gray-500 uppercase">Rating</p>
+                        <div id="modal-rating" class="inline-block px-3 py-1 rounded-full text-xs font-bold bg-gray-100">-</div>
                     </div>
                 </div>
 
-                <!-- Store Notes -->
                 <div>
-                    <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center">
-                        <i class="fas fa-sticky-note text-indigo-600 mr-2"></i>Store Notes
+                    <h3 class="text-sm font-semibold text-gray-700 uppercase mb-2 flex items-center">
+                        <i class="fas fa-sticky-note text-walmart-blue mr-2"></i>Store Notes
                     </h3>
-                    <div id="modal-store-notes" class="bg-gray-50 rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap">
-                        -
-                    </div>
+                    <div id="modal-store-notes" class="bg-gray-50 rounded-lg p-4 text-sm text-gray-700">-</div>
                 </div>
 
-                <!-- Market Notes -->
                 <div>
-                    <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center">
-                        <i class="fas fa-globe text-indigo-600 mr-2"></i>Market Notes
+                    <h3 class="text-sm font-semibold text-gray-700 uppercase mb-2 flex items-center">
+                        <i class="fas fa-globe text-walmart-blue mr-2"></i>Market Notes
                     </h3>
-                    <div id="modal-mkt-notes" class="bg-gray-50 rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap">
-                        -
-                    </div>
+                    <div id="modal-mkt-notes" class="bg-gray-50 rounded-lg p-4 text-sm text-gray-700">-</div>
                 </div>
 
-                <!-- Good Things -->
                 <div>
-                    <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center">
+                    <h3 class="text-sm font-semibold text-gray-700 uppercase mb-2 flex items-center">
                         <i class="fas fa-check-circle text-green-600 mr-2"></i>What's Working Well
                     </h3>
-                    <div id="modal-good" class="bg-green-50 rounded-lg p-4 space-y-2 text-sm text-gray-700">
-                        -
-                    </div>
+                    <div id="modal-good" class="bg-green-50 rounded-lg p-4 text-sm text-gray-700">-</div>
                 </div>
 
-                <!-- Top 3 Opportunities -->
                 <div>
-                    <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center">
+                    <h3 class="text-sm font-semibold text-gray-700 uppercase mb-2 flex items-center">
                         <i class="fas fa-lightbulb text-yellow-600 mr-2"></i>Top 3 Opportunities
                     </h3>
-                    <div id="modal-top3" class="bg-yellow-50 rounded-lg p-4 space-y-2 text-sm text-gray-700">
-                        -
-                    </div>
+                    <div id="modal-top3" class="bg-yellow-50 rounded-lg p-4 text-sm text-gray-700">-</div>
                 </div>
 
-                <!-- Metrics Section -->
                 <div>
-                    <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center">
-                        <i class="fas fa-chart-bar text-blue-600 mr-2"></i>Metrics
+                    <h3 class="text-sm font-semibold text-gray-700 uppercase mb-2 flex items-center">
+                        <i class="fas fa-chart-bar text-walmart-blue mr-2"></i>Metrics
                     </h3>
-                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-4" id="modal-metrics">
-                        <!-- Metrics will be dynamically inserted here -->
-                    </div>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3" id="modal-metrics"></div>
                 </div>
 
-                <!-- Timestamp -->
                 <div class="pt-4 border-t border-gray-200 text-xs text-gray-500">
                     <p>Recorded: <span id="modal-created-at">-</span></p>
                 </div>
@@ -380,807 +450,763 @@
     </div>
 
     <!-- Bottom Navigation Bar -->
-    <nav class="fixed bottom-0 w-full bg-white border-t border-gray-200 pb-safe z-50">
+    <nav class="fixed bottom-0 w-full bg-white border-t border-gray-200 pb-safe z-40">
         <div class="grid grid-cols-4 h-16">
-            <!-- Home Tab -->
-            <button onclick="switchTab('home')" class="nav-btn w-full h-full flex flex-col items-center justify-center space-y-1 text-indigo-600 focus:outline-none transition-colors" data-target="view-home">
+            <button onclick="switchTab('home')" class="nav-btn w-full h-full flex flex-col items-center justify-center space-y-1 text-walmart-blue focus:outline-none" data-target="view-home">
                 <i class="fas fa-home text-xl"></i>
                 <span class="text-xs font-medium">Home</span>
             </button>
-            
-            <!-- Visits Tab -->
-            <button onclick="switchTab('visits')" class="nav-btn w-full h-full flex flex-col items-center justify-center space-y-1 text-gray-500 hover:text-indigo-600 focus:outline-none transition-colors" data-target="view-visits">
+            <button onclick="switchTab('log-visit')" class="nav-btn w-full h-full flex flex-col items-center justify-center space-y-1 text-gray-500 hover:text-walmart-blue focus:outline-none" data-target="view-log-visit">
+                <i class="fas fa-camera text-xl"></i>
+                <span class="text-xs font-medium">Log Visit</span>
+            </button>
+            <button onclick="switchTab('visits')" class="nav-btn w-full h-full flex flex-col items-center justify-center space-y-1 text-gray-500 hover:text-walmart-blue focus:outline-none" data-target="view-visits">
                 <i class="fas fa-clipboard-list text-xl"></i>
-                <span class="text-xs font-medium">Visits</span>
+                <span class="text-xs font-medium">Tracker</span>
             </button>
-            
-            <!-- Summary Tab -->
-            <button onclick="switchTab('summary')" class="nav-btn w-full h-full flex flex-col items-center justify-center space-y-1 text-gray-500 hover:text-indigo-600 focus:outline-none transition-colors" data-target="view-summary">
-                <i class="fas fa-chart-pie text-xl"></i>
-                <span class="text-xs font-medium">Summary</span>
-            </button>
-
-            <!-- Prior Tours Tab -->
-            <button onclick="switchTab('prior-tours')" class="nav-btn w-full h-full flex flex-col items-center justify-center space-y-1 text-gray-500 hover:text-indigo-600 focus:outline-none transition-colors" data-target="view-prior-tours">
-                <i class="fas fa-history text-xl"></i>
-                <span class="text-xs font-medium text-center leading-tight">Prior<br>Tours</span>
+            <button onclick="switchTab('market-notes')" class="nav-btn w-full h-full flex flex-col items-center justify-center space-y-1 text-gray-500 hover:text-walmart-blue focus:outline-none" data-target="view-market-notes">
+                <i class="fas fa-tasks text-xl"></i>
+                <span class="text-xs font-medium">Tasks</span>
             </button>
         </div>
     </nav>
 
     <script>
-        // --- Navigation Logic ---
-        
+        // --- State ---
+        let allVisits = [];
+        let currentFilter = null;
+        let currentRatingFilter = null;
+        let currentSort = { column: null, ascending: true };
+        let base64ImageData = null;
+        let fileMimeType = null;
+        let currentParsedData = null;
+
+        // --- Drawer ---
+        function openDrawer() {
+            document.getElementById('drawer').classList.remove('-translate-x-full');
+            document.getElementById('drawer-overlay').classList.remove('hidden');
+        }
+        function closeDrawer() {
+            document.getElementById('drawer').classList.add('-translate-x-full');
+            document.getElementById('drawer-overlay').classList.add('hidden');
+        }
+        document.getElementById('menu-btn').addEventListener('click', openDrawer);
+
+        // --- Navigation ---
+        function switchTab(tabName) {
+            ['view-home', 'view-log-visit', 'view-visits', 'view-prior-tours', 'view-market-notes'].forEach(id => {
+                document.getElementById(id).classList.add('hidden-view');
+            });
+
+            const targetId = 'view-' + tabName;
+            document.getElementById(targetId).classList.remove('hidden-view');
+
+            if (tabName === 'home') loadDashboard();
+            if (tabName === 'visits') loadVisits();
+            if (tabName === 'market-notes') loadMarketNotes();
+
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                const isTarget = btn.getAttribute('data-target') === targetId;
+                btn.classList.toggle('text-walmart-blue', isTarget);
+                btn.classList.toggle('text-gray-500', !isTarget);
+            });
+        }
+
+        // --- Dashboard ---
+        async function loadDashboard() {
+            try {
+                // Load visits for store ratings
+                const visitsResponse = await fetch('/api/visits');
+                if (!visitsResponse.ok) throw new Error('Failed to load visits');
+                const visits = await visitsResponse.json();
+
+                let red = 0, yellow = 0, green = 0;
+                const stores = new Set();
+
+                visits.forEach(v => {
+                    if (!stores.has(v.storeNbr)) {
+                        stores.add(v.storeNbr);
+                        if (v.rating === 'Red') red++;
+                        else if (v.rating === 'Yellow') yellow++;
+                        else if (v.rating === 'Green') green++;
+                    }
+                });
+
+                document.getElementById('red-stores-count').textContent = red;
+                document.getElementById('yellow-stores-count').textContent = yellow;
+                document.getElementById('green-stores-count').textContent = green;
+
+                // Load market notes for outstanding count
+                const notesResponse = await fetch('/api/market-notes');
+                if (notesResponse.ok) {
+                    const marketNotes = await notesResponse.json();
+                    const incompleteCount = marketNotes.filter(n => !n.completed).length;
+                    document.getElementById('market-notes-count').textContent = incompleteCount;
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        // --- Visits ---
         async function loadVisits() {
             const tbody = document.getElementById('visits-table-body');
-            
-            // Show loading state if table is empty or we want to refresh visual
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="3" class="px-6 py-12 text-center">
-                        <svg class="animate-spin h-8 w-8 text-indigo-600 mx-auto mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        <p class="text-sm text-gray-500">Loading recent visits...</p>
-                    </td>
-                </tr>
-            `;
+            const summaryGrid = document.getElementById('store-summary-grid');
+            tbody.innerHTML = '<div class="p-8 text-center"><svg class="animate-spin h-8 w-8 text-walmart-blue mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></div>';
 
             try {
                 const response = await fetch('/api/visits');
-                if (!response.ok) throw new Error('Failed to fetch visits');
-                
-                const data = await response.json();
-                
-                if (data.length === 0) {
-                    tbody.innerHTML = `
-                        <tr>
-                            <td colspan="3" class="px-6 py-8 text-center text-gray-500">
-                                No visits recorded yet.
-                            </td>
-                        </tr>
-                    `;
-                    return;
-                }
+                if (!response.ok) throw new Error('Failed');
+                allVisits = await response.json();
 
-                // Render rows
-                tbody.innerHTML = data.map(visit => {
-                    // Rating styling
-                    let badgeClass = 'bg-gray-100 text-gray-800';
-                    if (visit.rating === 'Green') badgeClass = 'bg-green-100 text-green-800';
-                    else if (visit.rating === 'Yellow') badgeClass = 'bg-yellow-100 text-yellow-800';
-                    else if (visit.rating === 'Red') badgeClass = 'bg-red-100 text-red-800';
-                    
-                    // Format date (remove time if present)
-                    const dateStr = visit.calendar_date ? new Date(visit.calendar_date).toLocaleDateString() : 'N/A';
+                // Populate filter dropdown
+                const stores = [...new Set(allVisits.map(v => v.storeNbr))].sort();
+                const dropdown = document.getElementById('store-filter-dropdown');
+                dropdown.innerHTML = `<div class="p-2 hover:bg-gray-100 cursor-pointer" onclick="filterVisits(null)">All Stores</div>` +
+                    stores.map(s => `<div class="p-2 hover:bg-gray-100 cursor-pointer" onclick="filterVisits('${s}')">Store ${s}</div>`).join('');
 
-                    // Parse Top 3
-                    let top3Html = '<span class="text-gray-400 italic text-xs">None</span>';
-                    if (visit.top_3) {
-                        const items = visit.top_3.split('\n').filter(i => i.trim());
-                        if (items.length > 0) {
-                            top3Html = `<ul class="list-disc list-inside text-xs text-gray-600 space-y-1 max-w-xs">
-                                ${items.map(item => `<li class="truncate" title="${item}">${item}</li>`).join('')}
-                            </ul>`;
-                        }
-                    }
-
-                    return `
-                        <tr>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                #${visit.storeNbr || '?'}
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                ${dateStr}
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${badgeClass}">
-                                    ${visit.rating || 'N/A'}
-                                </span>
-                            </td>
-                            <td class="px-6 py-4 text-sm text-gray-500">
-                                ${top3Html}
-                            </td>
-                        </tr>
-                    `;
-                }).join('');
-                
-            } catch (error) {
-                console.error(error);
-                tbody.innerHTML = `
-                    <tr>
-                        <td colspan="3" class="px-6 py-8 text-center text-red-500">
-                            Error loading visits. <br>
-                            <button onclick="loadVisits()" class="mt-2 underline text-indigo-600">Try Again</button>
-                        </td>
-                    </tr>
-                `;
+                // Build store summary (last visit per store)
+                renderStoreSummary();
+                renderVisits();
+            } catch (e) {
+                tbody.innerHTML = '<div class="p-8 text-center text-red-500">Error loading visits</div>';
+                summaryGrid.innerHTML = '<div class="text-center text-red-500 text-sm py-4 col-span-full">Error loading</div>';
             }
         }
 
-        async function loadSummary() {
-            const tbody = document.getElementById('summary-table-body');
-            
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="3" class="px-6 py-12 text-center">
-                        <svg class="animate-spin h-8 w-8 text-indigo-600 mx-auto mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        <p class="text-sm text-gray-500">Calculating metrics...</p>
-                    </td>
-                </tr>
-            `;
+        function renderStoreSummary() {
+            const summaryGrid = document.getElementById('store-summary-grid');
 
-            try {
-                const response = await fetch('/api/summary');
-                if (!response.ok) throw new Error('Failed to fetch summary');
-                
-                const data = await response.json();
-                
-                if (data.length === 0) {
-                    tbody.innerHTML = `
-                        <tr>
-                            <td colspan="3" class="px-6 py-8 text-center text-gray-500">
-                                No store data available.
-                            </td>
-                        </tr>
-                    `;
-                    return;
-                }
-
-                // Helper for rating badges
-                const getRatingBadge = (rating, date) => {
-                    if (!rating) return '<span class="text-gray-400 text-xs italic">No Data</span>';
-                    
-                    let colorClass = 'bg-gray-100 text-gray-800';
-                    if (rating === 'Green') colorClass = 'bg-green-100 text-green-800';
-                    if (rating === 'Yellow') colorClass = 'bg-yellow-100 text-yellow-800';
-                    if (rating === 'Red') colorClass = 'bg-red-100 text-red-800';
-                    
-                    const dateStr = date ? new Date(date).toLocaleDateString() : '';
-                    
-                    return `
-                        <div class="flex flex-col items-start">
-                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${colorClass} mb-1">
-                                ${rating}
-                            </span>
-                            <span class="text-xs text-gray-500">${dateStr}</span>
-                        </div>
-                    `;
-                };
-
-                // Render rows
-                tbody.innerHTML = data.map(store => {
-                    // recent_visits is ordered DESC (0 is most recent, 1 is previous)
-                    const mostRecent = store.recent_visits[0] || {};
-                    const previous = store.recent_visits[1] || {};
-
-                    return `
-                        <tr>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                #${store.storeNbr}
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                ${getRatingBadge(mostRecent.rating, mostRecent.calendar_date)}
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                ${getRatingBadge(previous.rating, previous.calendar_date)}
-                            </td>
-                        </tr>
-                    `;
-                }).join('');
-
-            } catch (error) {
-                console.error(error);
-                tbody.innerHTML = `
-                    <tr>
-                        <td colspan="3" class="px-6 py-8 text-center text-red-500">
-                            Error loading summary.
-                        </td>
-                    </tr>
-                `;
-            }
-        }
-
-        function switchTab(tabName) {
-            // Hide all views
-            ['view-home', 'view-visits', 'view-summary', 'view-prior-tours'].forEach(id => {
-                document.getElementById(id).classList.add('hidden-view');
-            });
-            
-            // Show target view
-            const targetId = 'view-' + tabName;
-            document.getElementById(targetId).classList.remove('hidden-view');
-            
-            // Load data if needed
-            if (tabName === 'visits') {
-                loadVisits();
-            } else if (tabName === 'summary') {
-                loadSummary();
-            }
-            
-            // Update active state of buttons
-            document.querySelectorAll('.nav-btn').forEach(btn => {
-                const isTarget = btn.getAttribute('data-target') === targetId;
-                if (isTarget) {
-                    btn.classList.add('text-indigo-600');
-                    btn.classList.remove('text-gray-500');
-                } else {
-                    btn.classList.remove('text-indigo-600');
-                    btn.classList.add('text-gray-500');
-                }
-            });
-        }
-        
-        // --- Existing DOM Elements ---
-        const imageUpload = document.getElementById('image-upload');
-        const cameraInput = document.getElementById('camera-input');
-        const imagePreview = document.getElementById('image-preview');
-        const imagePreviewContainer = document.getElementById('image-preview-container');
-        const analyzeButton = document.getElementById('analyze-button');
-        const loadingSpinner = document.getElementById('loading-spinner');
-        const resultsContainer = document.getElementById('results-container');
-        const errorMessage = document.getElementById('error-message');
-        const errorText = document.getElementById('error-text');
-        
-        // Result fields
-        const resultRating = document.getElementById('result-rating');
-        const resultCalendarDate = document.getElementById('result-calendar-date');
-        const resultStoreNbr = document.getElementById('result-store-nbr');
-        const resultStoreNotes = document.getElementById('result-store-notes');
-        const resultMktNotes = document.getElementById('result-mkt-notes');
-        const resultGood = document.getElementById('result-good');
-        const resultTop3 = document.getElementById('result-top-3');
-
-        // Duplicate modal elements
-        const duplicateModal = document.getElementById('duplicate-modal');
-        const duplicateDetails = document.getElementById('duplicate-details');
-        const duplicateCancelBtn = document.getElementById('duplicate-cancel-btn');
-        const duplicateSubmitBtn = document.getElementById('duplicate-submit-btn');
-
-        // Prior Tours Elements
-        const btnSearchPrior = document.getElementById('btn-search-prior');
-        const inputPriorStoreNbr = document.getElementById('prior-store-nbr');
-        const divPriorResults = document.getElementById('prior-results');
-
-        let base64ImageData = null;
-        let fileMimeType = null;
-        let currentParsedData = null; // Store parsed data for saving later
-
-        // --- Event Listeners ---
-        
-        // Prior Tours Search
-        btnSearchPrior.addEventListener('click', async () => {
-            const storeNbr = inputPriorStoreNbr.value.trim();
-            if (!storeNbr) {
-                alert('Please enter a store number');
+            if (allVisits.length === 0) {
+                summaryGrid.innerHTML = '<div class="text-center text-gray-400 text-sm py-4 col-span-full">No visits recorded yet</div>';
                 return;
             }
 
-            // Show loading state
-            divPriorResults.innerHTML = `
-                <div class="text-center py-8">
-                    <svg class="animate-spin h-8 w-8 text-indigo-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <p class="mt-2 text-sm text-gray-500">Searching records...</p>
-                </div>
-            `;
+            // Get last visit per store (visits should be sorted by date desc from API)
+            const lastVisitByStore = {};
+            allVisits.forEach(v => {
+                if (!lastVisitByStore[v.storeNbr]) {
+                    lastVisitByStore[v.storeNbr] = v;
+                } else {
+                    // Compare dates to ensure we have the latest
+                    if (v.calendar_date > lastVisitByStore[v.storeNbr].calendar_date) {
+                        lastVisitByStore[v.storeNbr] = v;
+                    }
+                }
+            });
 
-            try {
-                const response = await fetch(`/api/visits?storeNbr=${encodeURIComponent(storeNbr)}`);
-                if (!response.ok) throw new Error('Failed to fetch visits');
-                
-                const data = await response.json();
-                
-                if (data.length === 0) {
-                    divPriorResults.innerHTML = `
-                        <div class="text-center py-8 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-                            <p class="text-gray-500">No prior tours found for store #${storeNbr}</p>
-                        </div>
-                    `;
-                    return;
+            // Sort stores by number
+            const sortedStores = Object.keys(lastVisitByStore).sort();
+
+            summaryGrid.innerHTML = sortedStores.map(storeNbr => {
+                const v = lastVisitByStore[storeNbr];
+                let ratingClass = 'bg-gray-100 border-gray-300';
+                let ratingTextClass = 'text-gray-600';
+                if (v.rating === 'Green') {
+                    ratingClass = 'bg-green-50 border-green-400';
+                    ratingTextClass = 'text-green-700';
+                } else if (v.rating === 'Yellow') {
+                    ratingClass = 'bg-yellow-50 border-yellow-400';
+                    ratingTextClass = 'text-yellow-700';
+                } else if (v.rating === 'Red') {
+                    ratingClass = 'bg-red-50 border-red-400';
+                    ratingTextClass = 'text-red-700';
                 }
 
-                // Render Results
-                divPriorResults.innerHTML = data.map(visit => {
-                    // Determine rating color
-                    let ratingClass = 'bg-gray-100 text-gray-800';
-                    if (visit.rating === 'Green') ratingClass = 'bg-green-100 text-green-800';
-                    if (visit.rating === 'Yellow') ratingClass = 'bg-yellow-100 text-yellow-800';
-                    if (visit.rating === 'Red') ratingClass = 'bg-red-100 text-red-800';
+                const date = v.calendar_date ? new Date(v.calendar_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'N/A';
 
-                    // Parse top_3 (it might be a string with newlines or already an array depending on storage)
-                    // The backend code joins it with \n before saving.
-                    let top3List = [];
-                    if (visit.top_3) {
-                        top3List = visit.top_3.split('\n').filter(item => item.trim() !== '');
-                    }
-
-                    return `
-                        <div class="bg-white p-5 rounded-lg shadow border border-gray-100 cursor-pointer hover:shadow-lg hover:border-indigo-300 transition-all" onclick="openVisitDetail(${visit.id})">
-                            <div class="flex justify-between items-start mb-3">
-                                <div>
-                                    <span class="text-sm text-gray-500">Date</span>
-                                    <p class="font-bold text-gray-900">${visit.calendar_date || 'N/A'}</p>
-                                </div>
-                                <span class="px-3 py-1 rounded-full text-xs font-bold ${ratingClass}">
-                                    ${visit.rating || 'N/A'}
-                                </span>
-                            </div>
-                            
-                            <div class="mt-3">
-                                <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Top 3 Opportunities</h4>
-                                ${top3List.length > 0 
-                                    ? `<ul class="space-y-1">
-                                        ${top3List.map(item => `
-                                            <li class="flex items-start text-sm text-gray-700">
-                                                <i class="fas fa-exclamation-circle text-yellow-500 mt-1 mr-2 text-xs"></i>
-                                                <span>${item}</span>
-                                            </li>
-                                        `).join('')}
-                                       </ul>`
-                                    : '<p class="text-sm text-gray-400 italic">No top 3 notes recorded.</p>'
-                                }
-                            </div>
-                            <div class="mt-4 pt-3 border-t border-gray-100">
-                                <p class="text-xs text-indigo-600 font-medium flex items-center hover:text-indigo-700">
-                                    <span>View Full Details</span>
-                                    <i class="fas fa-arrow-right ml-2"></i>
-                                </p>
-                            </div>
+                return `
+                    <div class="bg-white rounded-lg border-l-4 ${ratingClass} p-3 cursor-pointer hover:shadow-md transition-shadow" onclick="filterVisits('${storeNbr}')">
+                        <div class="flex justify-between items-center">
+                            <span class="font-bold text-gray-900">#${storeNbr}</span>
+                            <span class="text-xs font-semibold ${ratingTextClass}">${v.rating || 'N/A'}</span>
                         </div>
-                    `;
-                }).join('');
-
-            } catch (error) {
-                console.error(error);
-                divPriorResults.innerHTML = `
-                    <div class="p-4 bg-red-50 text-red-700 rounded-lg">
-                        Error loading visits: ${error.message}
+                        <p class="text-xs text-gray-500 mt-1">${date}</p>
                     </div>
                 `;
+            }).join('');
+        }
+
+        function filterVisits(storeNbr) {
+            currentFilter = storeNbr;
+            document.getElementById('store-filter-text').textContent = storeNbr ? `Store ${storeNbr}` : 'All Stores';
+            document.getElementById('store-filter-dropdown').classList.add('hidden');
+            renderVisits();
+        }
+
+        function sortVisits(column) {
+            if (currentSort.column === column) {
+                currentSort.ascending = !currentSort.ascending;
+            } else {
+                currentSort.column = column;
+                currentSort.ascending = true;
+            }
+            renderVisits();
+        }
+
+        function filterByRating(rating) {
+            currentRatingFilter = rating;
+            currentFilter = null; // Clear store filter when filtering by rating
+            document.getElementById('store-filter-text').textContent = 'All Stores';
+            switchTab('visits');
+        }
+
+        function clearRatingFilter() {
+            currentRatingFilter = null;
+            renderVisits();
+        }
+
+        function renderVisits() {
+            let visits = [...allVisits];
+
+            // Apply store filter
+            if (currentFilter) {
+                visits = visits.filter(v => v.storeNbr === currentFilter);
+            }
+
+            // Apply rating filter
+            if (currentRatingFilter) {
+                visits = visits.filter(v => v.rating === currentRatingFilter);
+            }
+
+            // Update rating filter badge visibility and styling
+            const badge = document.getElementById('rating-filter-badge');
+            const label = document.getElementById('rating-filter-label');
+            if (currentRatingFilter) {
+                badge.classList.remove('hidden');
+                label.textContent = currentRatingFilter + ' Stores';
+                // Set color based on rating
+                label.className = 'px-2 py-1 rounded-full text-xs font-bold';
+                if (currentRatingFilter === 'Red') {
+                    label.classList.add('bg-red-100', 'text-red-800');
+                } else if (currentRatingFilter === 'Yellow') {
+                    label.classList.add('bg-yellow-100', 'text-yellow-800');
+                } else if (currentRatingFilter === 'Green') {
+                    label.classList.add('bg-green-100', 'text-green-800');
+                }
+            } else {
+                badge.classList.add('hidden');
+            }
+
+            if (currentSort.column) {
+                visits.sort((a, b) => {
+                    let valA, valB;
+                    if (currentSort.column === 'store') { valA = a.storeNbr || ''; valB = b.storeNbr || ''; }
+                    else if (currentSort.column === 'date') { valA = a.calendar_date || ''; valB = b.calendar_date || ''; }
+                    else if (currentSort.column === 'rating') { valA = a.rating || ''; valB = b.rating || ''; }
+                    const cmp = valA.localeCompare(valB);
+                    return currentSort.ascending ? cmp : -cmp;
+                });
+            }
+
+            const tbody = document.getElementById('visits-table-body');
+            if (visits.length === 0) {
+                tbody.innerHTML = '<div class="p-8 text-center text-gray-500">No visits found.</div>';
+                return;
+            }
+
+            tbody.innerHTML = visits.map(v => {
+                let ratingClass = 'bg-gray-100 text-gray-800';
+                if (v.rating === 'Green') ratingClass = 'bg-green-100 text-green-800';
+                else if (v.rating === 'Yellow') ratingClass = 'bg-yellow-100 text-yellow-800';
+                else if (v.rating === 'Red') ratingClass = 'bg-red-100 text-red-800';
+
+                const date = v.calendar_date ? new Date(v.calendar_date).toLocaleDateString() : 'N/A';
+
+                let notes = [];
+                if (v.top_3) {
+                    if (Array.isArray(v.top_3)) {
+                        notes = v.top_3.map(n => typeof n === 'object' ? n.text : n);
+                    } else {
+                        notes = v.top_3.split('\n').filter(n => n.trim());
+                    }
+                }
+
+                return `
+                    <div class="grid grid-cols-12 gap-2 px-4 py-3 hover:bg-gray-50 cursor-pointer items-start" onclick="openVisitDetail(${v.id})">
+                        <div class="col-span-2 font-medium text-gray-900">${v.storeNbr || '?'}</div>
+                        <div class="col-span-3 text-gray-600 text-sm">${date}</div>
+                        <div class="col-span-2"><span class="px-2 py-1 text-xs font-bold rounded-full ${ratingClass}">${v.rating || 'N/A'}</span></div>
+                        <div class="col-span-5 text-sm text-gray-600">
+                            ${notes.length > 0
+                                ? notes.slice(0, 3).map((n, i) => `<div class="truncate"><span class="text-gray-400">${i+1}.</span> ${n}</div>`).join('')
+                                : '<span class="text-gray-400 italic">No notes</span>'}
+                        </div>
+                    </div>`;
+            }).join('');
+        }
+
+        // Store filter toggle
+        document.getElementById('store-filter-btn').addEventListener('click', () => {
+            document.getElementById('store-filter-dropdown').classList.toggle('hidden');
+        });
+
+        // --- Market Notes ---
+        let allMarketNotes = [];
+        let marketNotesStoreFilter = null;
+        let completedSectionExpanded = false;
+
+        async function loadMarketNotes() {
+            const listEl = document.getElementById('market-notes-list');
+            listEl.innerHTML = '<div class="text-center py-8"><svg class="animate-spin h-8 w-8 text-walmart-blue mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></div>';
+
+            try {
+                const response = await fetch('/api/market-notes');
+                if (!response.ok) throw new Error('Failed to load market notes');
+                allMarketNotes = await response.json();
+
+                // Populate store filter dropdown
+                const stores = [...new Set(allMarketNotes.map(n => n.store_nbr))].sort();
+                const dropdown = document.getElementById('market-store-filter-dropdown');
+                dropdown.innerHTML = `<div class="p-2 hover:bg-gray-100 cursor-pointer" onclick="filterMarketNotesByStore(null)">All Stores</div>` +
+                    stores.map(s => `<div class="p-2 hover:bg-gray-100 cursor-pointer" onclick="filterMarketNotesByStore('${s}')">Store ${s}</div>`).join('');
+
+                renderMarketNotes();
+            } catch (e) {
+                listEl.innerHTML = '<div class="text-center py-8 text-red-500"><i class="fas fa-exclamation-circle text-2xl mb-2"></i><p>Error loading market notes</p></div>';
+            }
+        }
+
+        function filterMarketNotesByStore(storeNbr) {
+            marketNotesStoreFilter = storeNbr;
+            document.getElementById('market-store-filter-text').textContent = storeNbr ? `Store ${storeNbr}` : 'All Stores';
+            document.getElementById('market-store-filter-dropdown').classList.add('hidden');
+            renderMarketNotes();
+        }
+
+        function toggleCompletedSection() {
+            completedSectionExpanded = !completedSectionExpanded;
+            const container = document.getElementById('completed-notes-container');
+            const chevron = document.getElementById('completed-chevron');
+
+            if (completedSectionExpanded) {
+                container.classList.remove('hidden');
+                chevron.style.transform = 'rotate(180deg)';
+            } else {
+                container.classList.add('hidden');
+                chevron.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        function renderMarketNotes() {
+            let filteredNotes = [...allMarketNotes];
+
+            // Apply store filter
+            if (marketNotesStoreFilter) {
+                filteredNotes = filteredNotes.filter(n => n.store_nbr === marketNotesStoreFilter);
+            }
+
+            // Separate into incomplete and completed
+            const incompleteNotes = filteredNotes.filter(n => !n.completed);
+            const completedNotes = filteredNotes.filter(n => n.completed);
+
+            // Sort by date (newest first)
+            incompleteNotes.sort((a, b) => (b.calendar_date || '').localeCompare(a.calendar_date || ''));
+            completedNotes.sort((a, b) => (b.calendar_date || '').localeCompare(a.calendar_date || ''));
+
+            // Update progress
+            document.getElementById('market-notes-progress').textContent = `${completedNotes.length}/${filteredNotes.length} completed`;
+
+            const listEl = document.getElementById('market-notes-list');
+
+            // Render incomplete notes
+            if (incompleteNotes.length === 0) {
+                listEl.innerHTML = `
+                    <div class="text-center py-12 bg-white rounded-xl">
+                        <i class="fas fa-check-circle text-5xl text-green-500 mb-4"></i>
+                        <p class="text-gray-600 font-medium">All caught up!</p>
+                        <p class="text-gray-400 text-sm mt-1">No outstanding market notes</p>
+                    </div>`;
+            } else {
+                // Group by store
+                const groupedByStore = {};
+                incompleteNotes.forEach(n => {
+                    if (!groupedByStore[n.store_nbr]) groupedByStore[n.store_nbr] = [];
+                    groupedByStore[n.store_nbr].push(n);
+                });
+
+                listEl.innerHTML = Object.keys(groupedByStore).sort().map(storeNbr => `
+                    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                        <div class="bg-walmart-blue px-4 py-2 flex justify-between items-center">
+                            <span class="text-white font-semibold">Store #${storeNbr}</span>
+                            <span class="text-white text-sm opacity-80">${groupedByStore[storeNbr].length} remaining</span>
+                        </div>
+                        <div class="divide-y divide-gray-100">
+                            ${groupedByStore[storeNbr].map(note => `
+                                <div class="market-note-item flex items-start gap-3 p-4 cursor-pointer hover:bg-gray-50"
+                                     data-note-index="${allMarketNotes.indexOf(note)}">
+                                    <button class="mt-1 flex-shrink-0 w-6 h-6 rounded-full border-2 border-gray-300 hover:border-walmart-blue flex items-center justify-center transition-colors">
+                                    </button>
+                                    <div class="flex-1 min-w-0">
+                                        <p class="text-gray-800">${escapeHtml(note.note_text)}</p>
+                                        <p class="text-xs text-gray-400 mt-1">${note.calendar_date || 'No date'}</p>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            // Render completed section
+            const completedSection = document.getElementById('completed-section');
+            const completedContainer = document.getElementById('completed-notes-container');
+            const completedBadge = document.getElementById('completed-count-badge');
+
+            if (completedNotes.length === 0) {
+                completedSection.classList.add('hidden');
+            } else {
+                completedSection.classList.remove('hidden');
+                completedBadge.textContent = completedNotes.length;
+
+                // Group completed by store
+                const completedByStore = {};
+                completedNotes.forEach(n => {
+                    if (!completedByStore[n.store_nbr]) completedByStore[n.store_nbr] = [];
+                    completedByStore[n.store_nbr].push(n);
+                });
+
+                completedContainer.innerHTML = Object.keys(completedByStore).sort().map(storeNbr => `
+                    <div class="bg-white rounded-xl shadow-sm overflow-hidden opacity-75">
+                        <div class="bg-gray-500 px-4 py-2 flex justify-between items-center">
+                            <span class="text-white font-semibold">Store #${storeNbr}</span>
+                            <span class="text-white text-sm opacity-80">${completedByStore[storeNbr].length} completed</span>
+                        </div>
+                        <div class="divide-y divide-gray-100">
+                            ${completedByStore[storeNbr].map(note => `
+                                <div class="market-note-item flex items-start gap-3 p-4 cursor-pointer hover:bg-gray-100 bg-gray-50"
+                                     data-note-index="${allMarketNotes.indexOf(note)}">
+                                    <button class="mt-1 flex-shrink-0 w-6 h-6 rounded-full border-2 bg-green-500 border-green-500 flex items-center justify-center">
+                                        <i class="fas fa-check text-white text-xs"></i>
+                                    </button>
+                                    <div class="flex-1 min-w-0">
+                                        <p class="text-gray-400 line-through">${escapeHtml(note.note_text)}</p>
+                                        <p class="text-xs text-gray-400 mt-1">${note.calendar_date || 'No date'}</p>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        async function toggleMarketNote(noteIndex) {
+            const note = allMarketNotes[noteIndex];
+            if (!note) return;
+
+            try {
+                const response = await fetch('/api/market-notes/toggle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        visit_id: note.visit_id,
+                        note_text: note.note_text,
+                        completed: !note.completed
+                    })
+                });
+
+                if (!response.ok) throw new Error('Failed to update');
+
+                // Update local state
+                note.completed = !note.completed;
+                renderMarketNotes();
+
+                // Update dashboard count
+                const incompleteCount = allMarketNotes.filter(n => !n.completed).length;
+                document.getElementById('market-notes-count').textContent = incompleteCount;
+            } catch (e) {
+                console.error('Error toggling note:', e);
+                alert('Failed to update note status');
+            }
+        }
+
+        // Event delegation for market note clicks (both outstanding and completed)
+        document.getElementById('market-notes-list').addEventListener('click', (e) => {
+            const noteItem = e.target.closest('.market-note-item');
+            if (noteItem) {
+                const noteIndex = parseInt(noteItem.dataset.noteIndex);
+                toggleMarketNote(noteIndex);
             }
         });
 
-        const handleImageSelect = (event) => {
-            const file = event.target.files[0];
-            if (file) {
-                // Check file type
-                if (!file.type.startsWith('image/')) {
-                    showError('Please upload an image file (PNG, JPG, etc.).');
-                    return;
-                }
-                
-                fileMimeType = file.type;
-                
-                // Show preview
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    imagePreview.src = e.target.result;
-                    imagePreviewContainer.classList.remove('hidden');
-                    
-                    // Convert to base64 for API
-                    // e.target.result is a data URL (e.g., "data:image/jpeg;base64,.....")
-                    // We need to strip the prefix
-                    base64ImageData = e.target.result.split(',')[1];
-                };
-                reader.readAsDataURL(file);
-                
-                hideError();
+        document.getElementById('completed-notes-container').addEventListener('click', (e) => {
+            const noteItem = e.target.closest('.market-note-item');
+            if (noteItem) {
+                const noteIndex = parseInt(noteItem.dataset.noteIndex);
+                toggleMarketNote(noteIndex);
             }
-        };
+        });
 
-        imageUpload.addEventListener('change', handleImageSelect);
-        if (cameraInput) {
-            cameraInput.addEventListener('change', handleImageSelect);
-        }
+        // Market notes store filter toggle
+        document.getElementById('market-store-filter-btn').addEventListener('click', () => {
+            document.getElementById('market-store-filter-dropdown').classList.toggle('hidden');
+        });
 
-        analyzeButton.addEventListener('click', async () => {
-            if (!base64ImageData || !fileMimeType) {
-                showError('Please upload an image first.');
-                return;
-            }
+        // --- Prior Tours ---
+        document.getElementById('btn-search-prior').addEventListener('click', async () => {
+            const storeNbr = document.getElementById('prior-store-nbr').value.trim();
+            if (!storeNbr) { alert('Please enter a store number'); return; }
 
-            // --- Show loading state ---
-            setLoading(true);
+            const div = document.getElementById('prior-results');
+            div.innerHTML = '<div class="text-center py-8"><svg class="animate-spin h-8 w-8 text-walmart-blue mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></div>';
 
             try {
-                // Step 1: Analyze the image (no save)
-                const analyzeUrl = '/api/analyze-visit';
+                const response = await fetch(`/api/visits?storeNbr=${encodeURIComponent(storeNbr)}`);
+                if (!response.ok) throw new Error('Failed');
+                const data = await response.json();
 
-                const backendPayload = {
-                    mime_type: fileMimeType,
-                    image_data: base64ImageData
-                };
+                if (data.length === 0) {
+                    div.innerHTML = '<div class="text-center py-8 bg-white rounded-xl"><p class="text-gray-500">No prior visits found for store #' + storeNbr + '</p></div>';
+                    return;
+                }
 
-                // --- Exponential Backoff ---
-                const fetchWithBackoff = async (url, options, retries = 5, delay = 1000) => {
-                    for (let i = 0; i < retries; i++) {
-                        try {
-                            const response = await fetch(url, options);
-                            if (response.status === 429 || response.status >= 500) {
-                                throw new Error(`Retryable error: ${response.status}`);
-                            }
-                            return response;
-                        } catch (error) {
-                            if (!error.message.startsWith('Retryable')) {
-                                throw error;
-                            }
-                            if (i === retries - 1) throw error;
-                            await new Promise(res => setTimeout(res, delay * Math.pow(2, i)));
-                        }
+                div.innerHTML = data.map(v => {
+                    let ratingClass = 'bg-gray-100 text-gray-800';
+                    if (v.rating === 'Green') ratingClass = 'bg-green-100 text-green-800';
+                    if (v.rating === 'Yellow') ratingClass = 'bg-yellow-100 text-yellow-800';
+                    if (v.rating === 'Red') ratingClass = 'bg-red-100 text-red-800';
+
+                    let notes = [];
+                    if (v.top_3) {
+                        if (Array.isArray(v.top_3)) notes = v.top_3.map(n => typeof n === 'object' ? n.text : n);
+                        else notes = v.top_3.split('\n').filter(n => n.trim());
                     }
-                };
 
-                const response = await fetchWithBackoff(analyzeUrl, {
+                    return `
+                        <div class="bg-white p-4 rounded-xl shadow cursor-pointer hover:shadow-lg transition-shadow" onclick="openVisitDetail(${v.id})">
+                            <div class="flex justify-between items-start mb-3">
+                                <div>
+                                    <span class="text-sm text-gray-500">Date</span>
+                                    <p class="font-bold text-gray-900">${v.calendar_date || 'N/A'}</p>
+                                </div>
+                                <span class="px-3 py-1 rounded-full text-xs font-bold ${ratingClass}">${v.rating || 'N/A'}</span>
+                            </div>
+                            <div>
+                                <h4 class="text-xs font-semibold text-gray-500 uppercase mb-2">Top 3 Notes</h4>
+                                ${notes.length > 0
+                                    ? `<ul class="space-y-1">${notes.map(n => `<li class="text-sm text-gray-700 flex"><i class="fas fa-exclamation-circle text-yellow-500 mt-1 mr-2 text-xs"></i>${n}</li>`).join('')}</ul>`
+                                    : '<p class="text-sm text-gray-400 italic">No notes</p>'}
+                            </div>
+                        </div>`;
+                }).join('');
+            } catch (e) {
+                div.innerHTML = '<div class="p-4 bg-red-50 text-red-700 rounded-lg">Error loading visits</div>';
+            }
+        });
+
+        // --- Image Upload ---
+        const handleImageSelect = (e) => {
+            const file = e.target.files[0];
+            if (!file || !file.type.startsWith('image/')) return;
+
+            fileMimeType = file.type;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                document.getElementById('image-preview').src = ev.target.result;
+                document.getElementById('image-preview-container').classList.remove('hidden');
+                base64ImageData = ev.target.result.split(',')[1];
+            };
+            reader.readAsDataURL(file);
+        };
+
+        document.getElementById('image-upload').addEventListener('change', handleImageSelect);
+        document.getElementById('camera-input').addEventListener('change', handleImageSelect);
+
+        document.getElementById('analyze-button').addEventListener('click', async () => {
+            if (!base64ImageData) { showError('Please upload an image first.'); return; }
+
+            setLoading(true);
+            try {
+                const response = await fetch('/api/analyze-visit', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(backendPayload)
+                    body: JSON.stringify({ mime_type: fileMimeType, image_data: base64ImageData })
                 });
 
                 if (!response.ok) {
-                    const errorBody = await response.json();
-                    throw new Error(`API request failed with status ${response.status}: ${errorBody.detail || 'Unknown error'}`);
+                    const err = await response.json();
+                    throw new Error(err.detail || 'Analysis failed');
                 }
 
-                const parsedData = await response.json();
-                currentParsedData = parsedData; // Store for later save
-
-                // Display the results
-                displayResults(parsedData);
-
-                // Step 2: Check for duplicates
-                await checkAndSave(parsedData);
-
-            } catch (err) {
-                console.error('Analysis failed:', err);
-                if (err.message.includes('Failed to fetch')) {
-                    showError('Could not connect to the backend server. Is it running? (python main.py)');
-                } else {
-                    showError(err.message);
-                }
+                currentParsedData = await response.json();
+                displayResults(currentParsedData);
+                await checkAndSave(currentParsedData);
+            } catch (e) {
+                showError(e.message);
             } finally {
                 setLoading(false);
             }
         });
 
-        // Check for duplicates and handle save logic
         async function checkAndSave(data) {
             try {
-                // Check for duplicates
                 const checkUrl = `/api/check-duplicate?storeNbr=${encodeURIComponent(data.storeNbr)}&calendar_date=${encodeURIComponent(data.calendar_date)}`;
-
                 const checkResponse = await fetch(checkUrl);
-                if (!checkResponse.ok) {
-                    console.warn('Duplicate check failed, proceeding to save anyway');
-                    await saveToBackend(data);
-                    return;
-                }
+                if (!checkResponse.ok) { await saveToBackend(data); return; }
 
-                const checkResult = await checkResponse.json();
-
-                if (checkResult.is_duplicate && checkResult.existing_records.length > 0) {
-                    // Show duplicate warning modal
-                    showDuplicateModal(checkResult.existing_records);
+                const result = await checkResponse.json();
+                if (result.is_duplicate && result.existing_records.length > 0) {
+                    showDuplicateModal(result.existing_records);
                 } else {
-                    // No duplicate, save automatically
                     await saveToBackend(data);
                 }
-
-            } catch (error) {
-                console.error('Error checking duplicates:', error);
-                // If check fails, ask user what to do
-                if (confirm('Could not check for duplicates. Save anyway?')) {
-                    await saveToBackend(data);
-                }
+            } catch (e) {
+                if (confirm('Could not check for duplicates. Save anyway?')) await saveToBackend(data);
             }
         }
 
-        // Save data to backend
         async function saveToBackend(data) {
             try {
-                const saveUrl = '/api/save-visit';
-                const saveResponse = await fetch(saveUrl, {
+                const response = await fetch('/api/save-visit', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
-
-                if (!saveResponse.ok) {
-                    const errorBody = await saveResponse.json();
-                    throw new Error(`Save failed: ${errorBody.detail || 'Unknown error'}`);
-                }
-
-                const result = await saveResponse.json();
-                console.log('Data saved successfully:', result);
-                // Could show a success message to user here
-
-            } catch (error) {
-                console.error('Error saving data:', error);
-                showError('Failed to save data to BigQuery: ' + error.message);
+                if (!response.ok) throw new Error('Save failed');
+                console.log('Saved successfully');
+            } catch (e) {
+                showError('Failed to save: ' + e.message);
             }
         }
 
-        // Show duplicate warning modal
-        function showDuplicateModal(existingRecords) {
-            const record = existingRecords[0]; // Show first duplicate
-            duplicateDetails.innerHTML = `
-                <p><strong>Store:</strong> ${record.storeNbr}</p>
-                <p><strong>Date:</strong> ${record.calendar_date}</p>
-                <p><strong>Rating:</strong> ${record.rating}</p>
-                <p class="mt-2 text-xs"><strong>Notes:</strong> ${record.store_notes}</p>
-            `;
-            duplicateModal.classList.remove('hidden');
+        function showDuplicateModal(records) {
+            const r = records[0];
+            document.getElementById('duplicate-details').innerHTML = `<p><strong>Store:</strong> ${r.storeNbr}</p><p><strong>Date:</strong> ${r.calendar_date}</p>`;
+            document.getElementById('duplicate-modal').classList.remove('hidden');
         }
 
-        // Duplicate modal: Cancel button
-        duplicateCancelBtn.addEventListener('click', () => {
-            duplicateModal.classList.add('hidden');
-            // Don't save, just close modal
+        document.getElementById('duplicate-cancel-btn').addEventListener('click', () => {
+            document.getElementById('duplicate-modal').classList.add('hidden');
         });
-
-        // Duplicate modal: Submit Anyway button
-        duplicateSubmitBtn.addEventListener('click', async () => {
-            duplicateModal.classList.add('hidden');
+        document.getElementById('duplicate-submit-btn').addEventListener('click', async () => {
+            document.getElementById('duplicate-modal').classList.add('hidden');
             await saveToBackend(currentParsedData);
         });
 
-        // --- Helper Functions ---
-        
-        function setLoading(isLoading) {
-            if (isLoading) {
-                loadingSpinner.classList.remove('hidden');
-                analyzeButton.disabled = true;
-                analyzeButton.classList.add('disabled:bg-gray-400');
-                resultsContainer.classList.add('hidden');
-                hideError();
-            } else {
-                loadingSpinner.classList.add('hidden');
-                analyzeButton.disabled = false;
-                analyzeButton.classList.remove('disabled:bg-gray-400');
-            }
+        function setLoading(loading) {
+            document.getElementById('loading-spinner').classList.toggle('hidden', !loading);
+            document.getElementById('analyze-button').disabled = loading;
+            if (loading) document.getElementById('results-container').classList.add('hidden');
         }
 
         function displayResults(data) {
-            // Helper to format arrays (handles both old and new format)
             const formatArray = (arr) => {
                 if (!arr || arr.length === 0) return 'N/A';
-                // Check if array contains objects with 'text' property (new format)
-                if (arr[0] && typeof arr[0] === 'object' && arr[0].text) {
-                    return arr.map(item => `• ${item.text}`).join('\n');
-                }
-                // Otherwise treat as array of strings (old format)
-                return arr.map(item => `• ${item}`).join('\n');
+                if (arr[0] && typeof arr[0] === 'object' && arr[0].text) return arr.map(i => `• ${i.text}`).join('\n');
+                return arr.map(i => `• ${i}`).join('\n');
             };
 
-            // Display store rating with color-coded badge
             const rating = data.rating || 'Not Rated';
-            let ratingClass = '';
+            let ratingClass = 'bg-gray-100 text-gray-800 border-gray-300';
+            if (rating === 'Red') ratingClass = 'bg-red-100 text-red-800 border-red-300';
+            else if (rating === 'Yellow') ratingClass = 'bg-yellow-100 text-yellow-800 border-yellow-300';
+            else if (rating === 'Green') ratingClass = 'bg-green-100 text-green-800 border-green-300';
 
-            if (rating === 'Red') {
-                ratingClass = 'bg-red-100 text-red-800 border-red-300';
-            } else if (rating === 'Yellow') {
-                ratingClass = 'bg-yellow-100 text-yellow-800 border-yellow-300';
-            } else if (rating === 'Green') {
-                ratingClass = 'bg-green-100 text-green-800 border-green-300';
-            } else {
-                ratingClass = 'bg-gray-100 text-gray-800 border-gray-300';
-            }
-
-            resultRating.className = `inline-flex items-center justify-center px-6 py-3 text-2xl font-bold rounded-full border-2 ${ratingClass}`;
-            resultRating.textContent = rating;
-
-            // Display calendar date and store number
-            resultCalendarDate.textContent = data.calendar_date || 'N/A';
-            resultStoreNbr.textContent = data.storeNbr || 'N/A';
-
-            // Display notes (handles both old and new format)
-            // For store_notes: can be array of objects or string
-            if (Array.isArray(data.store_notes)) {
-                resultStoreNotes.textContent = formatArray(data.store_notes);
-            } else {
-                resultStoreNotes.textContent = data.store_notes || 'N/A';
-            }
-            
-            // For mkt_notes: can be array of objects or string
-            if (Array.isArray(data.mkt_notes)) {
-                resultMktNotes.textContent = formatArray(data.mkt_notes);
-            } else {
-                resultMktNotes.textContent = data.mkt_notes || 'N/A';
-            }
-
-            // Display arrays
-            resultGood.textContent = formatArray(data.good);
-            resultTop3.textContent = formatArray(data.top_3);
-
-            resultsContainer.classList.remove('hidden');
+            document.getElementById('result-rating').className = `inline-flex items-center justify-center px-6 py-2 text-xl font-bold rounded-full border-2 ${ratingClass}`;
+            document.getElementById('result-rating').textContent = rating;
+            document.getElementById('result-calendar-date').textContent = data.calendar_date || 'N/A';
+            document.getElementById('result-store-nbr').textContent = data.storeNbr || 'N/A';
+            document.getElementById('result-store-notes').textContent = Array.isArray(data.store_notes) ? formatArray(data.store_notes) : (data.store_notes || 'N/A');
+            document.getElementById('result-mkt-notes').textContent = Array.isArray(data.mkt_notes) ? formatArray(data.mkt_notes) : (data.mkt_notes || 'N/A');
+            document.getElementById('result-good').textContent = formatArray(data.good);
+            document.getElementById('result-top-3').textContent = formatArray(data.top_3);
+            document.getElementById('results-container').classList.remove('hidden');
         }
 
-        function showError(message) {
-            errorText.textContent = message;
-            errorMessage.classList.remove('hidden');
+        function showError(msg) {
+            document.getElementById('error-text').textContent = msg;
+            document.getElementById('error-message').classList.remove('hidden');
         }
 
-        function hideError() {
-            errorMessage.classList.add('hidden');
-        }
-
-        // --- Visit Detail Modal Functions ---
-        
-        async function openVisitDetail(visitId) {
+        // --- Visit Detail Modal ---
+        async function openVisitDetail(id) {
             const modal = document.getElementById('visit-detail-modal');
-            
-            // Show modal with loading state
             modal.classList.remove('hidden');
-            setModalLoading(true);
-            
+            document.getElementById('modal-store-notes').innerHTML = '<div class="text-center"><svg class="animate-spin h-6 w-6 text-walmart-blue mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></div>';
+
             try {
-                // Fetch full visit details from backend
-                const response = await fetch(`/api/visit/${visitId}`);
-                if (!response.ok) {
-                    throw new Error(`Failed to fetch visit details: ${response.status}`);
-                }
-                
-                const visit = await response.json();
-                displayVisitDetail(visit);
-                setModalLoading(false);
-                
-            } catch (error) {
-                console.error('Error loading visit detail:', error);
-                setModalLoading(false);
-                document.getElementById('modal-store-notes').innerHTML = `
-                    <div class="text-red-600">
-                        <i class="fas fa-exclamation-circle mr-2"></i>
-                        Error loading visit details: ${error.message}
-                    </div>
-                `;
+                const response = await fetch(`/api/visit/${id}`);
+                if (!response.ok) throw new Error('Failed');
+                const v = await response.json();
+                displayVisitDetail(v);
+            } catch (e) {
+                document.getElementById('modal-store-notes').innerHTML = `<div class="text-red-600">Error: ${e.message}</div>`;
             }
         }
-        
-        function displayVisitDetail(visit) {
-            // Helper to format lists
-            // Helper function to format notes (handles both old string format and new array format)
+
+        function displayVisitDetail(v) {
             const formatNotes = (notes) => {
                 if (!notes) return '(None)';
-                
-                let noteArray = [];
-                
-                // Check if notes is an array of objects (new format)
+                let arr = [];
                 if (Array.isArray(notes)) {
                     if (notes.length === 0) return '(None)';
-                    // If array of objects with 'text' property
-                    if (notes[0] && typeof notes[0] === 'object' && notes[0].text) {
-                        noteArray = notes.map(n => n.text);
-                    } else if (notes[0] && typeof notes[0] === 'string') {
-                        // If array of strings
-                        noteArray = notes;
-                    } else {
-                        return '(None)';
-                    }
+                    arr = notes.map(n => typeof n === 'object' ? n.text : n);
                 } else if (typeof notes === 'string') {
-                    // Old format: string with newlines
-                    noteArray = notes.split('\n').filter(item => item.trim());
-                } else {
-                    return '(None)';
+                    arr = notes.split('\n').filter(n => n.trim());
                 }
-                
-                if (noteArray.length === 0) return '(None)';
-                
-                return noteArray.map(item => 
-                    `<li class="flex items-start"><i class="fas fa-check-circle text-indigo-600 mt-1 mr-2 text-sm"></i><span>${item}</span></li>`
-                ).join('');
+                if (arr.length === 0) return '(None)';
+                return arr.map(n => `<li class="flex items-start"><i class="fas fa-check-circle text-walmart-blue mt-1 mr-2 text-sm"></i>${n}</li>`).join('');
             };
-            
-            // Set rating color
-            const ratingElement = document.getElementById('modal-rating');
+
             let ratingClass = 'bg-gray-100 text-gray-800';
-            if (visit.rating === 'Green') ratingClass = 'bg-green-100 text-green-800';
-            if (visit.rating === 'Yellow') ratingClass = 'bg-yellow-100 text-yellow-800';
-            if (visit.rating === 'Red') ratingClass = 'bg-red-100 text-red-800';
-            ratingElement.className = `inline-block px-3 py-1 rounded-full text-xs font-bold ${ratingClass}`;
-            
-            // Populate basic info
-            document.getElementById('modal-store-nbr').textContent = `#${visit.storeNbr || '?'}`;
-            document.getElementById('modal-date').textContent = visit.calendar_date ? new Date(visit.calendar_date).toLocaleDateString() : 'N/A';
-            document.getElementById('modal-rating').textContent = visit.rating || 'N/A';
-            
-            // Populate notes (handles both old and new format)
-            const storeNotesHtml = formatNotes(visit.store_notes);
-            document.getElementById('modal-store-notes').innerHTML = storeNotesHtml === '(None)' 
-                ? '<p class="text-gray-400 italic">(None)</p>'
-                : `<ul class="space-y-2">${storeNotesHtml}</ul>`;
-            
-            const mktNotesHtml = formatNotes(visit.mkt_notes);
-            document.getElementById('modal-mkt-notes').innerHTML = mktNotesHtml === '(None)' 
-                ? '<p class="text-gray-400 italic">(None)</p>'
-                : `<ul class="space-y-2">${mktNotesHtml}</ul>`;
-            
-            // Good things
-            const goodHtml = formatNotes(visit.good);
-            document.getElementById('modal-good').innerHTML = goodHtml === '(None)' 
-                ? '<p class="text-gray-400 italic">(None)</p>'
-                : `<ul class="space-y-2">${goodHtml}</ul>`;
-            
-            // Top 3
-            const top3Html = formatNotes(visit.top_3);
-            document.getElementById('modal-top3').innerHTML = top3Html === '(None)' 
-                ? '<p class="text-gray-400 italic">(None)</p>'
-                : `<ul class="space-y-2">${top3Html}</ul>`;
-            
-            // Metrics
-            const metricsData = [
-                { label: 'Sales Comp (Yest)', value: visit.sales_comp_yest, format: '%' },
-                { label: 'Sales Index (Yest)', value: visit.sales_index_yest },
-                { label: 'Sales Comp (WTD)', value: visit.sales_comp_wtd, format: '%' },
-                { label: 'Sales Index (WTD)', value: visit.sales_index_wtd },
-                { label: 'Sales Comp (MTD)', value: visit.sales_comp_mtd, format: '%' },
-                { label: 'Sales Index (MTD)', value: visit.sales_index_mtd },
-                { label: 'Vizpick', value: visit.vizpick, format: '%' },
-                { label: 'Overstock', value: visit.overstock },
-                { label: 'Picks', value: visit.picks },
-                { label: 'Viz Fashion', value: visit.vizfashion, format: '%' },
-                { label: 'Modflex', value: visit.modflex, format: '%' },
-                { label: 'Tag Errors', value: visit.tag_errors },
-                { label: 'Mods', value: visit.mods },
-                { label: 'PCS', value: visit.pcs },
-                { label: 'Pinpoint', value: visit.pinpoint, format: '%' },
-                { label: 'FTPR', value: visit.ftpr, format: '%' },
-                { label: 'Presub', value: visit.presub, format: '%' }
+            if (v.rating === 'Green') ratingClass = 'bg-green-100 text-green-800';
+            if (v.rating === 'Yellow') ratingClass = 'bg-yellow-100 text-yellow-800';
+            if (v.rating === 'Red') ratingClass = 'bg-red-100 text-red-800';
+
+            document.getElementById('modal-store-nbr').textContent = `#${v.storeNbr || '?'}`;
+            document.getElementById('modal-date').textContent = v.calendar_date ? new Date(v.calendar_date).toLocaleDateString() : 'N/A';
+            const ratingEl = document.getElementById('modal-rating');
+            ratingEl.className = `inline-block px-3 py-1 rounded-full text-xs font-bold ${ratingClass}`;
+            ratingEl.textContent = v.rating || 'N/A';
+
+            const storeNotes = formatNotes(v.store_notes);
+            document.getElementById('modal-store-notes').innerHTML = storeNotes === '(None)' ? '<p class="text-gray-400 italic">(None)</p>' : `<ul class="space-y-2">${storeNotes}</ul>`;
+
+            const mktNotes = formatNotes(v.mkt_notes);
+            document.getElementById('modal-mkt-notes').innerHTML = mktNotes === '(None)' ? '<p class="text-gray-400 italic">(None)</p>' : `<ul class="space-y-2">${mktNotes}</ul>`;
+
+            const good = formatNotes(v.good);
+            document.getElementById('modal-good').innerHTML = good === '(None)' ? '<p class="text-gray-400 italic">(None)</p>' : `<ul class="space-y-2">${good}</ul>`;
+
+            const top3 = formatNotes(v.top_3);
+            document.getElementById('modal-top3').innerHTML = top3 === '(None)' ? '<p class="text-gray-400 italic">(None)</p>' : `<ul class="space-y-2">${top3}</ul>`;
+
+            const metrics = [
+                { label: 'Sales Comp (Yest)', value: v.sales_comp_yest, fmt: '%' },
+                { label: 'Sales Index (Yest)', value: v.sales_index_yest },
+                { label: 'Sales Comp (WTD)', value: v.sales_comp_wtd, fmt: '%' },
+                { label: 'Sales Index (WTD)', value: v.sales_index_wtd },
+                { label: 'Vizpick', value: v.vizpick, fmt: '%' },
+                { label: 'Overstock', value: v.overstock },
+                { label: 'Picks', value: v.picks },
+                { label: 'FTPR', value: v.ftpr, fmt: '%' },
             ];
-            
             const metricsContainer = document.getElementById('modal-metrics');
-            metricsContainer.innerHTML = metricsData
-                .filter(m => m.value !== null && m.value !== undefined)
-                .map(m => `
-                    <div class="bg-blue-50 rounded-lg p-3">
-                        <p class="text-xs font-semibold text-gray-600">${m.label}</p>
-                        <p class="text-lg font-bold text-blue-600 mt-1">${m.value}${m.format || ''}</p>
-                    </div>
-                `).join('');
-            
-            if (metricsData.filter(m => m.value !== null).length === 0) {
-                metricsContainer.innerHTML = '<p class="col-span-full text-gray-400 italic text-sm">No metrics recorded</p>';
-            }
-            
-            // Timestamp
-            if (visit.created_at) {
-                const createdDate = new Date(visit.created_at);
-                document.getElementById('modal-created-at').textContent = createdDate.toLocaleString();
-            }
+            const validMetrics = metrics.filter(m => m.value !== null && m.value !== undefined);
+            metricsContainer.innerHTML = validMetrics.length > 0
+                ? validMetrics.map(m => `<div class="bg-blue-50 rounded-lg p-3"><p class="text-xs font-semibold text-gray-600">${m.label}</p><p class="text-lg font-bold text-walmart-blue">${m.value}${m.fmt || ''}</p></div>`).join('')
+                : '<p class="col-span-full text-gray-400 italic text-sm">No metrics recorded</p>';
+
+            if (v.created_at) document.getElementById('modal-created-at').textContent = new Date(v.created_at).toLocaleString();
         }
-        
-        function setModalLoading(isLoading) {
-            const notesContainer = document.getElementById('modal-store-notes');
-            if (isLoading) {
-                notesContainer.innerHTML = `
-                    <div class="text-center py-8">
-                        <svg class="animate-spin h-6 w-6 text-indigo-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        <p class="text-sm text-gray-500 mt-2">Loading visit details...</p>
-                    </div>
-                `;
-            }
-        }
-        
+
         function closeVisitDetailModal() {
-            const modal = document.getElementById('visit-detail-modal');
-            modal.classList.add('hidden');
+            document.getElementById('visit-detail-modal').classList.add('hidden');
         }
-        
-        // Close modal when clicking outside (on the background)
+
         document.getElementById('visit-detail-modal').addEventListener('click', function(e) {
-            if (e.target === this) {
-                closeVisitDetailModal();
-            }
+            if (e.target === this) closeVisitDetailModal();
         });
 
+        // --- Init ---
+        loadDashboard();
     </script>
 </body>
 </html>
