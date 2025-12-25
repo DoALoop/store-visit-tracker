@@ -61,9 +61,8 @@ sudo systemctl stop store-visit-tracker
 
 ## 📍 GitHub Project
 
-**Repository:** https://gecgithub01.walmart.com/tjbarnh/store-visit-tracker  
-**Owner:** tjbarnh  
-**Access:** Walmart Internal Git (Requires VPN/Corporate Network)
+**Repository:** https://github.com/DoALoop/store-visit-tracker
+**Owner:** DoALoop
 
 ---
 
@@ -118,7 +117,7 @@ Store Visit Tracker is a full-stack application designed to help District Manage
 | **Database** | PostgreSQL | store_visits table with 30+ columns |
 | **AI/ML** | Google Vertex AI | Gemini 2.5 Flash for vision analysis |
 | **Deployment** | Docker/Gunicorn | Container-ready, systemd service |
-| **Version Control** | Git | GitHub (Walmart internal) |
+| **Version Control** | Git | GitHub |
 
 ### Deployment Targets
 
@@ -169,7 +168,7 @@ store-visit-tracker/
 #### 1. Clone Repository
 
 ```bash
-git clone https://gecgithub01.walmart.com/tjbarnh/store-visit-tracker.git
+git clone https://github.com/DoALoop/store-visit-tracker.git
 cd store-visit-tracker
 ```
 
@@ -246,7 +245,7 @@ sudo mkdir -p /home/storeapp/store-visit-tracker
 sudo chown storeapp:storeapp /home/storeapp/store-visit-tracker
 
 # Clone the repository
-sudo -u storeapp git clone https://gecgithub01.walmart.com/tjbarnh/store-visit-tracker.git /home/storeapp/store-visit-tracker
+sudo -u storeapp git clone https://github.com/DoALoop/store-visit-tracker.git /home/storeapp/store-visit-tracker
 cd /home/storeapp/store-visit-tracker
 
 # Create virtual environment
@@ -593,14 +592,13 @@ sudo kill -9 <PID>
 
 ## 👤 Project Owner
 
-**Tim Barnhill** (tjbarnh)  
-Walmart Store Operations
+**Tim Barnhill** (DoALoop)
 
 ---
 
 ## 📄 License
 
-Internal Walmart Project - All Rights Reserved
+Personal Project - All Rights Reserved
 
 ---
 
@@ -610,6 +608,6 @@ Internal Walmart Project - All Rights Reserved
 
 ---
 
-**Last Updated:** December 18, 2024  
+**Last Updated:** December 25, 2024  
 **Version:** 1.2.0  
 **Status:** ✅ Production Ready
