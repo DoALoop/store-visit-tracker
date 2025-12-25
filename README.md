@@ -25,7 +25,7 @@ Or use the deploy script:
 ### Step 2: SSH into your Proxmox server
 
 ```bash
-ssh storeapp@192.168.1.9
+ssh storeapp@192.168.0.9
 ```
 
 ### Step 3: Pull and restart on the server
