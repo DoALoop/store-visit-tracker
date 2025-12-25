@@ -761,5 +761,216 @@ def toggle_market_note():
         release_db_connection(conn)
 
 
+# --- Gold Star Notes API ---
+
+def get_current_week_start():
+    """Get the Monday of the current week"""
+    from datetime import datetime, timedelta
+    today = datetime.now().date()
+    monday = today - timedelta(days=today.weekday())
+    return monday
+
+@app.route('/api/gold-stars/current', methods=['GET'])
+def get_current_gold_stars():
+    """Get current week's gold star notes with all store completions"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        week_start = get_current_week_start()
+
+        # Get current week's gold stars
+        cursor.execute("""
+            SELECT id, week_start_date, note_1, note_2, note_3, created_at
+            FROM gold_star_weeks
+            WHERE week_start_date = %s
+        """, (week_start,))
+        week_data = cursor.fetchone()
+
+        if not week_data:
+            return jsonify({
+                "week_start_date": str(week_start),
+                "notes": None,
+                "stores": []
+            })
+
+        # Get all unique stores from visits
+        cursor.execute("""
+            SELECT DISTINCT "storeNbr" as store_nbr
+            FROM store_visits
+            WHERE "storeNbr" IS NOT NULL
+            ORDER BY "storeNbr"
+        """)
+        stores = [row['store_nbr'] for row in cursor.fetchall()]
+
+        # Get completions for this week
+        cursor.execute("""
+            SELECT store_nbr, note_number, completed
+            FROM gold_star_completions
+            WHERE week_id = %s
+        """, (week_data['id'],))
+        completions = cursor.fetchall()
+
+        # Build completion map
+        completion_map = {}
+        for c in completions:
+            key = c['store_nbr']
+            if key not in completion_map:
+                completion_map[key] = {1: False, 2: False, 3: False}
+            completion_map[key][c['note_number']] = c['completed']
+
+        # Build store list with completions
+        store_list = []
+        for store_nbr in stores:
+            store_completions = completion_map.get(store_nbr, {1: False, 2: False, 3: False})
+            store_list.append({
+                "store_nbr": store_nbr,
+                "note_1": store_completions.get(1, False),
+                "note_2": store_completions.get(2, False),
+                "note_3": store_completions.get(3, False)
+            })
+
+        cursor.close()
+
+        return jsonify({
+            "week_id": week_data['id'],
+            "week_start_date": str(week_data['week_start_date']),
+            "notes": {
+                "note_1": week_data['note_1'],
+                "note_2": week_data['note_2'],
+                "note_3": week_data['note_3']
+            },
+            "stores": store_list
+        })
+
+    except Exception as e:
+        print(f"Error fetching gold stars: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/gold-stars/week', methods=['POST'])
+def save_gold_star_week():
+    """Create or update the current week's gold star notes"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        data = request.get_json()
+        note_1 = data.get('note_1', '').strip()
+        note_2 = data.get('note_2', '').strip()
+        note_3 = data.get('note_3', '').strip()
+
+        if not all([note_1, note_2, note_3]):
+            return jsonify({"error": "All three notes are required"}), 400
+
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        week_start = get_current_week_start()
+
+        # Upsert the week's notes
+        cursor.execute("""
+            INSERT INTO gold_star_weeks (week_start_date, note_1, note_2, note_3, updated_at)
+            VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+            ON CONFLICT (week_start_date)
+            DO UPDATE SET note_1 = %s, note_2 = %s, note_3 = %s, updated_at = CURRENT_TIMESTAMP
+            RETURNING id
+        """, (week_start, note_1, note_2, note_3, note_1, note_2, note_3))
+
+        week_id = cursor.fetchone()['id']
+        conn.commit()
+        cursor.close()
+
+        return jsonify({"success": True, "week_id": week_id, "message": "Gold star notes saved"})
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error saving gold star week: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/gold-stars/toggle', methods=['POST'])
+def toggle_gold_star_completion():
+    """Toggle a store's completion status for a gold star note"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        data = request.get_json()
+        store_nbr = data.get('store_nbr')
+        note_number = data.get('note_number')
+        completed = data.get('completed', False)
+
+        if not store_nbr or not note_number:
+            return jsonify({"error": "store_nbr and note_number are required"}), 400
+
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        week_start = get_current_week_start()
+
+        # Get current week ID
+        cursor.execute("""
+            SELECT id FROM gold_star_weeks WHERE week_start_date = %s
+        """, (week_start,))
+        week_row = cursor.fetchone()
+
+        if not week_row:
+            return jsonify({"error": "No gold star notes defined for this week"}), 404
+
+        week_id = week_row['id']
+
+        # Upsert completion status
+        cursor.execute("""
+            INSERT INTO gold_star_completions (week_id, store_nbr, note_number, completed, completed_at)
+            VALUES (%s, %s, %s, %s, CASE WHEN %s THEN CURRENT_TIMESTAMP ELSE NULL END)
+            ON CONFLICT (week_id, store_nbr, note_number)
+            DO UPDATE SET completed = %s, completed_at = CASE WHEN %s THEN CURRENT_TIMESTAMP ELSE NULL END
+        """, (week_id, store_nbr, note_number, completed, completed, completed, completed))
+
+        conn.commit()
+        cursor.close()
+
+        return jsonify({"success": True, "message": "Completion status updated"})
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error toggling gold star completion: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/gold-stars/stores', methods=['GET'])
+def get_all_stores():
+    """Get list of all unique store numbers from visits"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("""
+            SELECT DISTINCT "storeNbr" as store_nbr
+            FROM store_visits
+            WHERE "storeNbr" IS NOT NULL
+            ORDER BY "storeNbr"
+        """)
+        stores = [row['store_nbr'] for row in cursor.fetchall()]
+        cursor.close()
+
+        return jsonify(stores)
+
+    except Exception as e:
+        print(f"Error fetching stores: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))

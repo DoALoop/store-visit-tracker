@@ -66,6 +66,9 @@
             <button onclick="switchTab('prior-tours'); closeDrawer();" class="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg flex items-center">
                 <i class="fas fa-history w-6 text-walmart-blue"></i><span class="ml-3">Prior Visits</span>
             </button>
+            <button onclick="switchTab('gold-stars'); closeDrawer();" class="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg flex items-center">
+                <i class="fas fa-star w-6 text-yellow-500"></i><span class="ml-3">Gold Star Notes</span>
+            </button>
             <hr class="my-4">
             <button class="w-full text-left px-4 py-3 text-gray-500 hover:bg-gray-100 rounded-lg flex items-center justify-between">
                 <span>Settings</span><i class="fas fa-chevron-right text-sm"></i>
@@ -379,6 +382,108 @@
             </div>
         </div>
 
+        <!-- VIEW: GOLD STAR NOTES -->
+        <div id="view-gold-stars" class="hidden-view p-4 bg-gray-100 min-h-full">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-gray-900">Gold Star Notes</h2>
+                <span id="gold-star-week" class="text-sm text-gray-500"></span>
+            </div>
+
+            <!-- Define This Week's Notes -->
+            <div class="bg-white rounded-xl shadow-sm p-4 mb-4">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-star text-yellow-500 mr-2"></i>This Week's Gold Stars
+                    </h3>
+                    <button onclick="toggleGoldStarEdit()" id="gold-star-edit-btn" class="text-sm text-walmart-blue hover:text-walmart-dark-blue">
+                        <i class="fas fa-edit"></i> Edit
+                    </button>
+                </div>
+
+                <!-- Display Mode -->
+                <div id="gold-star-display" class="space-y-2">
+                    <div class="flex items-start gap-2">
+                        <span class="bg-yellow-400 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold flex-shrink-0">1</span>
+                        <p id="display-note-1" class="text-gray-700">-</p>
+                    </div>
+                    <div class="flex items-start gap-2">
+                        <span class="bg-yellow-400 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold flex-shrink-0">2</span>
+                        <p id="display-note-2" class="text-gray-700">-</p>
+                    </div>
+                    <div class="flex items-start gap-2">
+                        <span class="bg-yellow-400 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold flex-shrink-0">3</span>
+                        <p id="display-note-3" class="text-gray-700">-</p>
+                    </div>
+                </div>
+
+                <!-- Edit Mode -->
+                <div id="gold-star-edit" class="hidden space-y-3">
+                    <div>
+                        <label class="text-sm text-gray-600">Gold Star #1</label>
+                        <input type="text" id="edit-note-1" class="w-full border border-gray-300 rounded-lg px-3 py-2 mt-1 focus:border-walmart-blue focus:ring-walmart-blue" placeholder="Enter first gold star note">
+                    </div>
+                    <div>
+                        <label class="text-sm text-gray-600">Gold Star #2</label>
+                        <input type="text" id="edit-note-2" class="w-full border border-gray-300 rounded-lg px-3 py-2 mt-1 focus:border-walmart-blue focus:ring-walmart-blue" placeholder="Enter second gold star note">
+                    </div>
+                    <div>
+                        <label class="text-sm text-gray-600">Gold Star #3</label>
+                        <input type="text" id="edit-note-3" class="w-full border border-gray-300 rounded-lg px-3 py-2 mt-1 focus:border-walmart-blue focus:ring-walmart-blue" placeholder="Enter third gold star note">
+                    </div>
+                    <div class="flex gap-2 pt-2">
+                        <button onclick="cancelGoldStarEdit()" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
+                        <button onclick="saveGoldStarNotes()" class="flex-1 px-4 py-2 bg-walmart-blue text-white rounded-lg hover:bg-walmart-dark-blue">Save Notes</button>
+                    </div>
+                </div>
+
+                <!-- No notes defined message -->
+                <div id="gold-star-empty" class="hidden text-center py-4">
+                    <i class="fas fa-star text-gray-300 text-3xl mb-2"></i>
+                    <p class="text-gray-500">No gold star notes defined for this week.</p>
+                    <button onclick="toggleGoldStarEdit()" class="mt-2 text-walmart-blue hover:text-walmart-dark-blue font-medium">
+                        <i class="fas fa-plus"></i> Add Notes
+                    </button>
+                </div>
+            </div>
+
+            <!-- Progress Summary -->
+            <div class="bg-white rounded-xl shadow-sm p-4 mb-4">
+                <h3 class="font-semibold text-gray-800 mb-3">Completion Progress</h3>
+                <div class="grid grid-cols-3 gap-4 text-center">
+                    <div>
+                        <p id="gold-progress-1" class="text-2xl font-bold text-walmart-blue">0/0</p>
+                        <p class="text-xs text-gray-500">Star #1</p>
+                    </div>
+                    <div>
+                        <p id="gold-progress-2" class="text-2xl font-bold text-walmart-blue">0/0</p>
+                        <p class="text-xs text-gray-500">Star #2</p>
+                    </div>
+                    <div>
+                        <p id="gold-progress-3" class="text-2xl font-bold text-walmart-blue">0/0</p>
+                        <p class="text-xs text-gray-500">Star #3</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Store Checklist -->
+            <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                <div class="bg-walmart-blue px-4 py-3">
+                    <h3 class="text-white font-semibold">Store Checklist</h3>
+                </div>
+                <!-- Table Header -->
+                <div class="grid grid-cols-12 gap-2 px-4 py-2 text-xs font-bold text-gray-600 uppercase border-b bg-gray-50">
+                    <div class="col-span-3">Store</div>
+                    <div class="col-span-3 text-center">Star 1</div>
+                    <div class="col-span-3 text-center">Star 2</div>
+                    <div class="col-span-3 text-center">Star 3</div>
+                </div>
+                <!-- Store Rows -->
+                <div id="gold-star-stores" class="divide-y divide-gray-100">
+                    <div class="p-8 text-center text-gray-500">Loading stores...</div>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <!-- Visit Detail Modal -->
@@ -494,7 +599,7 @@
 
         // --- Navigation ---
         function switchTab(tabName) {
-            ['view-home', 'view-log-visit', 'view-visits', 'view-prior-tours', 'view-market-notes'].forEach(id => {
+            ['view-home', 'view-log-visit', 'view-visits', 'view-prior-tours', 'view-market-notes', 'view-gold-stars'].forEach(id => {
                 document.getElementById(id).classList.add('hidden-view');
             });
 
@@ -504,6 +609,7 @@
             if (tabName === 'home') loadDashboard();
             if (tabName === 'visits') loadVisits();
             if (tabName === 'market-notes') loadMarketNotes();
+            if (tabName === 'gold-stars') loadGoldStars();
 
             document.querySelectorAll('.nav-btn').forEach(btn => {
                 const isTarget = btn.getAttribute('data-target') === targetId;
@@ -948,6 +1054,195 @@
         document.getElementById('market-store-filter-btn').addEventListener('click', () => {
             document.getElementById('market-store-filter-dropdown').classList.toggle('hidden');
         });
+
+        // --- Gold Star Notes ---
+        let goldStarData = null;
+        let goldStarEditMode = false;
+
+        async function loadGoldStars() {
+            const storesContainer = document.getElementById('gold-star-stores');
+            storesContainer.innerHTML = '<div class="p-8 text-center"><svg class="animate-spin h-8 w-8 text-walmart-blue mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></div>';
+
+            try {
+                const response = await fetch('/api/gold-stars/current');
+                if (!response.ok) throw new Error('Failed to load gold stars');
+                goldStarData = await response.json();
+
+                // Display week info
+                const weekStart = new Date(goldStarData.week_start_date);
+                const weekEnd = new Date(weekStart);
+                weekEnd.setDate(weekEnd.getDate() + 4); // Friday
+                document.getElementById('gold-star-week').textContent =
+                    `Week of ${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+
+                renderGoldStars();
+            } catch (e) {
+                console.error('Error loading gold stars:', e);
+                storesContainer.innerHTML = '<div class="p-8 text-center text-red-500">Error loading gold star notes</div>';
+            }
+        }
+
+        function renderGoldStars() {
+            const displayEl = document.getElementById('gold-star-display');
+            const emptyEl = document.getElementById('gold-star-empty');
+            const editBtn = document.getElementById('gold-star-edit-btn');
+            const storesContainer = document.getElementById('gold-star-stores');
+
+            if (!goldStarData.notes) {
+                // No notes defined for this week
+                displayEl.classList.add('hidden');
+                emptyEl.classList.remove('hidden');
+                editBtn.classList.add('hidden');
+                storesContainer.innerHTML = '<div class="p-8 text-center text-gray-500">Define gold star notes first</div>';
+                document.getElementById('gold-progress-1').textContent = '0/0';
+                document.getElementById('gold-progress-2').textContent = '0/0';
+                document.getElementById('gold-progress-3').textContent = '0/0';
+                return;
+            }
+
+            // Show notes
+            displayEl.classList.remove('hidden');
+            emptyEl.classList.add('hidden');
+            editBtn.classList.remove('hidden');
+
+            document.getElementById('display-note-1').textContent = goldStarData.notes.note_1;
+            document.getElementById('display-note-2').textContent = goldStarData.notes.note_2;
+            document.getElementById('display-note-3').textContent = goldStarData.notes.note_3;
+
+            // Calculate progress
+            const stores = goldStarData.stores || [];
+            const total = stores.length;
+            const completed1 = stores.filter(s => s.note_1).length;
+            const completed2 = stores.filter(s => s.note_2).length;
+            const completed3 = stores.filter(s => s.note_3).length;
+
+            document.getElementById('gold-progress-1').textContent = `${completed1}/${total}`;
+            document.getElementById('gold-progress-2').textContent = `${completed2}/${total}`;
+            document.getElementById('gold-progress-3').textContent = `${completed3}/${total}`;
+
+            // Render store rows
+            if (stores.length === 0) {
+                storesContainer.innerHTML = '<div class="p-8 text-center text-gray-500">No stores found. Add visits first.</div>';
+                return;
+            }
+
+            storesContainer.innerHTML = stores.map(store => {
+                const allComplete = store.note_1 && store.note_2 && store.note_3;
+                return `
+                    <div class="grid grid-cols-12 gap-2 px-4 py-3 items-center ${allComplete ? 'bg-green-50' : ''}">
+                        <div class="col-span-3 font-medium text-gray-900">#${store.store_nbr}</div>
+                        <div class="col-span-3 text-center">
+                            <button onclick="toggleGoldStar('${store.store_nbr}', 1, ${!store.note_1})"
+                                class="w-8 h-8 rounded-full border-2 flex items-center justify-center mx-auto transition-colors ${store.note_1 ? 'bg-yellow-400 border-yellow-400' : 'border-gray-300 hover:border-yellow-400'}">
+                                ${store.note_1 ? '<i class="fas fa-star text-white text-sm"></i>' : ''}
+                            </button>
+                        </div>
+                        <div class="col-span-3 text-center">
+                            <button onclick="toggleGoldStar('${store.store_nbr}', 2, ${!store.note_2})"
+                                class="w-8 h-8 rounded-full border-2 flex items-center justify-center mx-auto transition-colors ${store.note_2 ? 'bg-yellow-400 border-yellow-400' : 'border-gray-300 hover:border-yellow-400'}">
+                                ${store.note_2 ? '<i class="fas fa-star text-white text-sm"></i>' : ''}
+                            </button>
+                        </div>
+                        <div class="col-span-3 text-center">
+                            <button onclick="toggleGoldStar('${store.store_nbr}', 3, ${!store.note_3})"
+                                class="w-8 h-8 rounded-full border-2 flex items-center justify-center mx-auto transition-colors ${store.note_3 ? 'bg-yellow-400 border-yellow-400' : 'border-gray-300 hover:border-yellow-400'}">
+                                ${store.note_3 ? '<i class="fas fa-star text-white text-sm"></i>' : ''}
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function toggleGoldStarEdit() {
+            goldStarEditMode = !goldStarEditMode;
+            const displayEl = document.getElementById('gold-star-display');
+            const editEl = document.getElementById('gold-star-edit');
+            const emptyEl = document.getElementById('gold-star-empty');
+            const editBtn = document.getElementById('gold-star-edit-btn');
+
+            if (goldStarEditMode) {
+                displayEl.classList.add('hidden');
+                emptyEl.classList.add('hidden');
+                editEl.classList.remove('hidden');
+                editBtn.innerHTML = '<i class="fas fa-times"></i> Cancel';
+
+                // Pre-fill with existing values
+                if (goldStarData && goldStarData.notes) {
+                    document.getElementById('edit-note-1').value = goldStarData.notes.note_1 || '';
+                    document.getElementById('edit-note-2').value = goldStarData.notes.note_2 || '';
+                    document.getElementById('edit-note-3').value = goldStarData.notes.note_3 || '';
+                }
+            } else {
+                cancelGoldStarEdit();
+            }
+        }
+
+        function cancelGoldStarEdit() {
+            goldStarEditMode = false;
+            const displayEl = document.getElementById('gold-star-display');
+            const editEl = document.getElementById('gold-star-edit');
+            const emptyEl = document.getElementById('gold-star-empty');
+            const editBtn = document.getElementById('gold-star-edit-btn');
+
+            editEl.classList.add('hidden');
+            editBtn.innerHTML = '<i class="fas fa-edit"></i> Edit';
+
+            if (goldStarData && goldStarData.notes) {
+                displayEl.classList.remove('hidden');
+            } else {
+                emptyEl.classList.remove('hidden');
+            }
+        }
+
+        async function saveGoldStarNotes() {
+            const note1 = document.getElementById('edit-note-1').value.trim();
+            const note2 = document.getElementById('edit-note-2').value.trim();
+            const note3 = document.getElementById('edit-note-3').value.trim();
+
+            if (!note1 || !note2 || !note3) {
+                alert('Please fill in all three gold star notes');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/gold-stars/week', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ note_1: note1, note_2: note2, note_3: note3 })
+                });
+
+                if (!response.ok) throw new Error('Failed to save');
+
+                goldStarEditMode = false;
+                await loadGoldStars();
+            } catch (e) {
+                console.error('Error saving gold stars:', e);
+                alert('Failed to save gold star notes');
+            }
+        }
+
+        async function toggleGoldStar(storeNbr, noteNumber, completed) {
+            try {
+                const response = await fetch('/api/gold-stars/toggle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ store_nbr: storeNbr, note_number: noteNumber, completed: completed })
+                });
+
+                if (!response.ok) throw new Error('Failed to update');
+
+                // Update local state
+                const store = goldStarData.stores.find(s => s.store_nbr === storeNbr);
+                if (store) {
+                    store[`note_${noteNumber}`] = completed;
+                    renderGoldStars();
+                }
+            } catch (e) {
+                console.error('Error toggling gold star:', e);
+                alert('Failed to update completion status');
+            }
+        }
 
         // --- Prior Tours ---
         document.getElementById('btn-search-prior').addEventListener('click', async () => {
