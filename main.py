@@ -815,43 +815,74 @@ def get_market_notes():
     try:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Query to get all market notes with status, assignment, and completion info
-        query = """
-            SELECT
-                sv.id as visit_id,
-                sv."storeNbr" as store_nbr,
-                sv.calendar_date,
-                smn.note_text,
-                COALESCE(mnc.completed, FALSE) as completed,
-                mnc.assigned_to,
-                COALESCE(mnc.status, 'new') as status,
-                mnc.completed_at
-            FROM store_market_notes smn
-            JOIN store_visits sv ON smn.visit_id = sv.id
-            LEFT JOIN market_note_completions mnc
-                ON smn.visit_id = mnc.visit_id AND smn.note_text = mnc.note_text
-            ORDER BY
-                CASE COALESCE(mnc.status, 'new')
-                    WHEN 'in_progress' THEN 1
-                    WHEN 'new' THEN 2
-                    WHEN 'on_hold' THEN 3
-                    WHEN 'completed' THEN 4
-                END,
-                sv.calendar_date DESC,
-                smn.sequence
-        """
+        # Check if new columns exist (migration 007)
+        cursor.execute("""
+            SELECT column_name FROM information_schema.columns
+            WHERE table_name = 'market_note_completions' AND column_name = 'status'
+        """)
+        has_new_columns = cursor.fetchone() is not None
+
+        if has_new_columns:
+            # Query with new columns (post-migration)
+            query = """
+                SELECT
+                    sv.id as visit_id,
+                    sv."storeNbr" as store_nbr,
+                    sv.calendar_date,
+                    smn.note_text,
+                    COALESCE(mnc.completed, FALSE) as completed,
+                    mnc.assigned_to,
+                    COALESCE(mnc.status, 'new') as status,
+                    mnc.completed_at
+                FROM store_market_notes smn
+                JOIN store_visits sv ON smn.visit_id = sv.id
+                LEFT JOIN market_note_completions mnc
+                    ON smn.visit_id = mnc.visit_id AND smn.note_text = mnc.note_text
+                ORDER BY
+                    CASE COALESCE(mnc.status, 'new')
+                        WHEN 'in_progress' THEN 1
+                        WHEN 'new' THEN 2
+                        WHEN 'on_hold' THEN 3
+                        WHEN 'completed' THEN 4
+                    END,
+                    sv.calendar_date DESC,
+                    smn.sequence
+            """
+        else:
+            # Legacy query (pre-migration)
+            query = """
+                SELECT
+                    sv.id as visit_id,
+                    sv."storeNbr" as store_nbr,
+                    sv.calendar_date,
+                    smn.note_text,
+                    COALESCE(mnc.completed, FALSE) as completed,
+                    NULL as assigned_to,
+                    CASE WHEN mnc.completed THEN 'completed' ELSE 'new' END as status,
+                    mnc.completed_at
+                FROM store_market_notes smn
+                JOIN store_visits sv ON smn.visit_id = sv.id
+                LEFT JOIN market_note_completions mnc
+                    ON smn.visit_id = mnc.visit_id AND smn.note_text = mnc.note_text
+                ORDER BY sv.calendar_date DESC, smn.sequence
+            """
 
         cursor.execute(query)
         results = cursor.fetchall()
 
-        # Get updates for each note
-        updates_query = """
-            SELECT visit_id, note_text, update_text, created_by, created_at
-            FROM market_note_updates
-            ORDER BY created_at DESC
-        """
-        cursor.execute(updates_query)
-        all_updates = cursor.fetchall()
+        # Get updates for each note (only if table exists)
+        all_updates = []
+        if has_new_columns:
+            try:
+                updates_query = """
+                    SELECT visit_id, note_text, update_text, created_by, created_at
+                    FROM market_note_updates
+                    ORDER BY created_at DESC
+                """
+                cursor.execute(updates_query)
+                all_updates = cursor.fetchall()
+            except Exception:
+                pass  # Table doesn't exist yet
 
         # Group updates by visit_id and note_text
         updates_map = {}
