@@ -364,11 +364,37 @@ EXTRACT AND STRUCTURE THE FOLLOWING INFORMATION AS JSON:
    - If you see just "Fashion" on the left side, it likely refers to "vizfashion"
 
 HANDWRITING INTERPRETATION GUIDANCE:
-- Common word confusions: "a" vs "o", "n" vs "u", "r" vs "v"
-- Numbers: "1" vs "7", "5" vs "S", "0" vs "O"
-- When uncertain, consider the retail context (e.g., if you see "cl__n", it's likely "clean")
-- Abbreviations are common: dept (department), mgr (manager), assoc (associate), merch (merchandise)
-- When truly illegible: use null rather than making something up
+Take extra time to carefully analyze each word character by character. Look at the overall shape and flow of words.
+
+COMMON LETTER CONFUSIONS TO WATCH FOR:
+- Lowercase: "a" vs "o", "n" vs "u", "r" vs "v", "e" vs "c", "h" vs "b", "m" vs "w", "l" vs "i", "g" vs "q"
+- Uppercase: "I" vs "L" vs "l", "U" vs "V", "M" vs "W", "O" vs "Q", "C" vs "G"
+- Numbers: "1" vs "7" vs "l", "5" vs "S", "0" vs "O", "6" vs "b", "8" vs "B", "9" vs "g", "2" vs "Z"
+- Look for letter connectivity - cursive letters often blend together
+
+CONTEXTUAL CLUES:
+- Use surrounding words to infer meaning (e.g., "cl__n floors" is likely "clean floors")
+- Retail/store context vocabulary: zone, feature, endcap, mod, vizpick, overstock, comp, index, WTD, MTD, team, associate, manager, backroom, salesfloor
+- Common phrases: "great job", "needs work", "follow up", "action item", "opportunity"
+- Names of people often appear - look for capitalization patterns
+
+ABBREVIATIONS COMMONLY USED:
+- dept (department), mgr (manager), assoc (associate), merch (merchandise)
+- SF (salesfloor), BR (backroom), GM (general merchandise), HBA (health & beauty)
+- TL (team lead), SM (store manager), ASM (assistant store manager)
+- OT (overtime), PTO (paid time off)
+
+NUMBERS AND METRICS:
+- Percentages often have % symbol or decimal (e.g., "5.2" or "102%")
+- Store numbers are typically 4 digits
+- Dates may be written as MM/DD, MM/DD/YY, or spelled out
+- Metrics like comp/index are often written with +/- signs
+
+WHEN UNCERTAIN:
+- Sound out the word phonetically - what word makes sense in context?
+- Look at letter spacing and word boundaries carefully
+- If a word is 70%+ legible, make your best interpretation
+- Only use null for completely illegible content that cannot be reasonably inferred
 
 OUTPUT FORMAT:
 Return ONLY valid JSON with no markdown formatting, no ```json blocks, no explanations.
@@ -412,8 +438,8 @@ Example structure:
         
         generation_config = {
             "max_output_tokens": 8192,
-            "temperature": 1,
-            "top_p": 0.95,
+            "temperature": 0.2,  # Low temperature for accurate handwriting transcription
+            "top_p": 0.9,
             "response_mime_type": "application/json",
         }
 
