@@ -644,6 +644,46 @@ def toggle_notes_received(visit_id):
         release_db_connection(conn)
 
 
+@app.route('/api/notes/<note_type>/<int:note_id>', methods=['DELETE'])
+def delete_note(note_type, note_id):
+    """Delete a specific note by type and ID"""
+    # Map note types to table names
+    table_map = {
+        'store': 'store_visit_notes',
+        'market': 'store_market_notes',
+        'good': 'store_good_notes',
+        'improvement': 'store_improvement_notes'
+    }
+
+    if note_type not in table_map:
+        return jsonify({"error": f"Invalid note type: {note_type}"}), 400
+
+    table_name = table_map[note_type]
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute(f"DELETE FROM {table_name} WHERE id = %s", (note_id,))
+
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Note not found"}), 404
+
+        conn.commit()
+        cursor.close()
+
+        return jsonify({"success": True, "message": "Note deleted"})
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error deleting note: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
 @app.route('/api/summary', methods=['GET'])
 def get_summary():
     if not db_pool:

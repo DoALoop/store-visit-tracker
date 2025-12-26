@@ -1872,18 +1872,33 @@
             }
         }
 
+        // Store current visit for note deletion
+        let currentVisitDetail = null;
+
         function displayVisitDetail(v) {
-            const formatNotes = (notes) => {
+            currentVisitDetail = v;
+
+            // Format notes with delete buttons
+            const formatNotes = (notes, noteType) => {
                 if (!notes) return '(None)';
-                let arr = [];
+                let items = [];
                 if (Array.isArray(notes)) {
                     if (notes.length === 0) return '(None)';
-                    arr = notes.map(n => typeof n === 'object' ? n.text : n);
+                    items = notes.map(n => {
+                        if (typeof n === 'object' && n.id) {
+                            return { id: n.id, text: n.text };
+                        } else {
+                            return { id: null, text: typeof n === 'object' ? n.text : n };
+                        }
+                    });
                 } else if (typeof notes === 'string') {
-                    arr = notes.split('\n').filter(n => n.trim());
+                    items = notes.split('\n').filter(n => n.trim()).map(n => ({ id: null, text: n }));
                 }
-                if (arr.length === 0) return '(None)';
-                return arr.map(n => `<li class="flex items-start"><i class="fas fa-check-circle text-walmart-blue mt-1 mr-2 text-sm"></i>${n}</li>`).join('');
+                if (items.length === 0) return '(None)';
+                return items.map(n => {
+                    const deleteBtn = n.id ? `<button onclick="deleteNote('${noteType}', ${n.id})" class="ml-2 text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity" title="Delete note"><i class="fas fa-trash-alt text-xs"></i></button>` : '';
+                    return `<li class="flex items-start group"><i class="fas fa-check-circle text-walmart-blue mt-1 mr-2 text-sm flex-shrink-0"></i><span class="flex-1">${escapeHtml(n.text)}</span>${deleteBtn}</li>`;
+                }).join('');
             };
 
             let ratingClass = 'bg-gray-100 text-gray-800';
@@ -1897,16 +1912,16 @@
             ratingEl.className = `inline-block px-3 py-1 rounded-full text-xs font-bold ${ratingClass}`;
             ratingEl.textContent = v.rating || 'N/A';
 
-            const storeNotes = formatNotes(v.store_notes);
+            const storeNotes = formatNotes(v.store_notes, 'store');
             document.getElementById('modal-store-notes').innerHTML = storeNotes === '(None)' ? '<p class="text-gray-400 italic">(None)</p>' : `<ul class="space-y-2">${storeNotes}</ul>`;
 
-            const mktNotes = formatNotes(v.mkt_notes);
+            const mktNotes = formatNotes(v.mkt_notes, 'market');
             document.getElementById('modal-mkt-notes').innerHTML = mktNotes === '(None)' ? '<p class="text-gray-400 italic">(None)</p>' : `<ul class="space-y-2">${mktNotes}</ul>`;
 
-            const good = formatNotes(v.good);
+            const good = formatNotes(v.good, 'good');
             document.getElementById('modal-good').innerHTML = good === '(None)' ? '<p class="text-gray-400 italic">(None)</p>' : `<ul class="space-y-2">${good}</ul>`;
 
-            const top3 = formatNotes(v.top_3);
+            const top3 = formatNotes(v.top_3, 'improvement');
             document.getElementById('modal-top3').innerHTML = top3 === '(None)' ? '<p class="text-gray-400 italic">(None)</p>' : `<ul class="space-y-2">${top3}</ul>`;
 
             const metrics = [
@@ -1930,6 +1945,37 @@
 
         function closeVisitDetailModal() {
             document.getElementById('visit-detail-modal').classList.add('hidden');
+        }
+
+        async function deleteNote(noteType, noteId) {
+            if (!confirm('Are you sure you want to delete this note?')) return;
+
+            try {
+                const response = await fetch(`/api/notes/${noteType}/${noteId}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || 'Failed to delete note');
+                }
+
+                // Refresh the visit detail to show updated notes
+                if (currentVisitDetail && currentVisitDetail.id) {
+                    const visitResponse = await fetch(`/api/visit/${currentVisitDetail.id}`);
+                    if (visitResponse.ok) {
+                        const updatedVisit = await visitResponse.json();
+                        displayVisitDetail(updatedVisit);
+                    }
+                }
+
+                // Also refresh the visits list
+                loadVisits();
+
+            } catch (e) {
+                console.error('Error deleting note:', e);
+                alert('Error deleting note: ' + e.message);
+            }
         }
 
         document.getElementById('visit-detail-modal').addEventListener('click', function(e) {
