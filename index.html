@@ -311,10 +311,10 @@
                     <div class="col-span-2 cursor-pointer flex items-center" onclick="sortVisits('rating')">
                         Rating <i id="sort-rating-icon" class="fas fa-sort ml-1 text-gray-400"></i>
                     </div>
-                    <div class="col-span-1 text-center" title="Notes Received from Store">
-                        Rcvd
+                    <div class="col-span-2 text-center">
+                        Notes Received
                     </div>
-                    <div class="col-span-5">Top Notes</div>
+                    <div class="col-span-4">Top Notes</div>
                 </div>
             </div>
 
@@ -1233,14 +1233,14 @@
                         <div class="col-span-2 font-medium text-gray-900 cursor-pointer" onclick="openVisitDetail(${v.id})">${v.storeNbr || '?'}</div>
                         <div class="col-span-2 text-gray-600 text-sm cursor-pointer" onclick="openVisitDetail(${v.id})">${date}</div>
                         <div class="col-span-2 cursor-pointer" onclick="openVisitDetail(${v.id})"><span class="px-2 py-1 text-xs font-bold rounded-full ${ratingClass}">${v.rating || 'N/A'}</span></div>
-                        <div class="col-span-1 text-center">
+                        <div class="col-span-2 text-center">
                             <button onclick="toggleNotesReceived(${v.id}, ${!notesReceived})"
                                 class="w-6 h-6 rounded border-2 flex items-center justify-center mx-auto transition-colors ${notesReceived ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 hover:border-green-400'}"
                                 title="${notesReceived ? 'Notes received' : 'Mark as notes received'}">
                                 ${notesReceived ? '<i class="fas fa-check text-xs"></i>' : ''}
                             </button>
                         </div>
-                        <div class="col-span-5 text-sm text-gray-600 cursor-pointer" onclick="openVisitDetail(${v.id})">
+                        <div class="col-span-4 text-sm text-gray-600 cursor-pointer" onclick="openVisitDetail(${v.id})">
                             ${notes.length > 0
                                 ? notes.slice(0, 3).map((n, i) => `<div class="truncate"><span class="text-gray-400">${i+1}.</span> ${n}</div>`).join('')
                                 : '<span class="text-gray-400 italic">No notes</span>'}
