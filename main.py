@@ -701,6 +701,52 @@ def delete_note(note_type, note_id):
         release_db_connection(conn)
 
 
+@app.route('/api/notes/<note_type>/<int:note_id>', methods=['PUT'])
+def edit_note(note_type, note_id):
+    """Edit a specific note's text by type and ID"""
+    # Map note types to table names
+    table_map = {
+        'store': 'store_visit_notes',
+        'market': 'store_market_notes',
+        'good': 'store_good_notes',
+        'improvement': 'store_improvement_notes'
+    }
+
+    if note_type not in table_map:
+        return jsonify({"error": f"Invalid note type: {note_type}"}), 400
+
+    table_name = table_map[note_type]
+
+    data = request.get_json()
+    new_text = data.get('text', '').strip()
+
+    if not new_text:
+        return jsonify({"error": "Note text cannot be empty"}), 400
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute(f"UPDATE {table_name} SET note_text = %s WHERE id = %s", (new_text, note_id))
+
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Note not found"}), 404
+
+        conn.commit()
+        cursor.close()
+
+        return jsonify({"success": True, "message": "Note updated", "text": new_text})
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error editing note: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
 @app.route('/api/visits/<int:visit_id>', methods=['DELETE'])
 def delete_visit(visit_id):
     """Delete an entire visit and all its associated notes"""

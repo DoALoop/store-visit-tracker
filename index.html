@@ -2137,7 +2137,7 @@
         function displayVisitDetail(v) {
             currentVisitDetail = v;
 
-            // Format notes with delete buttons
+            // Format notes with edit and delete buttons
             const formatNotes = (notes, noteType) => {
                 if (!notes) return '(None)';
                 let items = [];
@@ -2155,8 +2155,13 @@
                 }
                 if (items.length === 0) return '(None)';
                 return items.map(n => {
-                    const deleteBtn = n.id ? `<button onclick="deleteNote('${noteType}', ${n.id})" class="ml-2 text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity" title="Delete note"><i class="fas fa-trash-alt text-xs"></i></button>` : '';
-                    return `<li class="flex items-start group"><i class="fas fa-check-circle text-walmart-blue mt-1 mr-2 text-sm flex-shrink-0"></i><span class="flex-1">${escapeHtml(n.text)}</span>${deleteBtn}</li>`;
+                    const editBtn = n.id ? `<button onclick="startEditNote('${noteType}', ${n.id}, this)" class="ml-2 text-walmart-blue hover:text-walmart-dark-blue opacity-0 group-hover:opacity-100 transition-opacity" title="Edit note"><i class="fas fa-edit text-xs"></i></button>` : '';
+                    const deleteBtn = n.id ? `<button onclick="deleteNote('${noteType}', ${n.id})" class="ml-1 text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity" title="Delete note"><i class="fas fa-trash-alt text-xs"></i></button>` : '';
+                    return `<li class="flex items-start group note-item" data-note-id="${n.id}" data-note-type="${noteType}">
+                        <i class="fas fa-check-circle text-walmart-blue mt-1 mr-2 text-sm flex-shrink-0"></i>
+                        <span class="flex-1 note-text">${escapeHtml(n.text)}</span>
+                        <div class="flex items-center flex-shrink-0">${editBtn}${deleteBtn}</div>
+                    </li>`;
                 }).join('');
             };
 
@@ -2235,6 +2240,121 @@
                 console.error('Error deleting note:', e);
                 alert('Error deleting note: ' + e.message);
             }
+        }
+
+        function startEditNote(noteType, noteId, btnElement) {
+            // Find the note item container
+            const noteItem = btnElement.closest('.note-item');
+            if (!noteItem) return;
+
+            const noteTextSpan = noteItem.querySelector('.note-text');
+            if (!noteTextSpan) return;
+
+            const currentText = noteTextSpan.textContent;
+            const btnContainer = btnElement.closest('div');
+
+            // Replace text with input
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = currentText;
+            input.className = 'flex-1 border border-walmart-blue rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-walmart-blue';
+            input.dataset.originalText = currentText;
+
+            noteTextSpan.replaceWith(input);
+            input.focus();
+            input.select();
+
+            // Replace buttons with save/cancel
+            btnContainer.innerHTML = `
+                <button onclick="saveEditNote('${noteType}', ${noteId}, this)" class="ml-2 text-green-600 hover:text-green-800" title="Save">
+                    <i class="fas fa-check text-xs"></i>
+                </button>
+                <button onclick="cancelEditNote(this)" class="ml-1 text-gray-500 hover:text-gray-700" title="Cancel">
+                    <i class="fas fa-times text-xs"></i>
+                </button>
+            `;
+
+            // Handle enter key to save
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    saveEditNote(noteType, noteId, btnContainer.querySelector('button'));
+                } else if (e.key === 'Escape') {
+                    cancelEditNote(btnContainer.querySelector('button:last-child'));
+                }
+            });
+        }
+
+        async function saveEditNote(noteType, noteId, btnElement) {
+            const noteItem = btnElement.closest('.note-item');
+            if (!noteItem) return;
+
+            const input = noteItem.querySelector('input');
+            if (!input) return;
+
+            const newText = input.value.trim();
+            if (!newText) {
+                alert('Note text cannot be empty');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/notes/${noteType}/${noteId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: newText })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || 'Failed to update note');
+                }
+
+                // Refresh the visit detail to show updated notes
+                if (currentVisitDetail && currentVisitDetail.id) {
+                    const visitResponse = await fetch(`/api/visit/${currentVisitDetail.id}`);
+                    if (visitResponse.ok) {
+                        const updatedVisit = await visitResponse.json();
+                        displayVisitDetail(updatedVisit);
+                    }
+                }
+
+                // Also refresh the visits list
+                loadVisits();
+
+            } catch (e) {
+                console.error('Error updating note:', e);
+                alert('Error updating note: ' + e.message);
+            }
+        }
+
+        function cancelEditNote(btnElement) {
+            const noteItem = btnElement.closest('.note-item');
+            if (!noteItem) return;
+
+            const input = noteItem.querySelector('input');
+            if (!input) return;
+
+            const originalText = input.dataset.originalText || '';
+            const noteType = noteItem.dataset.noteType;
+            const noteId = noteItem.dataset.noteId;
+
+            // Restore the original text span
+            const span = document.createElement('span');
+            span.className = 'flex-1 note-text';
+            span.textContent = originalText;
+            input.replaceWith(span);
+
+            // Restore original buttons
+            const btnContainer = btnElement.closest('div');
+            btnContainer.innerHTML = `
+                <button onclick="startEditNote('${noteType}', ${noteId}, this)" class="ml-2 text-walmart-blue hover:text-walmart-dark-blue opacity-0 group-hover:opacity-100 transition-opacity" title="Edit note">
+                    <i class="fas fa-edit text-xs"></i>
+                </button>
+                <button onclick="deleteNote('${noteType}', ${noteId})" class="ml-1 text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity" title="Delete note">
+                    <i class="fas fa-trash-alt text-xs"></i>
+                </button>
+            `;
         }
 
         async function deleteVisit() {
