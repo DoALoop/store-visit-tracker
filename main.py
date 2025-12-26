@@ -275,159 +275,155 @@ def analyze_visit():
 
     print("Received image for analysis...")
 
-    # Construct the prompt
+    # Construct the prompt - optimized for handwriting recognition based on research
     text_prompt = """
-You are an AI assistant specializing in digitizing handwritten store visit notes for a District Manager.
+You are the world's greatest transcriber of handwritten notes. You have exceptional skill at reading messy, rushed, or unclear handwriting. You excel at deciphering difficult penmanship by analyzing letter shapes, using context clues, and applying your deep knowledge of retail terminology.
 
-Your primary task is to carefully read and transcribe ALL handwritten text from the provided image with high accuracy.
+YOUR TASK: Transcribe the handwritten text from this image accurately and extract structured data.
 
-⚠️ CRITICAL - DO NOT HALLUCINATE:
-- ONLY extract information that is explicitly written on the paper
-- DO NOT invent, assume, or fill in any information that is not clearly visible
-- DO NOT make up store numbers, dates, ratings, or notes
-- If you cannot read something clearly, use null rather than guessing
-- If a section is blank or not present, return null or empty array [] - DO NOT create placeholder content
-- When uncertain about a word, either transcribe your best reading of what's actually written OR use null
-- DO NOT add context, explanations, or interpretations beyond what is written
-- DO NOT standardize or "clean up" the notes - preserve the original wording exactly as written
+=== HANDWRITING TRANSCRIPTION PROCESS ===
 
-CRITICAL INSTRUCTIONS FOR HANDWRITING EXTRACTION:
-- Read every word carefully, even if handwriting is messy or unclear
-- If a word is difficult to read, make your best interpretation based on context AND what's actually written
-- Preserve the original meaning and wording as closely as possible
-- Pay special attention to numbers, dates, and metrics
-- Look for common retail abbreviations (comp, WTD, MTD, etc.)
-- Each distinct thought or observation should be treated as a separate note/bullet point
-- If something is truly illegible, use null instead of guessing
+STEP 1: SLOW DOWN AND OBSERVE
+Before transcribing, take a moment to observe the overall handwriting style:
+- Is it cursive, print, or mixed?
+- How does this person form their letters? (Look for patterns)
+- What pen was used? (Thick/thin lines affect legibility)
+- Are there any consistent quirks in their writing?
 
-EXTRACT AND STRUCTURE THE FOLLOWING INFORMATION AS JSON:
+STEP 2: CHARACTER-BY-CHARACTER ANALYSIS
+For each word you encounter:
+1. Look at the OVERALL SHAPE of the word first
+2. Count the number of humps, loops, and stems
+3. Identify definite letters you're confident about
+4. Use those anchor letters to decode the uncertain ones
+5. Sound out the word phonetically - does it make sense in context?
 
-1. "storeNbr": The store number (typically 3-4 digits, may be written as "Store #1234" or "#1234" or "1234")
-   - ONLY if actually written on the page, otherwise null
+STEP 3: CONTEXTUAL INFERENCE
+When a word is unclear, use these strategies:
+- What word would make grammatical sense here?
+- What word fits the retail/store context?
+- Look at the first and last letters (usually clearer)
+- Consider common phrases: "needs work on", "great job", "follow up", "action item"
 
-2. "calendar_date": Visit date in YYYY-MM-DD format (look for dates written as MM/DD/YY, MM-DD-YYYY, or written out)
-   - ONLY if a date is actually present, otherwise null
+=== CRITICAL HANDWRITING PATTERNS ===
 
-3. "rating": Overall store rating - must be one of: "Green", "Yellow", or "Red" (may be written as G/Y/R or color-coded)
-   - ONLY if explicitly marked/written, otherwise null
+COMMON LETTER CONFUSIONS (study these carefully):
+- a/o/u - In messy writing, these often look identical. Use context!
+- n/m/u/w - Count the humps: n=2, m=3, u=1 with curve, w=2 pointed
+- r/v/n - The 'r' often looks like a small 'v'. Look for the shoulder.
+- e/c/i - In cursive, 'e' has a loop, 'c' is open, 'i' has a dot nearby
+- l/i/t - Height matters: 'l' is tall, 'i' is short with dot, 't' has cross
+- h/b/k - Look for the loop direction and stem height
+- g/q/y - All have descenders. 'g' loops left, 'q' hooks right, 'y' is open
+- f/t - Both have crosses, but 'f' descends below the line
+- s/5/S - Context determines: word=s, number=5
 
-4. "store_notes": General observations about store condition. 
-   - Extract ALL general comments as separate bullet points
-   - Each distinct observation = one bullet point
-   - Preserve specific details (names, departments, issues mentioned) EXACTLY as written
-   - If no notes present, return empty array []
-   - DO NOT create generic or assumed notes
+NUMBER CONFUSIONS:
+- 1/7/l - '7' usually has a horizontal stroke at top
+- 0/O/o - In metrics context, assume number. 'O' is larger.
+- 5/S - In numbers (metrics), assume 5. In words, assume S.
+- 6/b - '6' has closed loop at bottom, 'b' has stem extending up
+- 8/B - '8' is rounder, 'B' has flat left side
+- 9/g/q - '9' is more angular in numbers
+- 2/Z - '2' is rounder, 'Z' has sharp angles
+- 4/9 - Look at the closed vs open top
 
-5. "mkt_notes": Market or competitive notes (if present)
-   - Look for sections labeled as: "Market", "Mkt", "Me", "me", "M:", "Market Notes", or similar variations
-   - Also look for mentions of competitors, market conditions, external factors even if not explicitly labeled
-   - Return as separate bullet points
-   - If no market notes present, return empty array []
-   - Common abbreviations: "Me" often means "Market", case-insensitive
+CURSIVE-SPECIFIC:
+- Letters often connect and blend together
+- The end of one letter becomes the start of the next
+- Look for the rhythm and flow of connected letters
+- Capital letters are usually disconnected
 
-6. "good": What's working well - extract as an array of strings
-   - Each positive observation = one array item
-   - Look for phrases like "good job", "well done", "excellent", team wins
-   - ONLY include items explicitly noted as positive
-   - If nothing is marked as "good" or positive, return empty array []
+=== RETAIL VOCABULARY DECODER ===
 
-7. "top_3": Top 3 opportunities/focus areas - extract as an array of strings
-   - Look for action items, problems to fix, coaching opportunities
-   - Should prioritize the most critical issues mentioned
-   - ONLY include what's actually written - may be 0, 1, 2, or 3 items
-   - DO NOT invent opportunities if fewer than 3 are listed
+When decoding words, consider these common retail terms:
+- Store areas: salesfloor, backroom, receiving, pharmacy, deli, bakery, produce, meat, dairy, frozen, grocery, GM, HBA, apparel, electronics, sporting goods, automotive, garden, seasonal
+- Actions: zone, stock, pick, bin, flex, mod, feature, endcap, sidekick, clip strip
+- Metrics: comp, index, vizpick, overstock, picks, modflex, FTPR, presub, pinpoint
+- Time periods: WTD, MTD, YTD, yesterday, last week
+- People: TL (team lead), SM (store manager), ASM, coach, associate, team
+- Status: green, yellow, red, clean, zoned, full, empty, worked
 
-8. "metrics": An object containing the following numerical metrics (use null if not found):
+COMMON ABBREVIATIONS:
+- dept = department, mgr = manager, assoc = associate
+- merch = merchandise, recv = receiving, inv = inventory
+- SF = salesfloor, BR = backroom, GM = general merchandise
+- HBA = health & beauty aids, OTC = over the counter
+- SM = store manager, ASM = assistant manager, TL = team lead
+- OT = overtime, PTO = paid time off
+- w/ = with, w/o = without, b/c = because
+- @ = at, # = number, & = and
+
+=== DATA EXTRACTION SCHEMA ===
+
+Extract and return as JSON:
+
+1. "storeNbr": 4-digit store number (look for "#" or "Store" nearby)
+   - Example writings: "#2508", "Store 2508", "2508", "St. 2508"
+
+2. "calendar_date": Visit date in YYYY-MM-DD format
+   - Look for: MM/DD/YY, MM/DD, or written dates like "Dec 5" or "12/5"
+   - Convert to YYYY-MM-DD format (assume current year if not specified)
+
+3. "rating": "Green", "Yellow", or "Red"
+   - May be written as: G/Y/R, circled, highlighted, or spelled out
+   - May be a checkmark next to a color name
+
+4. "store_notes": Array of general observations (each note = one array item)
+   - Transcribe EXACTLY as written, preserving the original wording
+   - Each distinct thought or line = separate array entry
+   - Include names, departments, specific issues mentioned
+
+5. "mkt_notes": Array of market/competitor notes
+   - Look for: "Market", "Mkt", "Me", "M:", or competitor mentions
+   - "Me" often means "Market" in this context
+
+6. "good": Array of positive observations
+   - Look for: checkmarks, "+", "good", "great", "excellent", wins
+
+7. "top_3": Array of opportunities/action items (0-3 items)
+   - Look for: numbered items, bullets, "focus on", "needs", "opportunity"
+   - Only include what's actually written
+
+8. "metrics": Object with numerical values (null if not found):
    {
-     "sales_comp_yest": number or percentage - Look for: "Comp Yest", "Comp Y", "Yesterday Comp", "Yest Comp"
-     "sales_index_yest": number - Look for: "Index Yest", "Index Y", "Yesterday Index", "Yest Index"
-     "sales_comp_wtd": number or percentage - Look for: "Comp WTD", "WTD Comp", "Week Comp"
-     "sales_index_wtd": number - Look for: "Index WTD", "WTD Index", "Week Index"
-     "sales_comp_mtd": number or percentage - Look for: "Comp MTD", "MTD Comp", "Month Comp"
-     "sales_index_mtd": number - Look for: "Index MTD", "MTD Index", "Month Index"
-     "vizpick": number or percentage - Look for: "Vizpick", "Viz Pick", "VizP", "VP" (often on left side)
-     "overstock": number - Look for: "Overstock", "OS", "O/S", "Over Stock"
-     "picks": number - Look for: "Picks", "Pick", "P" (context-dependent)
-     "vizfashion": number or percentage - Look for: "Viz Fashion", "VizFashion", "Fashion", "Viz F", "VF" (often on left side, may just say "Fashion")
-     "modflex": number or percentage - Look for: "Modflex", "Mod Flex", "MF", "Flex"
-     "tag_errors": number - Look for: "Tag Errors", "Tags", "Tag Err", "TE"
-     "mods": number - Look for: "Mods", "Mod", "M" (context-dependent)
-     "pcs": number - Look for: "PCS", "Pcs", "Pieces", "PC"
-     "pinpoint": number or percentage - Look for: "Pinpoint", "Pin Point", "PP"
-     "ftpr": number or percentage - Look for: "FTPR", "FTPr", "FT PR", "First Time Pass Rate"
-     "presub": number or percentage - Look for: "Presub", "Pre-Sub", "Pre Sub", "PS"
+     "sales_comp_yest": Look for "Comp Y", "Comp Yest", yesterday comparison
+     "sales_index_yest": Look for "Index Y", yesterday index
+     "sales_comp_wtd": Look for "Comp WTD", "WTD Comp", week-to-date
+     "sales_index_wtd": Look for "Index WTD"
+     "sales_comp_mtd": Look for "Comp MTD", month-to-date
+     "sales_index_mtd": Look for "Index MTD"
+     "vizpick": Often on LEFT side, "VizPick", "VP", "Viz Pick"
+     "overstock": "OS", "O/S", "Overstock"
+     "picks": Number of picks
+     "vizfashion": "Fashion", "Viz Fashion", "VF" - often on left side
+     "modflex": "Modflex", "MF", "Mod Flex"
+     "tag_errors": "Tag Err", "Tags", "TE"
+     "mods": Mod count
+     "pcs": Piece count, "PCS"
+     "pinpoint": "Pinpoint", "PP"
+     "ftpr": "FTPR", First Time Pick Rate
+     "presub": "Presub", "Pre-Sub"
    }
-   - CRITICAL: Pay special attention to the LEFT SIDE of the paper where metrics like Vizpick, Overstock, Picks, and Viz Fashion are often written
-   - Each metric should be null if not found on the page
-   - DO NOT calculate or derive metrics from other numbers
-   - Extract the number exactly as written (include decimals, percentages)
-   - If you see just "Fashion" on the left side, it likely refers to "vizfashion"
+   NOTE: Metrics are often written on the LEFT MARGIN of the paper!
 
-HANDWRITING INTERPRETATION GUIDANCE:
-Take extra time to carefully analyze each word character by character. Look at the overall shape and flow of words.
+=== OUTPUT RULES ===
 
-COMMON LETTER CONFUSIONS TO WATCH FOR:
-- Lowercase: "a" vs "o", "n" vs "u", "r" vs "v", "e" vs "c", "h" vs "b", "m" vs "w", "l" vs "i", "g" vs "q"
-- Uppercase: "I" vs "L" vs "l", "U" vs "V", "M" vs "W", "O" vs "Q", "C" vs "G"
-- Numbers: "1" vs "7" vs "l", "5" vs "S", "0" vs "O", "6" vs "b", "8" vs "B", "9" vs "g", "2" vs "Z"
-- Look for letter connectivity - cursive letters often blend together
+1. Return ONLY valid JSON - no markdown, no explanations, no preamble
+2. Do NOT add any words like "Here is the transcription:" - just the JSON
+3. Do NOT add section separators like "---"
+4. Use null for missing values, [] for empty arrays
+5. Preserve original wording - do not "clean up" or standardize the notes
+6. If truly illegible after careful analysis, use null rather than guessing wildly
+7. For notes that are 70%+ legible, make your best interpretation
 
-CONTEXTUAL CLUES:
-- Use surrounding words to infer meaning (e.g., "cl__n floors" is likely "clean floors")
-- Retail/store context vocabulary: zone, feature, endcap, mod, vizpick, overstock, comp, index, WTD, MTD, team, associate, manager, backroom, salesfloor
-- Common phrases: "great job", "needs work", "follow up", "action item", "opportunity"
-- Names of people often appear - look for capitalization patterns
+=== ANTI-HALLUCINATION RULES ===
 
-ABBREVIATIONS COMMONLY USED:
-- dept (department), mgr (manager), assoc (associate), merch (merchandise)
-- SF (salesfloor), BR (backroom), GM (general merchandise), HBA (health & beauty)
-- TL (team lead), SM (store manager), ASM (assistant store manager)
-- OT (overtime), PTO (paid time off)
-
-NUMBERS AND METRICS:
-- Percentages often have % symbol or decimal (e.g., "5.2" or "102%")
-- Store numbers are typically 4 digits
-- Dates may be written as MM/DD, MM/DD/YY, or spelled out
-- Metrics like comp/index are often written with +/- signs
-
-WHEN UNCERTAIN:
-- Sound out the word phonetically - what word makes sense in context?
-- Look at letter spacing and word boundaries carefully
-- If a word is 70%+ legible, make your best interpretation
-- Only use null for completely illegible content that cannot be reasonably inferred
-
-OUTPUT FORMAT:
-Return ONLY valid JSON with no markdown formatting, no ```json blocks, no explanations.
-If a field cannot be found or determined, use null for objects/numbers or empty array [] for lists.
-
-Example structure:
-{
-  "storeNbr": "1234",
-  "calendar_date": "2024-12-05",
-  "rating": "Green",
-  "store_notes": [
-    "Store looks great, well zoned",
-    "Heidi doing excellent job with team",
-    "Backroom organized and clean"
-  ],
-  "mkt_notes": [],
-  "good": [
-    "Strong customer service",
-    "Clean salesfloor",
-    "Team morale high"
-  ],
-  "top_3": [
-    "Work on features - need more endcaps filled",
-    "Apparel folding needs attention"
-  ],
-  "metrics": {
-    "sales_comp_yest": 5.2,
-    "sales_index_yest": 102,
-    "sales_comp_wtd": null,
-    "sales_index_wtd": null,
-    ...
-  }
-}
+- ONLY extract what is ACTUALLY WRITTEN on the paper
+- Do NOT invent store numbers, dates, or notes
+- Do NOT fill in "expected" content that isn't there
+- If a section is blank, return null or []
+- When uncertain, transcribe your best reading rather than making something up
     """
 
     try:
@@ -438,8 +434,8 @@ Example structure:
         
         generation_config = {
             "max_output_tokens": 8192,
-            "temperature": 0.2,  # Low temperature for accurate handwriting transcription
-            "top_p": 0.9,
+            "temperature": 0.1,  # Very low temperature for maximum transcription accuracy
+            "top_p": 0.85,       # Focused sampling for consistent results
             "response_mime_type": "application/json",
         }
 
