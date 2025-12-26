@@ -949,6 +949,13 @@ def update_market_note():
         cursor = conn.cursor()
         from datetime import datetime
 
+        # Check if new columns exist (migration 007)
+        cursor.execute("""
+            SELECT column_name FROM information_schema.columns
+            WHERE table_name = 'market_note_completions' AND column_name = 'status'
+        """)
+        has_new_columns = cursor.fetchone() is not None
+
         # Determine completed_at based on status
         completed_at = None
         if status == 'completed':
@@ -957,25 +964,29 @@ def update_market_note():
         elif completed:
             completed_at = datetime.now()
 
-        query = """
-            INSERT INTO market_note_completions (visit_id, note_text, completed, completed_at, status, assigned_to)
-            VALUES (%s, %s, %s, %s, %s, %s)
-            ON CONFLICT (visit_id, note_text)
-            DO UPDATE SET
-                completed = COALESCE(EXCLUDED.completed, market_note_completions.completed),
-                completed_at = COALESCE(EXCLUDED.completed_at, market_note_completions.completed_at),
-                status = COALESCE(EXCLUDED.status, market_note_completions.status),
-                assigned_to = COALESCE(EXCLUDED.assigned_to, market_note_completions.assigned_to)
-        """
-
-        cursor.execute(query, (
-            visit_id,
-            note_text,
-            completed,
-            completed_at,
-            status,
-            assigned_to
-        ))
+        if has_new_columns:
+            query = """
+                INSERT INTO market_note_completions (visit_id, note_text, completed, completed_at, status, assigned_to)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (visit_id, note_text)
+                DO UPDATE SET
+                    completed = COALESCE(EXCLUDED.completed, market_note_completions.completed),
+                    completed_at = COALESCE(EXCLUDED.completed_at, market_note_completions.completed_at),
+                    status = COALESCE(EXCLUDED.status, market_note_completions.status),
+                    assigned_to = COALESCE(EXCLUDED.assigned_to, market_note_completions.assigned_to)
+            """
+            cursor.execute(query, (visit_id, note_text, completed, completed_at, status, assigned_to))
+        else:
+            # Legacy query without new columns
+            query = """
+                INSERT INTO market_note_completions (visit_id, note_text, completed, completed_at)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (visit_id, note_text)
+                DO UPDATE SET
+                    completed = COALESCE(EXCLUDED.completed, market_note_completions.completed),
+                    completed_at = COALESCE(EXCLUDED.completed_at, market_note_completions.completed_at)
+            """
+            cursor.execute(query, (visit_id, note_text, completed, completed_at))
 
         conn.commit()
         cursor.close()
