@@ -305,11 +305,14 @@
                     <div class="col-span-2 cursor-pointer flex items-center" onclick="sortVisits('store')">
                         Store# <i id="sort-store-icon" class="fas fa-sort ml-1 text-gray-400"></i>
                     </div>
-                    <div class="col-span-3 cursor-pointer flex items-center" onclick="sortVisits('date')">
+                    <div class="col-span-2 cursor-pointer flex items-center" onclick="sortVisits('date')">
                         Date <i id="sort-date-icon" class="fas fa-sort ml-1 text-gray-400"></i>
                     </div>
                     <div class="col-span-2 cursor-pointer flex items-center" onclick="sortVisits('rating')">
                         Rating <i id="sort-rating-icon" class="fas fa-sort ml-1 text-gray-400"></i>
+                    </div>
+                    <div class="col-span-1 text-center" title="Notes Received from Store">
+                        <i class="fas fa-envelope"></i>
                     </div>
                     <div class="col-span-5">Top Notes</div>
                 </div>
@@ -1214,6 +1217,7 @@
                 else if (v.rating === 'Red') ratingClass = 'bg-red-100 text-red-800';
 
                 const date = v.calendar_date ? new Date(v.calendar_date).toLocaleDateString() : 'N/A';
+                const notesReceived = v.notes_received || false;
 
                 let notes = [];
                 if (v.top_3) {
@@ -1225,11 +1229,18 @@
                 }
 
                 return `
-                    <div class="grid grid-cols-12 gap-2 px-4 py-3 hover:bg-gray-50 cursor-pointer items-start" onclick="openVisitDetail(${v.id})">
-                        <div class="col-span-2 font-medium text-gray-900">${v.storeNbr || '?'}</div>
-                        <div class="col-span-3 text-gray-600 text-sm">${date}</div>
-                        <div class="col-span-2"><span class="px-2 py-1 text-xs font-bold rounded-full ${ratingClass}">${v.rating || 'N/A'}</span></div>
-                        <div class="col-span-5 text-sm text-gray-600">
+                    <div class="grid grid-cols-12 gap-2 px-4 py-3 hover:bg-gray-50 items-start">
+                        <div class="col-span-2 font-medium text-gray-900 cursor-pointer" onclick="openVisitDetail(${v.id})">${v.storeNbr || '?'}</div>
+                        <div class="col-span-2 text-gray-600 text-sm cursor-pointer" onclick="openVisitDetail(${v.id})">${date}</div>
+                        <div class="col-span-2 cursor-pointer" onclick="openVisitDetail(${v.id})"><span class="px-2 py-1 text-xs font-bold rounded-full ${ratingClass}">${v.rating || 'N/A'}</span></div>
+                        <div class="col-span-1 text-center">
+                            <button onclick="toggleNotesReceived(${v.id}, ${!notesReceived})"
+                                class="w-6 h-6 rounded border-2 flex items-center justify-center mx-auto transition-colors ${notesReceived ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 hover:border-green-400'}"
+                                title="${notesReceived ? 'Notes received' : 'Mark as notes received'}">
+                                ${notesReceived ? '<i class="fas fa-check text-xs"></i>' : ''}
+                            </button>
+                        </div>
+                        <div class="col-span-5 text-sm text-gray-600 cursor-pointer" onclick="openVisitDetail(${v.id})">
                             ${notes.length > 0
                                 ? notes.slice(0, 3).map((n, i) => `<div class="truncate"><span class="text-gray-400">${i+1}.</span> ${n}</div>`).join('')
                                 : '<span class="text-gray-400 italic">No notes</span>'}
@@ -1242,6 +1253,29 @@
         document.getElementById('store-filter-btn').addEventListener('click', () => {
             document.getElementById('store-filter-dropdown').classList.toggle('hidden');
         });
+
+        // Toggle notes received status
+        async function toggleNotesReceived(visitId, newStatus) {
+            try {
+                const response = await fetch(`/api/visits/${visitId}/notes-received`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ notes_received: newStatus })
+                });
+
+                if (!response.ok) throw new Error('Failed to update');
+
+                // Update local state
+                const visit = allVisits.find(v => v.id === visitId);
+                if (visit) {
+                    visit.notes_received = newStatus;
+                    renderVisits();
+                }
+            } catch (e) {
+                console.error('Error toggling notes received:', e);
+                alert('Failed to update notes status');
+            }
+        }
 
         // --- Market Notes ---
         let allMarketNotes = [];

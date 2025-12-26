@@ -587,6 +587,41 @@ def check_duplicate():
     finally:
         release_db_connection(conn)
 
+
+@app.route('/api/visits/<int:visit_id>/notes-received', methods=['POST'])
+def toggle_notes_received(visit_id):
+    """Toggle the notes_received status for a visit"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        data = request.get_json()
+        notes_received = data.get('notes_received', False)
+
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE store_visits
+            SET notes_received = %s
+            WHERE id = %s
+        """, (notes_received, visit_id))
+
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Visit not found"}), 404
+
+        conn.commit()
+        cursor.close()
+
+        return jsonify({"success": True, "notes_received": notes_received})
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error updating notes_received: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
 @app.route('/api/summary', methods=['GET'])
 def get_summary():
     if not db_pool:
