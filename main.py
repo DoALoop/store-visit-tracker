@@ -804,7 +804,7 @@ def get_summary():
         release_db_connection(conn)
 @app.route('/api/market-notes', methods=['GET'])
 def get_market_notes():
-    """Get all market notes from all visits with their completion status"""
+    """Get all market notes from all visits with their completion status, assignment, and updates"""
     if not db_pool:
         return jsonify({"error": "Server is not configured to connect to database."}), 500
 
@@ -815,34 +815,72 @@ def get_market_notes():
     try:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Query to get all market notes from normalized table with completion status
+        # Query to get all market notes with status, assignment, and completion info
         query = """
             SELECT
                 sv.id as visit_id,
                 sv."storeNbr" as store_nbr,
                 sv.calendar_date,
                 smn.note_text,
-                COALESCE(mnc.completed, FALSE) as completed
+                COALESCE(mnc.completed, FALSE) as completed,
+                mnc.assigned_to,
+                COALESCE(mnc.status, 'new') as status,
+                mnc.completed_at
             FROM store_market_notes smn
             JOIN store_visits sv ON smn.visit_id = sv.id
             LEFT JOIN market_note_completions mnc
                 ON smn.visit_id = mnc.visit_id AND smn.note_text = mnc.note_text
-            ORDER BY sv.calendar_date DESC, smn.sequence
+            ORDER BY
+                CASE COALESCE(mnc.status, 'new')
+                    WHEN 'in_progress' THEN 1
+                    WHEN 'new' THEN 2
+                    WHEN 'on_hold' THEN 3
+                    WHEN 'completed' THEN 4
+                END,
+                sv.calendar_date DESC,
+                smn.sequence
         """
 
         cursor.execute(query)
         results = cursor.fetchall()
+
+        # Get updates for each note
+        updates_query = """
+            SELECT visit_id, note_text, update_text, created_by, created_at
+            FROM market_note_updates
+            ORDER BY created_at DESC
+        """
+        cursor.execute(updates_query)
+        all_updates = cursor.fetchall()
+
+        # Group updates by visit_id and note_text
+        updates_map = {}
+        for upd in all_updates:
+            key = (upd['visit_id'], upd['note_text'])
+            if key not in updates_map:
+                updates_map[key] = []
+            updates_map[key].append({
+                "text": upd['update_text'],
+                "created_by": upd['created_by'],
+                "created_at": upd['created_at'].isoformat() if upd['created_at'] else None
+            })
+
         cursor.close()
 
         # Build response from normalized data
         market_notes = []
         for row in results:
+            key = (row['visit_id'], row['note_text'])
             market_notes.append({
                 "visit_id": row['visit_id'],
                 "store_nbr": row['store_nbr'],
                 "calendar_date": row['calendar_date'].isoformat() if row['calendar_date'] else None,
                 "note_text": row['note_text'],
-                "completed": row['completed']
+                "completed": row['completed'],
+                "assigned_to": row['assigned_to'],
+                "status": row['status'],
+                "completed_at": row['completed_at'].isoformat() if row['completed_at'] else None,
+                "updates": updates_map.get(key, [])
             })
 
         return jsonify(market_notes)
@@ -854,9 +892,130 @@ def get_market_notes():
         release_db_connection(conn)
 
 
+@app.route('/api/market-notes/update', methods=['POST'])
+def update_market_note():
+    """Update a market note's status, assignment, or completion"""
+    if not db_pool:
+        return jsonify({"error": "Database not connected"}), 500
+
+    data = request.get_json()
+
+    # Validate required fields
+    if not all(key in data for key in ['visit_id', 'note_text']):
+        return jsonify({"error": "Missing required fields: visit_id, note_text"}), 400
+
+    visit_id = data['visit_id']
+    note_text = data['note_text']
+    status = data.get('status')
+    assigned_to = data.get('assigned_to')
+    completed = data.get('completed')
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor()
+        from datetime import datetime
+
+        # Determine completed_at based on status
+        completed_at = None
+        if status == 'completed':
+            completed = True
+            completed_at = datetime.now()
+        elif completed:
+            completed_at = datetime.now()
+
+        query = """
+            INSERT INTO market_note_completions (visit_id, note_text, completed, completed_at, status, assigned_to)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (visit_id, note_text)
+            DO UPDATE SET
+                completed = COALESCE(EXCLUDED.completed, market_note_completions.completed),
+                completed_at = COALESCE(EXCLUDED.completed_at, market_note_completions.completed_at),
+                status = COALESCE(EXCLUDED.status, market_note_completions.status),
+                assigned_to = COALESCE(EXCLUDED.assigned_to, market_note_completions.assigned_to)
+        """
+
+        cursor.execute(query, (
+            visit_id,
+            note_text,
+            completed,
+            completed_at,
+            status,
+            assigned_to
+        ))
+
+        conn.commit()
+        cursor.close()
+
+        return jsonify({"success": True, "message": "Market note updated"})
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error updating market note: {e}")
+        return jsonify({"error": str(e), "success": False}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/market-notes/add-update', methods=['POST'])
+def add_market_note_update():
+    """Add an update/comment to a market note"""
+    if not db_pool:
+        return jsonify({"error": "Database not connected"}), 500
+
+    data = request.get_json()
+
+    # Validate required fields
+    if not all(key in data for key in ['visit_id', 'note_text', 'update_text']):
+        return jsonify({"error": "Missing required fields: visit_id, note_text, update_text"}), 400
+
+    visit_id = data['visit_id']
+    note_text = data['note_text']
+    update_text = data['update_text']
+    created_by = data.get('created_by', '')
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        query = """
+            INSERT INTO market_note_updates (visit_id, note_text, update_text, created_by)
+            VALUES (%s, %s, %s, %s)
+            RETURNING id, created_at
+        """
+
+        cursor.execute(query, (visit_id, note_text, update_text, created_by))
+        result = cursor.fetchone()
+
+        conn.commit()
+        cursor.close()
+
+        return jsonify({
+            "success": True,
+            "update": {
+                "id": result['id'],
+                "text": update_text,
+                "created_by": created_by,
+                "created_at": result['created_at'].isoformat() if result['created_at'] else None
+            }
+        })
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error adding market note update: {e}")
+        return jsonify({"error": str(e), "success": False}), 500
+    finally:
+        release_db_connection(conn)
+
+
 @app.route('/api/market-notes/toggle', methods=['POST'])
 def toggle_market_note():
-    """Toggle the completion status of a market note"""
+    """Toggle the completion status of a market note (legacy endpoint)"""
     if not db_pool:
         return jsonify({"error": "Database not connected"}), 500
 
@@ -880,22 +1039,26 @@ def toggle_market_note():
         # Insert or update the completion status
         from datetime import datetime
 
+        # When completing, also update status to 'completed'
+        status = 'completed' if completed else 'new'
+        completed_at = datetime.now() if completed else None
+
         query = """
-            INSERT INTO market_note_completions (visit_id, note_text, completed, completed_at)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO market_note_completions (visit_id, note_text, completed, completed_at, status)
+            VALUES (%s, %s, %s, %s, %s)
             ON CONFLICT (visit_id, note_text)
             DO UPDATE SET
                 completed = EXCLUDED.completed,
-                completed_at = EXCLUDED.completed_at
+                completed_at = EXCLUDED.completed_at,
+                status = EXCLUDED.status
         """
-
-        completed_at = datetime.now() if completed else None
 
         cursor.execute(query, (
             visit_id,
             note_text,
             completed,
-            completed_at
+            completed_at,
+            status
         ))
 
         conn.commit()
