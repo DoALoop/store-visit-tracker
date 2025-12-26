@@ -500,6 +500,23 @@ def save_visit():
         # Extract metrics from nested object
         metrics = data.get('metrics', {})
 
+        # Helper function to clean numeric values (remove % and convert to float)
+        def clean_numeric(value):
+            if value is None:
+                return None
+            if isinstance(value, (int, float)):
+                return value
+            if isinstance(value, str):
+                # Remove %, commas, and whitespace
+                cleaned = value.replace('%', '').replace(',', '').strip()
+                if cleaned == '' or cleaned.lower() == 'null':
+                    return None
+                try:
+                    return float(cleaned)
+                except ValueError:
+                    return None
+            return None
+
         # Step 1: Insert visit without notes (normalized structure)
         visit_query = """
             INSERT INTO store_visits
@@ -515,24 +532,24 @@ def save_visit():
             str(data.get('storeNbr', '')),
             data.get('calendar_date'),  # YYYY-MM-DD
             data.get('rating'),
-            # Metrics
-            metrics.get('sales_comp_yest'),
-            metrics.get('sales_index_yest'),
-            metrics.get('sales_comp_wtd'),
-            metrics.get('sales_index_wtd'),
-            metrics.get('sales_comp_mtd'),
-            metrics.get('sales_index_mtd'),
-            metrics.get('vizpick'),
-            metrics.get('overstock'),
-            metrics.get('picks'),
-            metrics.get('vizfashion'),
-            metrics.get('modflex'),
-            metrics.get('tag_errors'),
-            metrics.get('mods'),
-            metrics.get('pcs'),
-            metrics.get('pinpoint'),
-            metrics.get('ftpr'),
-            metrics.get('presub')
+            # Metrics - cleaned to remove % signs and convert to numbers
+            clean_numeric(metrics.get('sales_comp_yest')),
+            clean_numeric(metrics.get('sales_index_yest')),
+            clean_numeric(metrics.get('sales_comp_wtd')),
+            clean_numeric(metrics.get('sales_index_wtd')),
+            clean_numeric(metrics.get('sales_comp_mtd')),
+            clean_numeric(metrics.get('sales_index_mtd')),
+            clean_numeric(metrics.get('vizpick')),
+            clean_numeric(metrics.get('overstock')),
+            clean_numeric(metrics.get('picks')),
+            clean_numeric(metrics.get('vizfashion')),
+            clean_numeric(metrics.get('modflex')),
+            clean_numeric(metrics.get('tag_errors')),
+            clean_numeric(metrics.get('mods')),
+            clean_numeric(metrics.get('pcs')),
+            clean_numeric(metrics.get('pinpoint')),
+            clean_numeric(metrics.get('ftpr')),
+            clean_numeric(metrics.get('presub'))
         )
 
         cursor.execute(visit_query, visit_values)
