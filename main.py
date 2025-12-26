@@ -1209,10 +1209,193 @@ def get_status():
         {"path": "/api/market-notes", "methods": ["GET"]},
         {"path": "/api/gold-stars/current", "methods": ["GET"]},
         {"path": "/api/champions", "methods": ["GET", "POST"]},
+        {"path": "/api/issues", "methods": ["GET", "POST"]},
         {"path": "/api/status", "methods": ["GET"]}
     ]
 
     return jsonify(status)
+
+
+# --- Issues/Feedback Endpoints ---
+@app.route('/api/issues', methods=['GET'])
+def get_issues():
+    """Get all issues/feedback items"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("""
+            SELECT id, type, title, description, status, created_at, updated_at, completed_at
+            FROM issues
+            ORDER BY
+                CASE status
+                    WHEN 'new' THEN 1
+                    WHEN 'in_progress' THEN 2
+                    WHEN 'completed' THEN 3
+                END,
+                created_at DESC
+        """)
+        issues = cursor.fetchall()
+        cursor.close()
+
+        # Convert to serializable format
+        result = []
+        for issue in issues:
+            result.append({
+                "id": issue["id"],
+                "type": issue["type"],
+                "title": issue["title"],
+                "description": issue["description"],
+                "status": issue["status"],
+                "created_at": issue["created_at"].isoformat() if issue["created_at"] else None,
+                "updated_at": issue["updated_at"].isoformat() if issue["updated_at"] else None,
+                "completed_at": issue["completed_at"].isoformat() if issue["completed_at"] else None
+            })
+
+        return jsonify(result)
+
+    except Exception as e:
+        print(f"Error fetching issues: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/issues', methods=['POST'])
+def add_issue():
+    """Add a new issue/feedback item"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        data = request.get_json()
+        issue_type = data.get('type', '').strip()
+        title = data.get('title', '').strip()
+        description = data.get('description', '').strip()
+
+        if not issue_type or issue_type not in ['feature', 'bug', 'feedback']:
+            return jsonify({"error": "Valid type is required (feature, bug, feedback)"}), 400
+        if not title:
+            return jsonify({"error": "Title is required"}), 400
+
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("""
+            INSERT INTO issues (type, title, description, status)
+            VALUES (%s, %s, %s, 'new')
+            RETURNING id, type, title, description, status, created_at
+        """, (issue_type, title, description))
+
+        new_issue = cursor.fetchone()
+        conn.commit()
+        cursor.close()
+
+        return jsonify({
+            "success": True,
+            "issue": {
+                "id": new_issue["id"],
+                "type": new_issue["type"],
+                "title": new_issue["title"],
+                "description": new_issue["description"],
+                "status": new_issue["status"],
+                "created_at": new_issue["created_at"].isoformat() if new_issue["created_at"] else None
+            }
+        })
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error adding issue: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/issues/<int:issue_id>', methods=['PUT'])
+def update_issue(issue_id):
+    """Update an issue's status or details"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        data = request.get_json()
+        status = data.get('status')
+        title = data.get('title')
+        description = data.get('description')
+
+        cursor = conn.cursor()
+
+        # Build dynamic update query
+        updates = []
+        params = []
+
+        if status:
+            if status not in ['new', 'in_progress', 'completed']:
+                return jsonify({"error": "Invalid status"}), 400
+            updates.append("status = %s")
+            params.append(status)
+            if status == 'completed':
+                updates.append("completed_at = CURRENT_TIMESTAMP")
+            else:
+                updates.append("completed_at = NULL")
+
+        if title is not None:
+            updates.append("title = %s")
+            params.append(title.strip())
+
+        if description is not None:
+            updates.append("description = %s")
+            params.append(description.strip())
+
+        updates.append("updated_at = CURRENT_TIMESTAMP")
+        params.append(issue_id)
+
+        query = f"UPDATE issues SET {', '.join(updates)} WHERE id = %s"
+        cursor.execute(query, params)
+
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Issue not found"}), 404
+
+        conn.commit()
+        cursor.close()
+
+        return jsonify({"success": True, "message": "Issue updated"})
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error updating issue: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/issues/<int:issue_id>', methods=['DELETE'])
+def delete_issue(issue_id):
+    """Delete an issue"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM issues WHERE id = %s", (issue_id,))
+
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Issue not found"}), 404
+
+        conn.commit()
+        cursor.close()
+
+        return jsonify({"success": True, "message": "Issue deleted"})
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error deleting issue: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
 
 
 if __name__ == "__main__":
