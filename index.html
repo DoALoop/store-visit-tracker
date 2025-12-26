@@ -73,11 +73,11 @@
                 <i class="fas fa-trophy w-6 text-walmart-blue"></i><span class="ml-3">Champions</span>
             </button>
             <hr class="my-4">
-            <button class="w-full text-left px-4 py-3 text-gray-500 hover:bg-gray-100 rounded-lg flex items-center justify-between">
-                <span>Settings</span><i class="fas fa-chevron-right text-sm"></i>
+            <button onclick="switchTab('status'); closeDrawer();" class="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg flex items-center">
+                <i class="fas fa-server w-6 text-walmart-blue"></i><span class="ml-3">Status</span>
             </button>
             <button class="w-full text-left px-4 py-3 text-gray-500 hover:bg-gray-100 rounded-lg flex items-center justify-between">
-                <span>Help & Support</span><i class="fas fa-chevron-right text-sm"></i>
+                <span>Settings</span><i class="fas fa-chevron-right text-sm"></i>
             </button>
         </nav>
     </div>
@@ -536,6 +536,114 @@
             </div>
         </div>
 
+        <!-- VIEW: STATUS -->
+        <div id="view-status" class="hidden-view p-4 bg-gray-100 min-h-full">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-gray-900">System Status</h2>
+                <button onclick="loadStatus()" class="text-walmart-blue hover:text-walmart-dark-blue">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+
+            <!-- Server Status -->
+            <div class="bg-white rounded-xl shadow-sm p-4 mb-4">
+                <h3 class="font-semibold text-gray-800 mb-3 flex items-center">
+                    <i class="fas fa-server text-walmart-blue mr-2"></i>Server
+                </h3>
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">Status</span>
+                        <span id="status-server-status" class="px-2 py-1 rounded-full text-xs font-bold bg-gray-100">--</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">Environment</span>
+                        <span id="status-server-env" class="text-gray-900">--</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">Version</span>
+                        <span id="status-server-version" class="text-gray-900">--</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">Last Check</span>
+                        <span id="status-server-timestamp" class="text-gray-500 text-sm">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Database Status -->
+            <div class="bg-white rounded-xl shadow-sm p-4 mb-4">
+                <h3 class="font-semibold text-gray-800 mb-3 flex items-center">
+                    <i class="fas fa-database text-walmart-blue mr-2"></i>Database
+                </h3>
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">Status</span>
+                        <span id="status-db-status" class="px-2 py-1 rounded-full text-xs font-bold bg-gray-100">--</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">Host</span>
+                        <span id="status-db-host" class="text-gray-900 text-sm font-mono">--</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">Database</span>
+                        <span id="status-db-name" class="text-gray-900">--</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">Latency</span>
+                        <span id="status-db-latency" class="text-gray-900">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Vertex AI Status -->
+            <div class="bg-white rounded-xl shadow-sm p-4 mb-4">
+                <h3 class="font-semibold text-gray-800 mb-3 flex items-center">
+                    <i class="fas fa-brain text-walmart-blue mr-2"></i>Vertex AI
+                </h3>
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">Status</span>
+                        <span id="status-ai-status" class="px-2 py-1 rounded-full text-xs font-bold bg-gray-100">--</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">Project</span>
+                        <span id="status-ai-project" class="text-gray-900 text-sm">--</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">Location</span>
+                        <span id="status-ai-location" class="text-gray-900">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Network Test -->
+            <div class="bg-white rounded-xl shadow-sm p-4 mb-4">
+                <h3 class="font-semibold text-gray-800 mb-3 flex items-center">
+                    <i class="fas fa-network-wired text-walmart-blue mr-2"></i>Connection Test
+                </h3>
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">API Response Time</span>
+                        <span id="status-api-latency" class="text-gray-900">--</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">Connection</span>
+                        <span id="status-connection" class="px-2 py-1 rounded-full text-xs font-bold bg-gray-100">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Available Endpoints -->
+            <div class="bg-white rounded-xl shadow-sm p-4">
+                <h3 class="font-semibold text-gray-800 mb-3 flex items-center">
+                    <i class="fas fa-plug text-walmart-blue mr-2"></i>API Endpoints
+                </h3>
+                <div id="status-endpoints" class="space-y-2 text-sm">
+                    <div class="text-gray-500">Loading...</div>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <!-- Visit Detail Modal -->
@@ -651,7 +759,7 @@
 
         // --- Navigation ---
         function switchTab(tabName) {
-            ['view-home', 'view-log-visit', 'view-visits', 'view-prior-tours', 'view-market-notes', 'view-gold-stars', 'view-champions'].forEach(id => {
+            ['view-home', 'view-log-visit', 'view-visits', 'view-prior-tours', 'view-market-notes', 'view-gold-stars', 'view-champions', 'view-status'].forEach(id => {
                 document.getElementById(id).classList.add('hidden-view');
             });
 
@@ -663,6 +771,7 @@
             if (tabName === 'market-notes') loadMarketNotes();
             if (tabName === 'gold-stars') loadGoldStars();
             if (tabName === 'champions') loadChampions();
+            if (tabName === 'status') loadStatus();
 
             document.querySelectorAll('.nav-btn').forEach(btn => {
                 const isTarget = btn.getAttribute('data-target') === targetId;
@@ -1685,6 +1794,87 @@
             } catch (e) {
                 console.error('Error deleting champion:', e);
                 alert('Failed to delete champion');
+            }
+        }
+
+        // --- Status ---
+        async function loadStatus() {
+            // Reset all status indicators
+            const statusElements = [
+                'status-server-status', 'status-db-status', 'status-ai-status', 'status-connection'
+            ];
+            statusElements.forEach(id => {
+                const el = document.getElementById(id);
+                el.textContent = 'Checking...';
+                el.className = 'px-2 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-600';
+            });
+
+            const startTime = performance.now();
+
+            try {
+                const response = await fetch('/api/status');
+                const endTime = performance.now();
+                const latency = Math.round(endTime - startTime);
+
+                if (!response.ok) throw new Error('Failed to fetch status');
+
+                const data = await response.json();
+
+                // Server Status
+                setStatusBadge('status-server-status', data.server.status, data.server.status === 'online');
+                document.getElementById('status-server-env').textContent = data.server.environment || '--';
+                document.getElementById('status-server-version').textContent = data.server.version || '--';
+                document.getElementById('status-server-timestamp').textContent =
+                    data.server.timestamp ? new Date(data.server.timestamp).toLocaleString() : '--';
+
+                // Database Status
+                setStatusBadge('status-db-status', data.database.status, data.database.status === 'connected');
+                document.getElementById('status-db-host').textContent =
+                    `${data.database.host}:${data.database.port}`;
+                document.getElementById('status-db-name').textContent = data.database.name || '--';
+                document.getElementById('status-db-latency').textContent =
+                    data.database.latency_ms ? `${data.database.latency_ms} ms` : '--';
+
+                // Vertex AI Status
+                setStatusBadge('status-ai-status', data.vertex_ai.status,
+                    data.vertex_ai.status === 'configured');
+                document.getElementById('status-ai-project').textContent = data.vertex_ai.project || '--';
+                document.getElementById('status-ai-location').textContent = data.vertex_ai.location || '--';
+
+                // Connection Test
+                document.getElementById('status-api-latency').textContent = `${latency} ms`;
+                setStatusBadge('status-connection', 'connected', true);
+
+                // Endpoints
+                const endpointsEl = document.getElementById('status-endpoints');
+                if (data.endpoints && data.endpoints.length > 0) {
+                    endpointsEl.innerHTML = data.endpoints.map(ep => `
+                        <div class="flex justify-between items-center py-1 px-2 bg-gray-50 rounded">
+                            <span class="font-mono text-gray-700">${ep.path}</span>
+                            <span class="text-xs text-gray-500">${ep.methods.join(', ')}</span>
+                        </div>
+                    `).join('');
+                } else {
+                    endpointsEl.innerHTML = '<div class="text-gray-500">No endpoints available</div>';
+                }
+
+            } catch (e) {
+                console.error('Error loading status:', e);
+                setStatusBadge('status-server-status', 'offline', false);
+                setStatusBadge('status-connection', 'disconnected', false);
+                document.getElementById('status-api-latency').textContent = 'Failed';
+                document.getElementById('status-endpoints').innerHTML =
+                    '<div class="text-red-500">Unable to connect to server</div>';
+            }
+        }
+
+        function setStatusBadge(elementId, text, isGood) {
+            const el = document.getElementById(elementId);
+            el.textContent = text;
+            if (isGood) {
+                el.className = 'px-2 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800';
+            } else {
+                el.className = 'px-2 py-1 rounded-full text-xs font-bold bg-red-100 text-red-800';
             }
         }
 

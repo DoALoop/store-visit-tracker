@@ -1143,5 +1143,77 @@ def delete_champion(champion_id):
         release_db_connection(conn)
 
 
+# --- Status Endpoint ---
+@app.route('/api/status', methods=['GET'])
+def get_status():
+    """Get server and connection status for diagnostics"""
+    import time
+    from datetime import datetime
+
+    status = {
+        "server": {
+            "status": "online",
+            "timestamp": datetime.now().isoformat(),
+            "version": "1.0.0",
+            "environment": "development" if app.debug else "production"
+        },
+        "database": {
+            "status": "unknown",
+            "host": DB_HOST,
+            "port": DB_PORT,
+            "name": DB_NAME,
+            "latency_ms": None
+        },
+        "vertex_ai": {
+            "status": "unknown",
+            "project": PROJECT_ID,
+            "location": LOCATION
+        },
+        "endpoints": []
+    }
+
+    # Test database connection
+    try:
+        start_time = time.time()
+        conn = get_db_connection()
+        if conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1")
+            cursor.close()
+            release_db_connection(conn)
+            latency = (time.time() - start_time) * 1000
+            status["database"]["status"] = "connected"
+            status["database"]["latency_ms"] = round(latency, 2)
+        else:
+            status["database"]["status"] = "disconnected"
+            status["database"]["error"] = "Connection pool not available"
+    except Exception as e:
+        status["database"]["status"] = "error"
+        status["database"]["error"] = str(e)
+
+    # Test Vertex AI status (just check if initialized)
+    try:
+        if PROJECT_ID and LOCATION:
+            status["vertex_ai"]["status"] = "configured"
+        else:
+            status["vertex_ai"]["status"] = "not configured"
+    except Exception as e:
+        status["vertex_ai"]["status"] = "error"
+        status["vertex_ai"]["error"] = str(e)
+
+    # List available endpoints
+    status["endpoints"] = [
+        {"path": "/api/visits", "methods": ["GET"]},
+        {"path": "/api/save-visit", "methods": ["POST"]},
+        {"path": "/api/analyze-visit", "methods": ["POST"]},
+        {"path": "/api/market-notes", "methods": ["GET"]},
+        {"path": "/api/gold-stars/current", "methods": ["GET"]},
+        {"path": "/api/champions", "methods": ["GET", "POST"]},
+        {"path": "/api/status", "methods": ["GET"]}
+    ]
+
+    return jsonify(status)
+
+
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
