@@ -42,9 +42,8 @@
             <h1 class="text-white text-lg font-semibold">Market Manager Tool</h1>
             <div class="flex items-center space-x-2">
                 <button onclick="openFeedbackModal()" class="text-white p-2" title="Submit Feedback"><i class="fas fa-comment text-lg"></i></button>
-                <button onclick="openMarketModal()" class="text-white p-2 flex items-center" title="Select Market">
+                <button onclick="openMarketModal()" class="text-white p-2" title="Select Market">
                     <i class="fas fa-user text-lg"></i>
-                    <span id="header-market-badge" class="ml-1 text-xs bg-walmart-yellow text-black px-1.5 py-0.5 rounded font-bold">--</span>
                 </button>
             </div>
         </div>
@@ -964,8 +963,7 @@
         }
 
         function updateHeaderMarketBadge() {
-            const badge = document.getElementById('header-market-badge');
-            badge.textContent = currentMarket === 'all' ? 'All' : currentMarket;
+            // No badge to update - market shown in modal only
         }
 
         // Close market modal on outside click
