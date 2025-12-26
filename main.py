@@ -996,5 +996,152 @@ def get_all_stores():
         release_db_connection(conn)
 
 
+# --- Champions API ---
+
+@app.route('/api/champions', methods=['GET'])
+def get_champions():
+    """Get all champions"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("""
+            SELECT id, name, responsibility, created_at
+            FROM champions
+            ORDER BY name, responsibility
+        """)
+        champions = cursor.fetchall()
+        cursor.close()
+
+        # Convert to list of dicts
+        result = []
+        for c in champions:
+            result.append({
+                "id": c['id'],
+                "name": c['name'],
+                "responsibility": c['responsibility'],
+                "created_at": str(c['created_at']) if c['created_at'] else None
+            })
+
+        return jsonify(result)
+
+    except Exception as e:
+        print(f"Error fetching champions: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/champions', methods=['POST'])
+def add_champion():
+    """Add a new champion"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        data = request.get_json()
+        name = data.get('name', '').strip()
+        responsibility = data.get('responsibility', '').strip()
+
+        if not name or not responsibility:
+            return jsonify({"error": "Name and responsibility are required"}), 400
+
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("""
+            INSERT INTO champions (name, responsibility)
+            VALUES (%s, %s)
+            RETURNING id, name, responsibility, created_at
+        """, (name, responsibility))
+
+        new_champion = cursor.fetchone()
+        conn.commit()
+        cursor.close()
+
+        return jsonify({
+            "success": True,
+            "champion": {
+                "id": new_champion['id'],
+                "name": new_champion['name'],
+                "responsibility": new_champion['responsibility'],
+                "created_at": str(new_champion['created_at'])
+            }
+        })
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error adding champion: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/champions/<int:champion_id>', methods=['PUT'])
+def update_champion(champion_id):
+    """Update a champion"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        data = request.get_json()
+        name = data.get('name', '').strip()
+        responsibility = data.get('responsibility', '').strip()
+
+        if not name or not responsibility:
+            return jsonify({"error": "Name and responsibility are required"}), 400
+
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE champions
+            SET name = %s, responsibility = %s, updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+        """, (name, responsibility, champion_id))
+
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Champion not found"}), 404
+
+        conn.commit()
+        cursor.close()
+
+        return jsonify({"success": True, "message": "Champion updated"})
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error updating champion: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/champions/<int:champion_id>', methods=['DELETE'])
+def delete_champion(champion_id):
+    """Delete a champion"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM champions WHERE id = %s", (champion_id,))
+
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Champion not found"}), 404
+
+        conn.commit()
+        cursor.close()
+
+        return jsonify({"success": True, "message": "Champion deleted"})
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error deleting champion: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
