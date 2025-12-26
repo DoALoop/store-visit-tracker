@@ -810,9 +810,14 @@
         <div class="bg-white w-full sm:max-w-2xl sm:rounded-xl rounded-t-2xl max-h-screen sm:max-h-[90vh] overflow-y-auto">
             <div class="sticky top-0 flex justify-between items-center p-4 border-b border-gray-200 bg-white">
                 <h2 class="text-xl font-bold text-gray-900">Visit Details</h2>
-                <button onclick="closeVisitDetailModal()" class="text-gray-400 hover:text-gray-600 p-2">
-                    <i class="fas fa-times text-xl"></i>
-                </button>
+                <div class="flex items-center gap-2">
+                    <button onclick="deleteVisit()" class="text-red-400 hover:text-red-600 p-2" title="Delete Visit">
+                        <i class="fas fa-trash-alt text-lg"></i>
+                    </button>
+                    <button onclick="closeVisitDetailModal()" class="text-gray-400 hover:text-gray-600 p-2">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
             </div>
 
             <div class="p-4 space-y-4">
@@ -1975,6 +1980,40 @@
             } catch (e) {
                 console.error('Error deleting note:', e);
                 alert('Error deleting note: ' + e.message);
+            }
+        }
+
+        async function deleteVisit() {
+            if (!currentVisitDetail || !currentVisitDetail.id) {
+                alert('No visit selected');
+                return;
+            }
+
+            const storeNbr = currentVisitDetail.storeNbr || '?';
+            const date = currentVisitDetail.calendar_date ? new Date(currentVisitDetail.calendar_date).toLocaleDateString() : 'unknown date';
+
+            if (!confirm(`Are you sure you want to delete this entire visit?\n\nStore #${storeNbr} - ${date}\n\nThis will remove all notes and data for this visit.`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/visits/${currentVisitDetail.id}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || 'Failed to delete visit');
+                }
+
+                // Close modal and refresh lists
+                closeVisitDetailModal();
+                loadVisits();
+                loadSummary();
+
+            } catch (e) {
+                console.error('Error deleting visit:', e);
+                alert('Error deleting visit: ' + e.message);
             }
         }
 

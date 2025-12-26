@@ -684,6 +684,42 @@ def delete_note(note_type, note_id):
         release_db_connection(conn)
 
 
+@app.route('/api/visits/<int:visit_id>', methods=['DELETE'])
+def delete_visit(visit_id):
+    """Delete an entire visit and all its associated notes"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor()
+
+        # Delete all related notes from normalized tables first
+        cursor.execute("DELETE FROM store_visit_notes WHERE visit_id = %s", (visit_id,))
+        cursor.execute("DELETE FROM store_market_notes WHERE visit_id = %s", (visit_id,))
+        cursor.execute("DELETE FROM store_good_notes WHERE visit_id = %s", (visit_id,))
+        cursor.execute("DELETE FROM store_improvement_notes WHERE visit_id = %s", (visit_id,))
+        cursor.execute("DELETE FROM market_note_completions WHERE visit_id = %s", (visit_id,))
+
+        # Delete the visit itself
+        cursor.execute("DELETE FROM store_visits WHERE id = %s", (visit_id,))
+
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Visit not found"}), 404
+
+        conn.commit()
+        cursor.close()
+
+        return jsonify({"success": True, "message": "Visit deleted"})
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error deleting visit: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
 @app.route('/api/summary', methods=['GET'])
 def get_summary():
     if not db_pool:
