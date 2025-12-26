@@ -875,7 +875,7 @@ def get_market_notes():
         if has_new_columns:
             try:
                 updates_query = """
-                    SELECT visit_id, note_text, update_text, created_by, created_at
+                    SELECT id, visit_id, note_text, update_text, created_by, created_at
                     FROM market_note_updates
                     ORDER BY created_at DESC
                 """
@@ -891,6 +891,7 @@ def get_market_notes():
             if key not in updates_map:
                 updates_map[key] = []
             updates_map[key].append({
+                "id": upd['id'],
                 "text": upd['update_text'],
                 "created_by": upd['created_by'],
                 "created_at": upd['created_at'].isoformat() if upd['created_at'] else None
@@ -1050,6 +1051,36 @@ def add_market_note_update():
     except Exception as e:
         conn.rollback()
         print(f"Error adding market note update: {e}")
+        return jsonify({"error": str(e), "success": False}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/market-notes/delete-update/<int:update_id>', methods=['DELETE'])
+def delete_market_note_update(update_id):
+    """Delete an update/comment from a market note"""
+    if not db_pool:
+        return jsonify({"error": "Database not connected"}), 500
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM market_note_updates WHERE id = %s", (update_id,))
+
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Update not found"}), 404
+
+        conn.commit()
+        cursor.close()
+
+        return jsonify({"success": True, "message": "Update deleted"})
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error deleting market note update: {e}")
         return jsonify({"error": str(e), "success": False}), 500
     finally:
         release_db_connection(conn)

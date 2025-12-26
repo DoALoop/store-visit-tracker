@@ -1567,14 +1567,43 @@
             if (updates.length === 0) {
                 container.innerHTML = '<p class="text-gray-400 text-sm italic">No updates yet</p>';
             } else {
-                container.innerHTML = updates.map(u => `
-                    <div class="bg-gray-50 rounded-lg p-3">
-                        <p class="text-sm text-gray-800">${escapeHtml(u.text)}</p>
+                container.innerHTML = updates.map((u, idx) => `
+                    <div class="bg-gray-50 rounded-lg p-3 group relative">
+                        <button onclick="deleteMarketNoteUpdate(${u.id}, ${idx})"
+                                class="absolute top-2 right-2 text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                title="Delete update">
+                            <i class="fas fa-trash-alt text-xs"></i>
+                        </button>
+                        <p class="text-sm text-gray-800 pr-6">${escapeHtml(u.text)}</p>
                         <p class="text-xs text-gray-400 mt-1">
                             ${u.created_by ? u.created_by + ' - ' : ''}${u.created_at ? new Date(u.created_at).toLocaleString() : ''}
                         </p>
                     </div>
                 `).join('');
+            }
+        }
+
+        async function deleteMarketNoteUpdate(updateId, index) {
+            if (!confirm('Delete this update?')) return;
+
+            try {
+                const response = await fetch(`/api/market-notes/delete-update/${updateId}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || 'Failed to delete update');
+                }
+
+                // Remove from local state
+                currentMarketNote.updates.splice(index, 1);
+                renderMarketNoteUpdates();
+                renderMarketNotes();
+
+            } catch (e) {
+                console.error('Error deleting update:', e);
+                alert('Failed to delete update: ' + e.message);
             }
         }
 
