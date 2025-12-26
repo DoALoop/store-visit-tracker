@@ -42,7 +42,10 @@
             <h1 class="text-white text-lg font-semibold">Market Manager Tool</h1>
             <div class="flex items-center space-x-2">
                 <button onclick="openFeedbackModal()" class="text-white p-2" title="Submit Feedback"><i class="fas fa-comment text-lg"></i></button>
-                <button class="text-white p-2"><i class="fas fa-user text-lg"></i></button>
+                <button onclick="openMarketModal()" class="text-white p-2 flex items-center" title="Select Market">
+                    <i class="fas fa-user text-lg"></i>
+                    <span id="header-market-badge" class="ml-1 text-xs bg-walmart-yellow text-black px-1.5 py-0.5 rounded font-bold">--</span>
+                </button>
             </div>
         </div>
     </header>
@@ -758,6 +761,48 @@
         </div>
     </div>
 
+    <!-- Market Selector Modal -->
+    <div id="market-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end sm:items-center sm:justify-center">
+        <div class="bg-white w-full sm:max-w-sm sm:rounded-xl rounded-t-2xl">
+            <div class="flex justify-between items-center p-4 border-b border-gray-200">
+                <h2 class="text-xl font-bold text-gray-900">Select Market</h2>
+                <button onclick="closeMarketModal()" class="text-gray-400 hover:text-gray-600 p-2">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+
+            <div class="p-4 space-y-3">
+                <button onclick="selectMarket('399')" id="market-btn-399" class="market-btn w-full p-4 rounded-xl border-2 border-gray-200 hover:border-walmart-blue transition-colors text-left">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="font-bold text-lg text-gray-900">Market 399</p>
+                            <p class="text-sm text-gray-500">10 stores</p>
+                        </div>
+                        <i class="fas fa-check-circle text-2xl text-gray-300" id="market-check-399"></i>
+                    </div>
+                </button>
+                <button onclick="selectMarket('451')" id="market-btn-451" class="market-btn w-full p-4 rounded-xl border-2 border-gray-200 hover:border-walmart-blue transition-colors text-left">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="font-bold text-lg text-gray-900">Market 451</p>
+                            <p class="text-sm text-gray-500">9 stores</p>
+                        </div>
+                        <i class="fas fa-check-circle text-2xl text-gray-300" id="market-check-451"></i>
+                    </div>
+                </button>
+                <button onclick="selectMarket('all')" id="market-btn-all" class="market-btn w-full p-4 rounded-xl border-2 border-gray-200 hover:border-walmart-blue transition-colors text-left">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="font-bold text-lg text-gray-900">All Markets</p>
+                            <p class="text-sm text-gray-500">19 stores</p>
+                        </div>
+                        <i class="fas fa-check-circle text-2xl text-gray-300" id="market-check-all"></i>
+                    </div>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Visit Detail Modal -->
     <div id="visit-detail-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end sm:items-center sm:justify-center">
         <div class="bg-white w-full sm:max-w-2xl sm:rounded-xl rounded-t-2xl max-h-screen sm:max-h-[90vh] overflow-y-auto">
@@ -858,6 +903,76 @@
         let fileMimeType = null;
         let currentParsedData = null;
 
+        // --- Market Configuration ---
+        const MARKET_STORES = {
+            '399': ['1951', '2508', '2617', '2780', '2781', '2861', '2862', '3093', '3739', '5841'],
+            '451': ['2002', '2117', '2280', '2458', '4488', '5435', '5751', '5766', '5884']
+        };
+        let currentMarket = localStorage.getItem('selectedMarket') || 'all';
+
+        function getMarketStores() {
+            if (currentMarket === 'all') {
+                return [...MARKET_STORES['399'], ...MARKET_STORES['451']];
+            }
+            return MARKET_STORES[currentMarket] || [];
+        }
+
+        function isStoreInCurrentMarket(storeNbr) {
+            if (currentMarket === 'all') return true;
+            const stores = MARKET_STORES[currentMarket] || [];
+            return stores.includes(String(storeNbr));
+        }
+
+        function openMarketModal() {
+            updateMarketModalUI();
+            document.getElementById('market-modal').classList.remove('hidden');
+        }
+
+        function closeMarketModal() {
+            document.getElementById('market-modal').classList.add('hidden');
+        }
+
+        function updateMarketModalUI() {
+            // Reset all buttons
+            ['399', '451', 'all'].forEach(m => {
+                const btn = document.getElementById(`market-btn-${m}`);
+                const check = document.getElementById(`market-check-${m}`);
+                if (currentMarket === m) {
+                    btn.classList.remove('border-gray-200');
+                    btn.classList.add('border-walmart-blue', 'bg-blue-50');
+                    check.classList.remove('text-gray-300');
+                    check.classList.add('text-walmart-blue');
+                } else {
+                    btn.classList.remove('border-walmart-blue', 'bg-blue-50');
+                    btn.classList.add('border-gray-200');
+                    check.classList.remove('text-walmart-blue');
+                    check.classList.add('text-gray-300');
+                }
+            });
+        }
+
+        function selectMarket(market) {
+            currentMarket = market;
+            localStorage.setItem('selectedMarket', market);
+            updateHeaderMarketBadge();
+            closeMarketModal();
+            // Reload current view data
+            loadDashboard();
+            if (!document.getElementById('view-visits').classList.contains('hidden-view')) loadVisits();
+            if (!document.getElementById('view-market-notes').classList.contains('hidden-view')) loadMarketNotes();
+            if (!document.getElementById('view-gold-stars').classList.contains('hidden-view')) loadGoldStars();
+        }
+
+        function updateHeaderMarketBadge() {
+            const badge = document.getElementById('header-market-badge');
+            badge.textContent = currentMarket === 'all' ? 'All' : currentMarket;
+        }
+
+        // Close market modal on outside click
+        document.getElementById('market-modal').addEventListener('click', function(e) {
+            if (e.target === this) closeMarketModal();
+        });
+
         // --- Drawer ---
         function openDrawer() {
             document.getElementById('drawer').classList.remove('-translate-x-full');
@@ -899,7 +1014,10 @@
                 // Load visits for store ratings
                 const visitsResponse = await fetch('/api/visits');
                 if (!visitsResponse.ok) throw new Error('Failed to load visits');
-                const visits = await visitsResponse.json();
+                const allVisitsData = await visitsResponse.json();
+
+                // Filter by current market
+                const visits = allVisitsData.filter(v => isStoreInCurrentMarket(v.storeNbr));
 
                 let red = 0, yellow = 0, green = 0;
                 const stores = new Set();
@@ -921,7 +1039,9 @@
                 const notesResponse = await fetch('/api/market-notes');
                 if (notesResponse.ok) {
                     const marketNotes = await notesResponse.json();
-                    const incompleteCount = marketNotes.filter(n => !n.completed).length;
+                    // Filter by current market
+                    const filteredNotes = marketNotes.filter(n => isStoreInCurrentMarket(n.store_nbr));
+                    const incompleteCount = filteredNotes.filter(n => !n.completed).length;
                     document.getElementById('market-notes-count').textContent = incompleteCount;
                 }
             } catch (e) {
@@ -938,9 +1058,12 @@
             try {
                 const response = await fetch('/api/visits');
                 if (!response.ok) throw new Error('Failed');
-                allVisits = await response.json();
+                const allVisitsData = await response.json();
 
-                // Populate filter dropdown
+                // Filter by current market
+                allVisits = allVisitsData.filter(v => isStoreInCurrentMarket(v.storeNbr));
+
+                // Populate filter dropdown with only stores in current market
                 const stores = [...new Set(allVisits.map(v => v.storeNbr))].sort();
                 const dropdown = document.getElementById('store-filter-dropdown');
                 dropdown.innerHTML = `<div class="p-2 hover:bg-gray-100 cursor-pointer" onclick="filterVisits(null)">All Stores</div>` +
@@ -1134,9 +1257,12 @@
             try {
                 const response = await fetch('/api/market-notes');
                 if (!response.ok) throw new Error('Failed to load market notes');
-                allMarketNotes = await response.json();
+                const allNotesData = await response.json();
 
-                // Populate store filter dropdown
+                // Filter by current market
+                allMarketNotes = allNotesData.filter(n => isStoreInCurrentMarket(n.store_nbr));
+
+                // Populate store filter dropdown with only stores in current market
                 const stores = [...new Set(allMarketNotes.map(n => n.store_nbr))].sort();
                 const dropdown = document.getElementById('market-store-filter-dropdown');
                 dropdown.innerHTML = `<div class="p-2 hover:bg-gray-100 cursor-pointer" onclick="filterMarketNotesByStore(null)">All Stores</div>` +
@@ -1386,8 +1512,9 @@
             document.getElementById('display-note-2').textContent = goldStarData.notes.note_2;
             document.getElementById('display-note-3').textContent = goldStarData.notes.note_3;
 
-            // Calculate progress
-            const stores = goldStarData.stores || [];
+            // Calculate progress - filter by current market
+            const allStores = goldStarData.stores || [];
+            const stores = allStores.filter(s => isStoreInCurrentMarket(s.store_nbr));
             const total = stores.length;
             const completed1 = stores.filter(s => s.note_1).length;
             const completed2 = stores.filter(s => s.note_2).length;
@@ -1399,7 +1526,7 @@
 
             // Render store rows
             if (stores.length === 0) {
-                storesContainer.innerHTML = '<div class="p-8 text-center text-gray-500">No stores found. Add visits first.</div>';
+                storesContainer.innerHTML = '<div class="p-8 text-center text-gray-500">No stores found in selected market.</div>';
                 return;
             }
 
@@ -2244,6 +2371,7 @@
         });
 
         // --- Init ---
+        updateHeaderMarketBadge();
         loadDashboard();
     </script>
 </body>
