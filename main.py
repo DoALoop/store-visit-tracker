@@ -764,11 +764,13 @@ def toggle_market_note():
 # --- Gold Star Notes API ---
 
 def get_current_week_start():
-    """Get the Monday of the current week"""
+    """Get the Saturday of the current week (weeks start on Saturday)"""
     from datetime import datetime, timedelta
     today = datetime.now().date()
-    monday = today - timedelta(days=today.weekday())
-    return monday
+    # Calculate days since Saturday: Sat=0, Sun=1, Mon=2, etc.
+    days_since_saturday = (today.weekday() + 2) % 7
+    saturday = today - timedelta(days=days_since_saturday)
+    return saturday
 
 @app.route('/api/gold-stars/current', methods=['GET'])
 def get_current_gold_stars():

@@ -1068,10 +1068,10 @@
                 if (!response.ok) throw new Error('Failed to load gold stars');
                 goldStarData = await response.json();
 
-                // Display week info
-                const weekStart = new Date(goldStarData.week_start_date);
+                // Display week info (Saturday to Friday)
+                const weekStart = new Date(goldStarData.week_start_date + 'T00:00:00');
                 const weekEnd = new Date(weekStart);
-                weekEnd.setDate(weekEnd.getDate() + 4); // Friday
+                weekEnd.setDate(weekEnd.getDate() + 6); // Friday (6 days after Saturday)
                 document.getElementById('gold-star-week').textContent =
                     `Week of ${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
 
