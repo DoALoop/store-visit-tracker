@@ -772,6 +772,26 @@ def get_current_week_start():
     saturday = today - timedelta(days=days_since_saturday)
     return saturday
 
+def get_fiscal_week_number(week_start_date):
+    """Calculate fiscal week number (Week 1 starts January 31st)"""
+    from datetime import date
+
+    # Determine fiscal year - if before Jan 31, use previous year
+    year = week_start_date.year
+    fiscal_year_start = date(year, 1, 31)
+
+    if week_start_date < fiscal_year_start:
+        # We're in the previous fiscal year
+        fiscal_year_start = date(year - 1, 1, 31)
+
+    # Calculate days since fiscal year start
+    days_since_start = (week_start_date - fiscal_year_start).days
+
+    # Calculate week number (Week 1 = 0-6 days, Week 2 = 7-13 days, etc.)
+    week_number = (days_since_start // 7) + 1
+
+    return week_number
+
 @app.route('/api/gold-stars/current', methods=['GET'])
 def get_current_gold_stars():
     """Get current week's gold star notes with all store completions"""
@@ -793,6 +813,7 @@ def get_current_gold_stars():
 
         if not week_data:
             return jsonify({
+                "week_number": get_fiscal_week_number(week_start),
                 "week_start_date": str(week_start),
                 "notes": None,
                 "stores": []
@@ -838,6 +859,7 @@ def get_current_gold_stars():
 
         return jsonify({
             "week_id": week_data['id'],
+            "week_number": get_fiscal_week_number(week_start),
             "week_start_date": str(week_data['week_start_date']),
             "notes": {
                 "note_1": week_data['note_1'],

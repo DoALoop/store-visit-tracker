@@ -386,7 +386,7 @@
         <div id="view-gold-stars" class="hidden-view p-4 bg-gray-100 min-h-full">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-xl font-bold text-gray-900">Gold Star Notes</h2>
-                <span id="gold-star-week" class="text-sm text-gray-500"></span>
+                <div id="gold-star-week" class="text-right text-sm"></div>
             </div>
 
             <!-- Define This Week's Notes -->
@@ -1072,8 +1072,10 @@
                 const weekStart = new Date(goldStarData.week_start_date + 'T00:00:00');
                 const weekEnd = new Date(weekStart);
                 weekEnd.setDate(weekEnd.getDate() + 6); // Friday (6 days after Saturday)
-                document.getElementById('gold-star-week').textContent =
-                    `Week of ${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+                const weekNumber = goldStarData.week_number || 1;
+                document.getElementById('gold-star-week').innerHTML =
+                    `<div class="font-bold text-walmart-blue">Week ${weekNumber}</div>
+                     <div>${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>`;
 
                 renderGoldStars();
             } catch (e) {
