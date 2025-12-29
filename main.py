@@ -1860,39 +1860,46 @@ def chat():
         # Fallback: Use Gemini directly with tool results
         # Parse the message and call appropriate tool
         message_lower = message.lower()
+        import re
 
         tool_response = None
+
+        # Extract store numbers and rating from message
+        numbers = re.findall(r'\b\d{4,5}\b', message)
+        rating_filter = None
+        if 'green' in message_lower:
+            rating_filter = 'Green'
+        elif 'yellow' in message_lower:
+            rating_filter = 'Yellow'
+        elif 'red' in message_lower:
+            rating_filter = 'Red'
 
         if 'summary' in message_lower or 'stats' in message_lower or 'overview' in message_lower:
             tool_response = get_summary_stats()
         elif 'market' in message_lower and ('insight' in message_lower or 'note' in message_lower):
             tool_response = get_market_insights()
         elif 'compare' in message_lower:
-            # Extract store numbers from message
-            import re
-            numbers = re.findall(r'\b\d{4,5}\b', message)
             if numbers:
                 tool_response = compare_stores(','.join(numbers))
         elif 'trend' in message_lower or 'analysis' in message_lower:
-            import re
-            numbers = re.findall(r'\b\d{4,5}\b', message)
             if numbers:
                 tool_response = analyze_trends(numbers[0])
         elif 'search' in message_lower or 'find' in message_lower:
-            # Extract keyword after "search" or "find"
-            import re
+            # Check if searching for keyword in notes
             match = re.search(r'(?:search|find)\s+(?:for\s+)?(?:stores?\s+with\s+)?["\']?([^"\']+)["\']?', message_lower)
             if match:
                 keyword = match.group(1).strip()
-                tool_response = search_notes(keyword)
+                # Don't search for rating words as keywords
+                if keyword not in ['green', 'yellow', 'red', 'visits', 'visit', 'store', 'stores']:
+                    tool_response = search_notes(keyword)
+            # If no keyword match but has store number, search visits
+            if not tool_response and numbers:
+                tool_response = search_visits(numbers[0], limit=5, rating=rating_filter)
+        elif numbers:
+            # Has store number - search visits with optional rating filter
+            tool_response = search_visits(numbers[0], limit=5, rating=rating_filter)
         else:
-            # Default: try to find store number and search visits
-            import re
-            numbers = re.findall(r'\b\d{4,5}\b', message)
-            if numbers:
-                tool_response = search_visits(numbers[0])
-            else:
-                tool_response = get_summary_stats()
+            tool_response = get_summary_stats()
 
         # Use Gemini to generate natural language response
         if tool_response:

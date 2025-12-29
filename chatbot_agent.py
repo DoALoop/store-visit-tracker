@@ -27,38 +27,68 @@ def get_db_connection():
     return conn
 
 
-def search_visits(store_nbr: str, limit: int = 10) -> str:
+def search_visits(store_nbr: str, limit: int = 10, rating: str = None) -> str:
     """
-    Search for recent visits to a specific store.
+    Search for recent visits to a specific store with full details including notes.
 
     Args:
         store_nbr: The store number to search for
         limit: Maximum number of visits to return (default 10)
+        rating: Optional filter by rating (Green, Yellow, Red)
 
     Returns:
-        JSON string with visit summaries including date, rating, and key metrics
+        JSON string with visit details including all metrics and notes
     """
     conn = get_db_connection()
     try:
         cursor = conn.cursor(cursor_factory=__import__('psycopg2.extras', fromlist=['RealDictCursor']).RealDictCursor)
-        cursor.execute("""
+
+        # Build query with optional rating filter
+        query = """
             SELECT id, "storeNbr", calendar_date, rating,
                    sales_comp_yest, sales_comp_wtd, sales_comp_mtd,
-                   vizpick, overstock, ftpr
+                   sales_index_yest, sales_index_wtd, sales_index_mtd,
+                   vizpick, overstock, picks, vizfashion, modflex,
+                   tag_errors, mods, pcs, pinpoint, ftpr, presub
             FROM store_visits
             WHERE "storeNbr" = %s
-            ORDER BY calendar_date DESC
-            LIMIT %s
-        """, (store_nbr, limit))
+        """
+        params = [store_nbr]
 
+        if rating:
+            query += " AND LOWER(rating) = LOWER(%s)"
+            params.append(rating)
+
+        query += " ORDER BY calendar_date DESC LIMIT %s"
+        params.append(limit)
+
+        cursor.execute(query, params)
         visits = cursor.fetchall()
+
+        # Get notes for each visit
+        for visit in visits:
+            visit_id = visit['id']
+
+            # Get all note types
+            note_tables = [
+                ('store_notes', 'store_visit_notes'),
+                ('market_notes', 'store_market_notes'),
+                ('good_notes', 'store_good_notes'),
+                ('improvement_notes', 'store_improvement_notes')
+            ]
+
+            for key, table in note_tables:
+                cursor.execute(f"""
+                    SELECT note_text FROM {table}
+                    WHERE visit_id = %s ORDER BY sequence
+                """, (visit_id,))
+                visit[key] = [row['note_text'] for row in cursor.fetchall()]
+
+            # Convert date
+            if visit['calendar_date']:
+                visit['calendar_date'] = visit['calendar_date'].isoformat()
+
         cursor.close()
-
-        # Convert dates to strings for JSON
-        for v in visits:
-            if v['calendar_date']:
-                v['calendar_date'] = v['calendar_date'].isoformat()
-
         return json.dumps(visits, default=str)
     finally:
         conn.close()
