@@ -1837,5 +1837,120 @@ def delete_issue(issue_id):
         release_db_connection(conn)
 
 
+# --- Chatbot API ---
+@app.route('/api/chat', methods=['POST'])
+def chat():
+    """Handle chat messages via ADK agent"""
+    try:
+        data = request.get_json()
+        message = data.get('message', '').strip()
+
+        if not message:
+            return jsonify({"error": "Message is required"}), 400
+
+        # Import chatbot tools
+        from chatbot_agent import (
+            search_visits, get_visit_details, analyze_trends,
+            compare_stores, search_notes, get_summary_stats, get_market_insights
+        )
+
+        # Try to use ADK agent if available
+        try:
+            from chatbot_agent import create_agent
+            agent = create_agent()
+
+            if agent:
+                # Run agent query
+                import asyncio
+
+                async def run_agent():
+                    response_text = ""
+                    async for event in agent.async_stream_query(
+                        user_id="web_user",
+                        message=message
+                    ):
+                        if hasattr(event, 'text'):
+                            response_text += event.text
+                    return response_text
+
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                response = loop.run_until_complete(run_agent())
+                loop.close()
+
+                return jsonify({"response": response, "source": "adk_agent"})
+
+        except ImportError as e:
+            print(f"ADK not available, using fallback: {e}")
+
+        # Fallback: Use Gemini directly with tool results
+        # Parse the message and call appropriate tool
+        message_lower = message.lower()
+
+        tool_response = None
+
+        if 'summary' in message_lower or 'stats' in message_lower or 'overview' in message_lower:
+            tool_response = get_summary_stats()
+        elif 'market' in message_lower and ('insight' in message_lower or 'note' in message_lower):
+            tool_response = get_market_insights()
+        elif 'compare' in message_lower:
+            # Extract store numbers from message
+            import re
+            numbers = re.findall(r'\b\d{4,5}\b', message)
+            if numbers:
+                tool_response = compare_stores(','.join(numbers))
+        elif 'trend' in message_lower or 'analysis' in message_lower:
+            import re
+            numbers = re.findall(r'\b\d{4,5}\b', message)
+            if numbers:
+                tool_response = analyze_trends(numbers[0])
+        elif 'search' in message_lower or 'find' in message_lower:
+            # Extract keyword after "search" or "find"
+            import re
+            match = re.search(r'(?:search|find)\s+(?:for\s+)?(?:stores?\s+with\s+)?["\']?([^"\']+)["\']?', message_lower)
+            if match:
+                keyword = match.group(1).strip()
+                tool_response = search_notes(keyword)
+        else:
+            # Default: try to find store number and search visits
+            import re
+            numbers = re.findall(r'\b\d{4,5}\b', message)
+            if numbers:
+                tool_response = search_visits(numbers[0])
+            else:
+                tool_response = get_summary_stats()
+
+        # Use Gemini to generate natural language response
+        if tool_response:
+            import json
+            tool_data = json.loads(tool_response)
+
+            prompt = f"""Based on this store visit data, answer the user's question naturally and helpfully.
+
+User's question: {message}
+
+Data from database:
+{json.dumps(tool_data, indent=2)}
+
+Provide a clear, concise answer. Include specific numbers and dates when relevant.
+If the data doesn't fully answer the question, say what you can determine and what's missing."""
+
+            try:
+                response = model.generate_content(prompt)
+                return jsonify({"response": response.text, "source": "gemini_fallback"})
+            except Exception as e:
+                print(f"Gemini error: {e}")
+                return jsonify({
+                    "response": f"Here's what I found:\n\n{json.dumps(tool_data, indent=2)}",
+                    "source": "raw_data"
+                })
+
+        return jsonify({"error": "Could not process your question"}), 400
+
+    except Exception as e:
+        print(f"Chat error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
