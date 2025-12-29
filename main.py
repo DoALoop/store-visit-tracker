@@ -1914,11 +1914,15 @@ Data from database:
 {json.dumps(tool_data, indent=2)}
 
 Instructions:
-- If the user asks about notes, list the actual note text from store_notes, market_notes, good_notes, or improvement_notes
+- "Top 3 Notes" or "Top 3" refers to the top_3 field - these are the top improvement opportunities/action items
+- store_notes = general store observations
+- market_notes = market-level observations
+- good_notes = positive observations (what's going well)
+- top_3 = Top 3 improvement opportunities (action items)
+- When showing notes, list the actual note text as a numbered or bulleted list
 - Include specific numbers, dates, and ratings when relevant
 - Be conversational but informative
-- If data is missing or doesn't answer the question, say so
-- Format notes as a numbered or bulleted list when showing multiple notes"""
+- If data is missing or doesn't answer the question, say so"""
 
             try:
                 response = model.generate_content(prompt)

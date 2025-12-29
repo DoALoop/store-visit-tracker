@@ -69,12 +69,12 @@ def search_visits(store_nbr: str, limit: int = 10, rating: str = None) -> str:
         for visit in visits:
             visit_id = visit['id']
 
-            # Get all note types
+            # Get all note types (top_3 = improvement opportunities)
             note_tables = [
                 ('store_notes', 'store_visit_notes'),
                 ('market_notes', 'store_market_notes'),
                 ('good_notes', 'store_good_notes'),
-                ('improvement_notes', 'store_improvement_notes')
+                ('top_3', 'store_improvement_notes')
             ]
 
             for key, table in note_tables:
@@ -117,12 +117,12 @@ def get_visit_details(visit_id: int) -> str:
         if not visit:
             return json.dumps({"error": "Visit not found"})
 
-        # Get notes from normalized tables
+        # Get notes from normalized tables (top_3 = improvement opportunities)
         note_tables = [
             ('store_notes', 'store_visit_notes'),
             ('market_notes', 'store_market_notes'),
             ('good_notes', 'store_good_notes'),
-            ('improvement_notes', 'store_improvement_notes')
+            ('top_3', 'store_improvement_notes')
         ]
 
         for key, table in note_tables:
