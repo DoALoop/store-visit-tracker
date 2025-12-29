@@ -1851,7 +1851,9 @@ def chat():
         # Import chatbot tools
         from chatbot_agent import (
             search_visits, get_visit_details, analyze_trends,
-            compare_stores, search_notes, get_summary_stats, get_market_insights
+            compare_stores, search_notes, get_summary_stats, get_market_insights,
+            get_market_note_status, get_market_note_updates, get_gold_stars,
+            get_champions, get_issues
         )
 
         # ADK agent is optional - use Gemini fallback for now
@@ -1874,7 +1876,30 @@ def chat():
         elif 'red' in message_lower:
             rating_filter = 'Red'
 
-        if 'summary' in message_lower or 'stats' in message_lower or 'overview' in message_lower:
+        # Extract status filter for market notes/issues
+        status_filter = None
+        if 'in progress' in message_lower or 'in_progress' in message_lower:
+            status_filter = 'in_progress'
+        elif 'on hold' in message_lower or 'on_hold' in message_lower:
+            status_filter = 'on_hold'
+        elif 'completed' in message_lower or 'done' in message_lower:
+            status_filter = 'completed'
+        elif 'new' in message_lower or 'open' in message_lower:
+            status_filter = 'new' if 'market' in message_lower else 'open'
+
+        # Route to appropriate tool based on message content
+        if 'champion' in message_lower or 'team' in message_lower or 'assigned' in message_lower or 'who is' in message_lower:
+            tool_response = get_champions()
+        elif 'gold star' in message_lower or 'goldstar' in message_lower:
+            tool_response = get_gold_stars()
+        elif 'issue' in message_lower or 'feedback' in message_lower or 'bug' in message_lower:
+            type_filter = 'feedback' if 'feedback' in message_lower else ('issue' if 'issue' in message_lower or 'bug' in message_lower else None)
+            tool_response = get_issues(status_filter=status_filter, type_filter=type_filter)
+        elif 'market' in message_lower and ('status' in message_lower or 'progress' in message_lower or 'assigned' in message_lower or 'completion' in message_lower):
+            tool_response = get_market_note_status(status_filter=status_filter)
+        elif 'market' in message_lower and 'update' in message_lower:
+            tool_response = get_market_note_updates()
+        elif 'summary' in message_lower or 'stats' in message_lower or 'overview' in message_lower:
             tool_response = get_summary_stats()
         elif 'market' in message_lower and ('insight' in message_lower or 'note' in message_lower):
             tool_response = get_market_insights()
@@ -1919,8 +1944,12 @@ Instructions:
 - market_notes = market-level observations
 - good_notes = positive observations (what's going well)
 - top_3 = Top 3 improvement opportunities (action items)
-- When showing notes, list the actual note text as a numbered or bulleted list
-- Include specific numbers, dates, and ratings when relevant
+- Gold Stars = weekly focus areas that stores need to complete
+- Champions = team members and their assigned responsibilities
+- Issues/Feedback = tracked problems or suggestions with status (open, in_progress, resolved, closed)
+- Market note status = tracks if market notes are new, in_progress, on_hold, or completed, and who they're assigned to
+- When showing notes or items, list them as a numbered or bulleted list
+- Include specific numbers, dates, names, and statuses when relevant
 - Be conversational but informative
 - If data is missing or doesn't answer the question, say so"""
 

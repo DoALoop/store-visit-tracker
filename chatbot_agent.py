@@ -398,6 +398,229 @@ def get_market_insights(days: int = 30) -> str:
         conn.close()
 
 
+def get_market_note_status(status_filter: str = None) -> str:
+    """
+    Get market notes with their completion status and assignments.
+
+    Args:
+        status_filter: Optional filter by status (new, in_progress, on_hold, completed)
+
+    Returns:
+        JSON string with market notes, their status, and who they're assigned to
+    """
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor(cursor_factory=__import__('psycopg2.extras', fromlist=['RealDictCursor']).RealDictCursor)
+
+        query = """
+            SELECT
+                mnc.id, mnc.visit_id, mnc.note_text, mnc.status, mnc.assigned_to,
+                mnc.completed, mnc.completed_at,
+                v."storeNbr", v.calendar_date
+            FROM market_note_completions mnc
+            JOIN store_visits v ON mnc.visit_id = v.id
+        """
+        params = []
+
+        if status_filter:
+            query += " WHERE LOWER(mnc.status) = LOWER(%s)"
+            params.append(status_filter)
+
+        query += " ORDER BY v.calendar_date DESC, mnc.id DESC LIMIT 50"
+
+        cursor.execute(query, params)
+        notes = cursor.fetchall()
+
+        for note in notes:
+            if note.get('calendar_date'):
+                note['calendar_date'] = note['calendar_date'].isoformat()
+            if note.get('completed_at'):
+                note['completed_at'] = note['completed_at'].isoformat()
+
+        cursor.close()
+        return json.dumps(notes, default=str)
+    finally:
+        conn.close()
+
+
+def get_market_note_updates(note_text: str = None) -> str:
+    """
+    Get updates/comments on market notes.
+
+    Args:
+        note_text: Optional filter to search for specific note text
+
+    Returns:
+        JSON string with market note updates and comments
+    """
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor(cursor_factory=__import__('psycopg2.extras', fromlist=['RealDictCursor']).RealDictCursor)
+
+        query = """
+            SELECT
+                mnu.id, mnu.visit_id, mnu.note_text, mnu.update_text,
+                mnu.created_by, mnu.created_at,
+                v."storeNbr", v.calendar_date
+            FROM market_note_updates mnu
+            JOIN store_visits v ON mnu.visit_id = v.id
+        """
+        params = []
+
+        if note_text:
+            query += " WHERE LOWER(mnu.note_text) LIKE LOWER(%s)"
+            params.append(f'%{note_text}%')
+
+        query += " ORDER BY mnu.created_at DESC LIMIT 50"
+
+        cursor.execute(query, params)
+        updates = cursor.fetchall()
+
+        for update in updates:
+            if update.get('calendar_date'):
+                update['calendar_date'] = update['calendar_date'].isoformat()
+            if update.get('created_at'):
+                update['created_at'] = update['created_at'].isoformat()
+
+        cursor.close()
+        return json.dumps(updates, default=str)
+    finally:
+        conn.close()
+
+
+def get_gold_stars(week_date: str = None) -> str:
+    """
+    Get gold star focus areas and store completions.
+
+    Args:
+        week_date: Optional week start date (YYYY-MM-DD), defaults to current week
+
+    Returns:
+        JSON string with gold star notes and which stores have completed them
+    """
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor(cursor_factory=__import__('psycopg2.extras', fromlist=['RealDictCursor']).RealDictCursor)
+
+        # Get the gold star week
+        if week_date:
+            cursor.execute("""
+                SELECT * FROM gold_star_weeks WHERE week_start_date = %s
+            """, (week_date,))
+        else:
+            cursor.execute("""
+                SELECT * FROM gold_star_weeks ORDER BY week_start_date DESC LIMIT 1
+            """)
+
+        week = cursor.fetchone()
+        if not week:
+            return json.dumps({"error": "No gold star week found"})
+
+        week_id = week['id']
+        if week.get('week_start_date'):
+            week['week_start_date'] = week['week_start_date'].isoformat()
+        if week.get('updated_at'):
+            week['updated_at'] = week['updated_at'].isoformat()
+
+        # Get completions for this week
+        cursor.execute("""
+            SELECT store_nbr, note_number, completed, completed_at
+            FROM gold_star_completions
+            WHERE week_id = %s
+            ORDER BY store_nbr, note_number
+        """, (week_id,))
+        completions = cursor.fetchall()
+
+        for c in completions:
+            if c.get('completed_at'):
+                c['completed_at'] = c['completed_at'].isoformat()
+
+        cursor.close()
+
+        return json.dumps({
+            "week": dict(week),
+            "notes": [week.get('note_1'), week.get('note_2'), week.get('note_3')],
+            "completions": [dict(c) for c in completions]
+        }, default=str)
+    finally:
+        conn.close()
+
+
+def get_champions() -> str:
+    """
+    Get all champions (team members) and their responsibilities.
+
+    Returns:
+        JSON string with champion names and their assigned responsibilities
+    """
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor(cursor_factory=__import__('psycopg2.extras', fromlist=['RealDictCursor']).RealDictCursor)
+
+        cursor.execute("""
+            SELECT id, name, responsibility, created_at
+            FROM champions
+            ORDER BY name
+        """)
+        champions = cursor.fetchall()
+
+        for c in champions:
+            if c.get('created_at'):
+                c['created_at'] = c['created_at'].isoformat()
+
+        cursor.close()
+        return json.dumps(champions, default=str)
+    finally:
+        conn.close()
+
+
+def get_issues(status_filter: str = None, type_filter: str = None) -> str:
+    """
+    Get issues and feedback items.
+
+    Args:
+        status_filter: Optional filter by status (open, in_progress, resolved, closed)
+        type_filter: Optional filter by type (issue, feedback)
+
+    Returns:
+        JSON string with issues/feedback and their details
+    """
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor(cursor_factory=__import__('psycopg2.extras', fromlist=['RealDictCursor']).RealDictCursor)
+
+        query = """
+            SELECT id, type, title, description, status, created_at, updated_at
+            FROM issues
+            WHERE 1=1
+        """
+        params = []
+
+        if status_filter:
+            query += " AND LOWER(status) = LOWER(%s)"
+            params.append(status_filter)
+
+        if type_filter:
+            query += " AND LOWER(type) = LOWER(%s)"
+            params.append(type_filter)
+
+        query += " ORDER BY created_at DESC LIMIT 50"
+
+        cursor.execute(query, params)
+        issues = cursor.fetchall()
+
+        for issue in issues:
+            if issue.get('created_at'):
+                issue['created_at'] = issue['created_at'].isoformat()
+            if issue.get('updated_at'):
+                issue['updated_at'] = issue['updated_at'].isoformat()
+
+        cursor.close()
+        return json.dumps(issues, default=str)
+    finally:
+        conn.close()
+
+
 # ADK Agent definition
 def create_agent():
     """Create and return the ADK agent with all tools"""
