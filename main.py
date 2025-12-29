@@ -1906,15 +1906,19 @@ def chat():
             import json
             tool_data = json.loads(tool_response)
 
-            prompt = f"""Based on this store visit data, answer the user's question naturally and helpfully.
+            prompt = f"""You are Jax, a helpful assistant for analyzing store visit data. Answer the user's question based on the data provided.
 
 User's question: {message}
 
 Data from database:
 {json.dumps(tool_data, indent=2)}
 
-Provide a clear, concise answer. Include specific numbers and dates when relevant.
-If the data doesn't fully answer the question, say what you can determine and what's missing."""
+Instructions:
+- If the user asks about notes, list the actual note text from store_notes, market_notes, good_notes, or improvement_notes
+- Include specific numbers, dates, and ratings when relevant
+- Be conversational but informative
+- If data is missing or doesn't answer the question, say so
+- Format notes as a numbered or bulleted list when showing multiple notes"""
 
             try:
                 response = model.generate_content(prompt)
