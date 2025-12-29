@@ -1854,34 +1854,8 @@ def chat():
             compare_stores, search_notes, get_summary_stats, get_market_insights
         )
 
-        # Try to use ADK agent if available
-        try:
-            from chatbot_agent import create_agent
-            agent = create_agent()
-
-            if agent:
-                # Run agent query
-                import asyncio
-
-                async def run_agent():
-                    response_text = ""
-                    async for event in agent.async_stream_query(
-                        user_id="web_user",
-                        message=message
-                    ):
-                        if hasattr(event, 'text'):
-                            response_text += event.text
-                    return response_text
-
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                response = loop.run_until_complete(run_agent())
-                loop.close()
-
-                return jsonify({"response": response, "source": "adk_agent"})
-
-        except ImportError as e:
-            print(f"ADK not available, using fallback: {e}")
+        # ADK agent is optional - use Gemini fallback for now
+        # (ADK integration can be added later when API stabilizes)
 
         # Fallback: Use Gemini directly with tool results
         # Parse the message and call appropriate tool
