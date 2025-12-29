@@ -27,13 +27,20 @@ echo "📦 Installing/updating dependencies..."
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# Kill any orphaned processes on port 8080
-echo "🧹 Cleaning up any orphaned processes on port 8080..."
-sudo kill -9 $(sudo lsof -t -i :8080) 2>/dev/null || true
+# Stop the service first
+echo "🛑 Stopping service..."
+sudo systemctl stop $SERVICE_NAME 2>/dev/null || true
+sleep 1
 
-# Restart the service
-echo "🔄 Restarting application service..."
-sudo systemctl restart $SERVICE_NAME
+# Kill any orphaned gunicorn processes
+echo "🧹 Cleaning up orphaned processes..."
+sudo pkill -9 -f gunicorn 2>/dev/null || true
+sudo kill -9 $(sudo lsof -t -i :8080) 2>/dev/null || true
+sleep 2
+
+# Start the service
+echo "🔄 Starting application service..."
+sudo systemctl start $SERVICE_NAME
 
 # Check status
 sleep 2
