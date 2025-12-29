@@ -830,6 +830,58 @@
         </div>
     </div>
 
+    <!-- Edit Issue Modal -->
+    <div id="edit-issue-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end sm:items-center sm:justify-center">
+        <div class="bg-white w-full sm:max-w-md sm:rounded-xl rounded-t-2xl max-h-[90vh] overflow-y-auto">
+            <div class="sticky top-0 flex justify-between items-center p-4 border-b border-gray-200 bg-white">
+                <h2 class="text-xl font-bold text-gray-900">Edit Issue</h2>
+                <button onclick="closeEditIssueModal()" class="text-gray-400 hover:text-gray-600 p-2">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+
+            <div class="p-4 space-y-4">
+                <input type="hidden" id="edit-issue-id">
+
+                <!-- Type Selection -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Type</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button type="button" onclick="selectEditIssueType('feature')" id="edit-type-feature" class="edit-issue-type-btn flex flex-col items-center p-3 rounded-lg border-2 border-gray-200 hover:border-walmart-blue transition-colors">
+                            <i class="fas fa-lightbulb text-2xl text-yellow-500 mb-1"></i>
+                            <span class="text-xs font-medium">Feature</span>
+                        </button>
+                        <button type="button" onclick="selectEditIssueType('bug')" id="edit-type-bug" class="edit-issue-type-btn flex flex-col items-center p-3 rounded-lg border-2 border-gray-200 hover:border-walmart-blue transition-colors">
+                            <i class="fas fa-bug text-2xl text-red-500 mb-1"></i>
+                            <span class="text-xs font-medium">Bug</span>
+                        </button>
+                        <button type="button" onclick="selectEditIssueType('feedback')" id="edit-type-feedback" class="edit-issue-type-btn flex flex-col items-center p-3 rounded-lg border-2 border-gray-200 hover:border-walmart-blue transition-colors">
+                            <i class="fas fa-comment text-2xl text-walmart-blue mb-1"></i>
+                            <span class="text-xs font-medium">Feedback</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Title -->
+                <div>
+                    <label for="edit-issue-title" class="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                    <input type="text" id="edit-issue-title" placeholder="Brief summary..." class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:border-walmart-blue focus:ring-walmart-blue">
+                </div>
+
+                <!-- Description -->
+                <div>
+                    <label for="edit-issue-description" class="block text-sm font-medium text-gray-700 mb-1">Description (optional)</label>
+                    <textarea id="edit-issue-description" rows="4" placeholder="Provide more details..." class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:border-walmart-blue focus:ring-walmart-blue"></textarea>
+                </div>
+
+                <!-- Save Button -->
+                <button onclick="saveEditIssue()" class="w-full bg-walmart-blue text-white py-3 rounded-lg font-medium hover:bg-walmart-dark-blue transition-colors">
+                    Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Market Selector Modal -->
     <div id="market-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end sm:items-center sm:justify-center">
         <div class="bg-white w-full sm:max-w-sm sm:rounded-xl rounded-t-2xl">
@@ -2738,7 +2790,10 @@
                                 <option value="in_progress" ${issue.status === 'in_progress' ? 'selected' : ''}>In Progress</option>
                                 <option value="completed" ${issue.status === 'completed' ? 'selected' : ''}>Completed</option>
                             </select>
-                            <button onclick="deleteIssue(${issue.id})" class="text-gray-400 hover:text-red-500 p-1">
+                            <button onclick="openEditIssueModal(${issue.id})" class="text-gray-400 hover:text-walmart-blue p-1" title="Edit">
+                                <i class="fas fa-edit text-sm"></i>
+                            </button>
+                            <button onclick="deleteIssue(${issue.id})" class="text-gray-400 hover:text-red-500 p-1" title="Delete">
                                 <i class="fas fa-trash text-sm"></i>
                             </button>
                         </div>
@@ -2818,6 +2873,98 @@
                 alert('Failed to delete issue');
             }
         }
+
+        // --- Edit Issue Modal ---
+        let selectedEditIssueType = null;
+
+        function openEditIssueModal(id) {
+            const issue = allIssues.find(i => i.id === id);
+            if (!issue) return;
+
+            document.getElementById('edit-issue-id').value = id;
+            document.getElementById('edit-issue-title').value = issue.title || '';
+            document.getElementById('edit-issue-description').value = issue.description || '';
+
+            // Reset and select the current type
+            selectedEditIssueType = issue.type;
+            document.querySelectorAll('.edit-issue-type-btn').forEach(btn => {
+                btn.classList.remove('border-walmart-blue', 'bg-blue-50');
+                btn.classList.add('border-gray-200');
+            });
+            const selectedBtn = document.getElementById(`edit-type-${issue.type}`);
+            if (selectedBtn) {
+                selectedBtn.classList.remove('border-gray-200');
+                selectedBtn.classList.add('border-walmart-blue', 'bg-blue-50');
+            }
+
+            document.getElementById('edit-issue-modal').classList.remove('hidden');
+        }
+
+        function closeEditIssueModal() {
+            document.getElementById('edit-issue-modal').classList.add('hidden');
+        }
+
+        function selectEditIssueType(type) {
+            selectedEditIssueType = type;
+            document.querySelectorAll('.edit-issue-type-btn').forEach(btn => {
+                btn.classList.remove('border-walmart-blue', 'bg-blue-50');
+                btn.classList.add('border-gray-200');
+            });
+            const selectedBtn = document.getElementById(`edit-type-${type}`);
+            if (selectedBtn) {
+                selectedBtn.classList.remove('border-gray-200');
+                selectedBtn.classList.add('border-walmart-blue', 'bg-blue-50');
+            }
+        }
+
+        async function saveEditIssue() {
+            const id = parseInt(document.getElementById('edit-issue-id').value);
+            const title = document.getElementById('edit-issue-title').value.trim();
+            const description = document.getElementById('edit-issue-description').value.trim();
+
+            if (!title) {
+                alert('Please enter a title');
+                return;
+            }
+
+            if (!selectedEditIssueType) {
+                alert('Please select a type');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/issues/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title,
+                        description,
+                        type: selectedEditIssueType
+                    })
+                });
+
+                if (!response.ok) throw new Error('Failed to update issue');
+
+                // Update local state
+                const issue = allIssues.find(i => i.id === id);
+                if (issue) {
+                    issue.title = title;
+                    issue.description = description;
+                    issue.type = selectedEditIssueType;
+                }
+
+                closeEditIssueModal();
+                renderIssues();
+            } catch (e) {
+                console.error('Error updating issue:', e);
+                alert('Failed to update issue');
+            }
+        }
+
+        // Close edit issue modal on backdrop click
+        document.getElementById('edit-issue-modal').addEventListener('click', function(e) {
+            if (e.target === this) closeEditIssueModal();
+        });
 
         // --- Feedback Modal ---
         function openFeedbackModal() {

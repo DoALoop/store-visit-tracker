@@ -1756,6 +1756,7 @@ def update_issue(issue_id):
         status = data.get('status')
         title = data.get('title')
         description = data.get('description')
+        issue_type = data.get('type')
 
         cursor = conn.cursor()
 
@@ -1772,6 +1773,12 @@ def update_issue(issue_id):
                 updates.append("completed_at = CURRENT_TIMESTAMP")
             else:
                 updates.append("completed_at = NULL")
+
+        if issue_type:
+            if issue_type not in ['feature', 'bug', 'feedback']:
+                return jsonify({"error": "Invalid type"}), 400
+            updates.append("type = %s")
+            params.append(issue_type)
 
         if title is not None:
             updates.append("title = %s")
