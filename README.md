@@ -116,7 +116,7 @@ Store Visit Tracker is a full-stack application designed to help District Manage
 | **Frontend** | HTML/CSS/JS | Tailwind CSS, Responsive design |
 | **Database** | PostgreSQL | store_visits table with 30+ columns |
 | **AI/ML** | Google Vertex AI | Gemini 2.5 Flash for vision analysis |
-| **Deployment** | Docker/Gunicorn | Container-ready, systemd service |
+| **Deployment** | Gunicorn | Proxmox VM, systemd service |
 | **Version Control** | Git | GitHub |
 
 ### Deployment Targets
@@ -136,8 +136,6 @@ store-visit-tracker/
 ├── index.html                 # Web frontend (55KB, fully responsive)
 ├── requirements.txt           # Python dependencies
 ├── schema.sql                 # PostgreSQL table schema
-├── Dockerfile                 # Docker container configuration
-├── Procfile                   # Heroku/Cloud Run deployment
 ├── API_ENDPOINTS.md           # Complete API documentation
 ├── README.md                  # This file
 │
@@ -621,6 +619,6 @@ Personal Project - All Rights Reserved
 
 ---
 
-**Last Updated:** December 25, 2024  
+**Last Updated:** December 29, 2024  
 **Version:** 1.2.0  
 **Status:** ✅ Production Ready
