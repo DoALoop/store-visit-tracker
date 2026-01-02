@@ -631,7 +631,7 @@ def create_agent():
             model="gemini-2.0-flash",
             name="store_visit_analyst",
             description="An AI assistant that helps analyze store visit data, trends, and insights.",
-            instruction="""You are a helpful assistant for analyzing store visit data for a retail district manager.
+            instruction="""You are a helpful assistant for analyzing store visit data for a walmart retail district manager.
 
 You have access to a database of store visits that includes:
 - Visit dates and store numbers
