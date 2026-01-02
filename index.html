@@ -464,7 +464,15 @@
         <div id="view-gold-stars" class="hidden-view p-4 bg-gray-100 min-h-full">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-xl font-bold text-gray-900">Gold Star Notes</h2>
-                <div id="gold-star-week" class="text-right text-sm"></div>
+                <div class="flex items-center gap-2">
+                    <button onclick="changeGoldStarWeek(-1)" id="gold-star-prev-week" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 text-gray-600">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <div id="gold-star-week" class="text-center text-sm min-w-[100px]"></div>
+                    <button onclick="changeGoldStarWeek(1)" id="gold-star-next-week" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 text-gray-600">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
             </div>
 
             <!-- Define This Week's Notes -->
@@ -1831,24 +1839,36 @@
         // --- Gold Star Notes ---
         let goldStarData = null;
         let goldStarEditMode = false;
+        let goldStarWeekOffset = 0;
+
+        function changeGoldStarWeek(delta) {
+            goldStarWeekOffset += delta;
+            loadGoldStars();
+        }
 
         async function loadGoldStars() {
             const storesContainer = document.getElementById('gold-star-stores');
             storesContainer.innerHTML = '<div class="p-8 text-center"><svg class="animate-spin h-8 w-8 text-walmart-blue mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></div>';
 
             try {
-                const response = await fetch('/api/gold-stars/current');
+                const response = await fetch(`/api/gold-stars/current?week_offset=${goldStarWeekOffset}&market=${currentMarketFilter}`);
                 if (!response.ok) throw new Error('Failed to load gold stars');
                 goldStarData = await response.json();
 
                 // Display week info (Saturday to Friday)
                 const weekStart = new Date(goldStarData.week_start_date + 'T00:00:00');
-                const weekEnd = new Date(weekStart);
-                weekEnd.setDate(weekEnd.getDate() + 6); // Friday (6 days after Saturday)
+                const weekEnd = new Date(goldStarData.week_end_date + 'T00:00:00');
                 const weekNumber = goldStarData.week_number || 1;
+                const isCurrentWeek = goldStarData.is_current_week;
+
+                // Week label with indicator for current week
+                const weekLabel = isCurrentWeek ? 'Week ' + weekNumber : 'Week ' + weekNumber;
+                const currentIndicator = isCurrentWeek ? '<span class="text-xs text-green-600 block">(Current)</span>' : '';
+
                 document.getElementById('gold-star-week').innerHTML =
-                    `<div class="font-bold text-walmart-blue">Week ${weekNumber}</div>
-                     <div>${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>`;
+                    `<div class="font-bold text-walmart-blue">${weekLabel}</div>
+                     <div class="text-xs">${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+                     ${currentIndicator}`;
 
                 renderGoldStars();
             } catch (e) {
@@ -1862,13 +1882,14 @@
             const emptyEl = document.getElementById('gold-star-empty');
             const editBtn = document.getElementById('gold-star-edit-btn');
             const storesContainer = document.getElementById('gold-star-stores');
+            const isCurrentWeek = goldStarData.is_current_week;
 
-            if (!goldStarData.notes) {
+            if (!goldStarData.notes || (!goldStarData.notes.note_1 && !goldStarData.notes.note_2 && !goldStarData.notes.note_3)) {
                 // No notes defined for this week
                 displayEl.classList.add('hidden');
                 emptyEl.classList.remove('hidden');
                 editBtn.classList.add('hidden');
-                storesContainer.innerHTML = '<div class="p-8 text-center text-gray-500">Define gold star notes first</div>';
+                storesContainer.innerHTML = '<div class="p-8 text-center text-gray-500">No gold star notes defined for this week</div>';
                 document.getElementById('gold-progress-1').textContent = '0/0';
                 document.getElementById('gold-progress-2').textContent = '0/0';
                 document.getElementById('gold-progress-3').textContent = '0/0';
@@ -1878,7 +1899,12 @@
             // Show notes
             displayEl.classList.remove('hidden');
             emptyEl.classList.add('hidden');
-            editBtn.classList.remove('hidden');
+            // Only show edit button for current week
+            if (isCurrentWeek) {
+                editBtn.classList.remove('hidden');
+            } else {
+                editBtn.classList.add('hidden');
+            }
 
             document.getElementById('display-note-1').textContent = goldStarData.notes.note_1;
             document.getElementById('display-note-2').textContent = goldStarData.notes.note_2;
@@ -1904,24 +1930,26 @@
 
             storesContainer.innerHTML = stores.map(store => {
                 const allComplete = store.note_1 && store.note_2 && store.note_3;
+                const disabledClass = isCurrentWeek ? '' : 'opacity-50 cursor-not-allowed';
+                const clickHandler = isCurrentWeek ? `onclick="toggleGoldStar('${store.store_nbr}', ` : 'onclick="return false;" disabled ';
                 return `
                     <div class="grid grid-cols-12 gap-2 px-4 py-3 items-center ${allComplete ? 'bg-green-50' : ''}">
                         <div class="col-span-3 font-medium text-gray-900">#${store.store_nbr}</div>
                         <div class="col-span-3 text-center">
-                            <button onclick="toggleGoldStar('${store.store_nbr}', 1, ${!store.note_1})"
-                                class="w-8 h-8 rounded-full border-2 flex items-center justify-center mx-auto transition-colors ${store.note_1 ? 'bg-yellow-400 border-yellow-400' : 'border-gray-300 hover:border-yellow-400'}">
+                            <button ${isCurrentWeek ? `onclick="toggleGoldStar('${store.store_nbr}', 1, ${!store.note_1})"` : 'disabled'}
+                                class="w-8 h-8 rounded-full border-2 flex items-center justify-center mx-auto transition-colors ${disabledClass} ${store.note_1 ? 'bg-yellow-400 border-yellow-400' : 'border-gray-300' + (isCurrentWeek ? ' hover:border-yellow-400' : '')}">
                                 ${store.note_1 ? '<i class="fas fa-star text-white text-sm"></i>' : ''}
                             </button>
                         </div>
                         <div class="col-span-3 text-center">
-                            <button onclick="toggleGoldStar('${store.store_nbr}', 2, ${!store.note_2})"
-                                class="w-8 h-8 rounded-full border-2 flex items-center justify-center mx-auto transition-colors ${store.note_2 ? 'bg-yellow-400 border-yellow-400' : 'border-gray-300 hover:border-yellow-400'}">
+                            <button ${isCurrentWeek ? `onclick="toggleGoldStar('${store.store_nbr}', 2, ${!store.note_2})"` : 'disabled'}
+                                class="w-8 h-8 rounded-full border-2 flex items-center justify-center mx-auto transition-colors ${disabledClass} ${store.note_2 ? 'bg-yellow-400 border-yellow-400' : 'border-gray-300' + (isCurrentWeek ? ' hover:border-yellow-400' : '')}">
                                 ${store.note_2 ? '<i class="fas fa-star text-white text-sm"></i>' : ''}
                             </button>
                         </div>
                         <div class="col-span-3 text-center">
-                            <button onclick="toggleGoldStar('${store.store_nbr}', 3, ${!store.note_3})"
-                                class="w-8 h-8 rounded-full border-2 flex items-center justify-center mx-auto transition-colors ${store.note_3 ? 'bg-yellow-400 border-yellow-400' : 'border-gray-300 hover:border-yellow-400'}">
+                            <button ${isCurrentWeek ? `onclick="toggleGoldStar('${store.store_nbr}', 3, ${!store.note_3})"` : 'disabled'}
+                                class="w-8 h-8 rounded-full border-2 flex items-center justify-center mx-auto transition-colors ${disabledClass} ${store.note_3 ? 'bg-yellow-400 border-yellow-400' : 'border-gray-300' + (isCurrentWeek ? ' hover:border-yellow-400' : '')}">
                                 ${store.note_3 ? '<i class="fas fa-star text-white text-sm"></i>' : ''}
                             </button>
                         </div>
