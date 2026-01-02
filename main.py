@@ -1235,7 +1235,7 @@ def get_current_gold_stars():
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         week_start = get_current_week_start()
 
-        # Get current week's gold stars
+        # Get current week's gold stars, create if doesn't exist
         cursor.execute("""
             SELECT id, week_start_date, note_1, note_2, note_3, created_at
             FROM gold_star_weeks
@@ -1244,12 +1244,14 @@ def get_current_gold_stars():
         week_data = cursor.fetchone()
 
         if not week_data:
-            return jsonify({
-                "week_number": get_fiscal_week_number(week_start),
-                "week_start_date": str(week_start),
-                "notes": None,
-                "stores": []
-            })
+            # Auto-create the week record with empty notes
+            cursor.execute("""
+                INSERT INTO gold_star_weeks (week_start_date, note_1, note_2, note_3)
+                VALUES (%s, '', '', '')
+                RETURNING id, week_start_date, note_1, note_2, note_3, created_at
+            """, (week_start,))
+            week_data = cursor.fetchone()
+            conn.commit()
 
         # Get all unique stores from visits
         cursor.execute("""
