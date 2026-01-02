@@ -1239,15 +1239,22 @@ def get_stores_for_market(market):
 
 @app.route('/api/gold-stars/current', methods=['GET'])
 def get_current_gold_stars():
-    """Get current week's gold star notes with store completions filtered by market"""
+    """Get gold star notes with store completions filtered by market and week offset"""
     conn = get_db_connection()
     if not conn:
         return jsonify({"error": "Database connection failed"}), 500
 
     try:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
-        week_start = get_current_week_start()
+
+        # Get week offset from query params (-1 = previous week, 0 = current, 1 = next)
+        week_offset = int(request.args.get('week_offset', 0))
+        current_week_start = get_current_week_start()
+        week_start = current_week_start + timedelta(weeks=week_offset)
         week_end = week_start + timedelta(days=6)  # Friday
+
+        # Calculate if this is current week (for UI purposes)
+        is_current_week = (week_offset == 0)
 
         # Get market filter from query params
         market = request.args.get('market', 'all')
@@ -1308,6 +1315,8 @@ def get_current_gold_stars():
             "week_number": get_fiscal_week_number(week_start),
             "week_start_date": str(week_start),
             "week_end_date": str(week_end),
+            "week_offset": week_offset,
+            "is_current_week": is_current_week,
             "market": market,
             "notes": {
                 "note_1": week_data['note_1'],
