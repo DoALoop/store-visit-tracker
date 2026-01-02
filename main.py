@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timedelta, date
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -1224,9 +1225,21 @@ def get_fiscal_week_number(week_start_date):
 
     return week_number
 
+# Market to store mapping
+MARKET_STORES = {
+    '399': ['1951', '2508', '2617', '2780', '2781', '2861', '2862', '3093', '3739', '5841'],
+    '451': ['2002', '2117', '2280', '2458', '4488', '5435', '5751', '5766', '5884']
+}
+
+def get_stores_for_market(market):
+    """Get list of stores for a given market"""
+    if market == 'all' or not market:
+        return MARKET_STORES['399'] + MARKET_STORES['451']
+    return MARKET_STORES.get(market, [])
+
 @app.route('/api/gold-stars/current', methods=['GET'])
 def get_current_gold_stars():
-    """Get current week's gold star notes with all store completions"""
+    """Get current week's gold star notes with store completions filtered by market"""
     conn = get_db_connection()
     if not conn:
         return jsonify({"error": "Database connection failed"}), 500
@@ -1234,6 +1247,11 @@ def get_current_gold_stars():
     try:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         week_start = get_current_week_start()
+        week_end = week_start + timedelta(days=6)  # Friday
+
+        # Get market filter from query params
+        market = request.args.get('market', 'all')
+        market_stores = get_stores_for_market(market)
 
         # Get current week's gold stars, create if doesn't exist
         cursor.execute("""
@@ -1253,14 +1271,8 @@ def get_current_gold_stars():
             week_data = cursor.fetchone()
             conn.commit()
 
-        # Get all unique stores from visits
-        cursor.execute("""
-            SELECT DISTINCT "storeNbr" as store_nbr
-            FROM store_visits
-            WHERE "storeNbr" IS NOT NULL
-            ORDER BY "storeNbr"
-        """)
-        stores = [row['store_nbr'] for row in cursor.fetchall()]
+        # Use market stores list (predefined, not from visits)
+        stores = sorted(market_stores)
 
         # Get completions for this week
         cursor.execute("""
@@ -1294,7 +1306,9 @@ def get_current_gold_stars():
         return jsonify({
             "week_id": week_data['id'],
             "week_number": get_fiscal_week_number(week_start),
-            "week_start_date": str(week_data['week_start_date']),
+            "week_start_date": str(week_start),
+            "week_end_date": str(week_end),
+            "market": market,
             "notes": {
                 "note_1": week_data['note_1'],
                 "note_2": week_data['note_2'],
