@@ -143,8 +143,8 @@ def get_notes_from_db(cursor, visit_id, note_type):
 # Initialize Vertex AI
 try:
     vertexai.init(project=PROJECT_ID, location=LOCATION)
-    # Load the model - using Gemini 3 Flash with thinking for better handwriting recognition
-    model = GenerativeModel("gemini-3.0-flash")
+    # Load the model - using Gemini 3 Flash for better handwriting recognition
+    model = GenerativeModel("gemini-3-flash-preview")
     print("Successfully connected to Vertex AI.")
 except Exception as e:
     print(f"Error connecting to Vertex AI: {e}")
