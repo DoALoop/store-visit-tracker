@@ -438,7 +438,6 @@ Extract and return as JSON:
             "temperature": 0.1,  # Very low temperature for maximum transcription accuracy
             "top_p": 0.85,       # Focused sampling for consistent results
             "response_mime_type": "application/json",
-            "thinking_level": "medium",  # Enable reasoning for better handwriting deciphering
         }
 
         responses = model.generate_content(
