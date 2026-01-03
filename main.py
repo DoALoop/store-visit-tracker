@@ -143,8 +143,8 @@ def get_notes_from_db(cursor, visit_id, note_type):
 # Initialize Vertex AI
 try:
     vertexai.init(project=PROJECT_ID, location=LOCATION)
-    # Load the model - using 2.5 Flash (stable alias)
-    model = GenerativeModel("gemini-2.5-flash")
+    # Load the model - using Gemini 3 Flash with thinking for better handwriting recognition
+    model = GenerativeModel("gemini-3.0-flash")
     print("Successfully connected to Vertex AI.")
 except Exception as e:
     print(f"Error connecting to Vertex AI: {e}")
@@ -438,6 +438,7 @@ Extract and return as JSON:
             "temperature": 0.1,  # Very low temperature for maximum transcription accuracy
             "top_p": 0.85,       # Focused sampling for consistent results
             "response_mime_type": "application/json",
+            "thinking_level": "medium",  # Enable reasoning for better handwriting deciphering
         }
 
         responses = model.generate_content(
