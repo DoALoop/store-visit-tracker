@@ -21,7 +21,7 @@ app = Flask(__name__)
 # --- Configuration ---
 # Vertex AI configuration
 PROJECT_ID = os.environ.get("GOOGLE_PROJECT_ID", "store-visit-tracker")
-LOCATION = os.environ.get("GOOGLE_LOCATION", "us-central1")
+LOCATION = os.environ.get("GOOGLE_LOCATION", "global")  # global required for Gemini 3
 
 # PostgreSQL configuration
 DB_HOST = os.environ.get("DB_HOST", "localhost")
@@ -143,8 +143,8 @@ def get_notes_from_db(cursor, visit_id, note_type):
 # Initialize Vertex AI
 try:
     vertexai.init(project=PROJECT_ID, location=LOCATION)
-    # Load the model - using Gemini 2.5 Flash
-    model = GenerativeModel("gemini-2.5-flash")
+    # Load the model - using Gemini 3 Flash for better handwriting recognition
+    model = GenerativeModel("gemini-3-flash-preview")
     print("Successfully connected to Vertex AI.")
 except Exception as e:
     print(f"Error connecting to Vertex AI: {e}")
