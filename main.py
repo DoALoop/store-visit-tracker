@@ -378,6 +378,10 @@ Extract and return as JSON:
    - Transcribe EXACTLY as written, preserving the original wording
    - Each distinct thought or line = separate array entry
    - Include names, departments, specific issues mentioned
+   - DO NOT include metrics as notes - these belong in the "metrics" object:
+     * Sales metrics: Comp Yesterday, Index Yesterday, Comp WTD, Index WTD, Comp MTD, Index MTD
+     * Inventory Health metrics: FTPR, Presub, VizPick, Overstock, Picks, Fashion, Modflex, Tag Errors, Mods, PCS, Pinpoint
+   - If you see numbers with labels like "Comp Y: 102.5" or "FTPR: 95%", put them in metrics NOT notes
 
 5. "mkt_notes": Array of market/competitor notes
    - Look for: "Market", "Mkt", "Me", "M:", or competitor mentions
@@ -445,6 +449,10 @@ Extract and return as JSON:
 - Notes under "Gold Star" should be EXCLUDED from this extraction entirely (they are tracked separately)
 - Section headers like "Good", "Market", "Top 3" are labels, not notes themselves
 - If a section header exists but has no content below it, return [] for that section
+- METRICS are NOT notes - any numerical values with these labels go in "metrics" object ONLY:
+  * Sales: Comp Y, Comp WTD, Comp MTD, Index Y, Index WTD, Index MTD
+  * Inventory Health: FTPR, Presub, VizPick, Overstock, Picks, Fashion, Modflex, Tag Errors, Mods, PCS, Pinpoint
+- Never duplicate metric data into notes arrays
     """
 
     try:
