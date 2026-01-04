@@ -264,6 +264,98 @@
                         </div>
                     </div>
 
+                    <!-- Metrics Section -->
+                    <div id="result-metrics" class="space-y-3">
+                        <!-- Sales Metrics -->
+                        <div class="bg-blue-50 p-4 rounded-xl">
+                            <h4 class="text-sm font-semibold text-walmart-blue mb-3">📊 Sales</h4>
+                            <div class="grid grid-cols-3 gap-3 text-center">
+                                <div>
+                                    <p class="text-xs text-gray-500">Comp Y</p>
+                                    <p id="metric-sales-comp-yest" class="text-lg font-bold text-gray-900">--</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-500">Comp WTD</p>
+                                    <p id="metric-sales-comp-wtd" class="text-lg font-bold text-gray-900">--</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-500">Comp MTD</p>
+                                    <p id="metric-sales-comp-mtd" class="text-lg font-bold text-gray-900">--</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-500">Index Y</p>
+                                    <p id="metric-sales-index-yest" class="text-lg font-bold text-gray-900">--</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-500">Index WTD</p>
+                                    <p id="metric-sales-index-wtd" class="text-lg font-bold text-gray-900">--</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-500">Index MTD</p>
+                                    <p id="metric-sales-index-mtd" class="text-lg font-bold text-gray-900">--</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Inventory Health Metrics -->
+                        <div class="bg-green-50 p-4 rounded-xl">
+                            <h4 class="text-sm font-semibold text-green-700 mb-3">📦 Inventory Health</h4>
+                            <div class="grid grid-cols-3 gap-3 text-center">
+                                <div>
+                                    <p class="text-xs text-gray-500">FTPR</p>
+                                    <p id="metric-ftpr" class="text-lg font-bold text-gray-900">--</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-500">Presub</p>
+                                    <p id="metric-presub" class="text-lg font-bold text-gray-900">--</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-500">VizPick</p>
+                                    <p id="metric-vizpick" class="text-lg font-bold text-gray-900">--</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-500">Overstock</p>
+                                    <p id="metric-overstock" class="text-lg font-bold text-gray-900">--</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-500">Picks</p>
+                                    <p id="metric-picks" class="text-lg font-bold text-gray-900">--</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-500">Fashion</p>
+                                    <p id="metric-fashion" class="text-lg font-bold text-gray-900">--</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Basic Work Metrics -->
+                        <div class="bg-orange-50 p-4 rounded-xl">
+                            <h4 class="text-sm font-semibold text-orange-700 mb-3">🔧 Basic Work</h4>
+                            <div class="grid grid-cols-3 gap-3 text-center">
+                                <div>
+                                    <p class="text-xs text-gray-500">Modflex</p>
+                                    <p id="metric-modflex" class="text-lg font-bold text-gray-900">--</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-500">Tag Errors</p>
+                                    <p id="metric-tag-errors" class="text-lg font-bold text-gray-900">--</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-500">Mods</p>
+                                    <p id="metric-mods" class="text-lg font-bold text-gray-900">--</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-500">PCS</p>
+                                    <p id="metric-pcs" class="text-lg font-bold text-gray-900">--</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-500">Pinpoint</p>
+                                    <p id="metric-pinpoint" class="text-lg font-bold text-gray-900">--</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Action Buttons -->
                     <div class="flex gap-3">
                         <button id="reanalyze-button" onclick="reanalyzeNotes()" class="flex-1 py-3 px-4 border-2 border-walmart-blue text-walmart-blue text-sm font-medium rounded-lg hover:bg-walmart-blue hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-walmart-blue transition-colors">
@@ -2246,6 +2338,17 @@
             // Reset file inputs
             document.getElementById('image-upload').value = '';
             document.getElementById('camera-input').value = '';
+            // Reset metrics to default values
+            const metricIds = [
+                'metric-sales-comp-yest', 'metric-sales-comp-wtd', 'metric-sales-comp-mtd',
+                'metric-sales-index-yest', 'metric-sales-index-wtd', 'metric-sales-index-mtd',
+                'metric-ftpr', 'metric-presub', 'metric-vizpick', 'metric-overstock', 'metric-picks', 'metric-fashion',
+                'metric-modflex', 'metric-tag-errors', 'metric-mods', 'metric-pcs', 'metric-pinpoint'
+            ];
+            metricIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = '--';
+            });
         }
 
         function showDuplicateModal(records) {
@@ -2290,6 +2393,37 @@
             document.getElementById('result-mkt-notes').textContent = Array.isArray(data.mkt_notes) ? formatArray(data.mkt_notes) : (data.mkt_notes || 'N/A');
             document.getElementById('result-good').textContent = formatArray(data.good);
             document.getElementById('result-top-3').textContent = formatArray(data.top_3);
+
+            // Populate metrics
+            const metrics = data.metrics || {};
+            const formatMetric = (value) => {
+                if (value === null || value === undefined || value === '') return '--';
+                return value;
+            };
+
+            // Sales metrics
+            document.getElementById('metric-sales-comp-yest').textContent = formatMetric(metrics.sales_comp_yest);
+            document.getElementById('metric-sales-comp-wtd').textContent = formatMetric(metrics.sales_comp_wtd);
+            document.getElementById('metric-sales-comp-mtd').textContent = formatMetric(metrics.sales_comp_mtd);
+            document.getElementById('metric-sales-index-yest').textContent = formatMetric(metrics.sales_index_yest);
+            document.getElementById('metric-sales-index-wtd').textContent = formatMetric(metrics.sales_index_wtd);
+            document.getElementById('metric-sales-index-mtd').textContent = formatMetric(metrics.sales_index_mtd);
+
+            // Inventory Health metrics
+            document.getElementById('metric-ftpr').textContent = formatMetric(metrics.ftpr);
+            document.getElementById('metric-presub').textContent = formatMetric(metrics.presub);
+            document.getElementById('metric-vizpick').textContent = formatMetric(metrics.vizpick);
+            document.getElementById('metric-overstock').textContent = formatMetric(metrics.overstock);
+            document.getElementById('metric-picks').textContent = formatMetric(metrics.picks);
+            document.getElementById('metric-fashion').textContent = formatMetric(metrics.vizfashion);
+
+            // Basic Work metrics
+            document.getElementById('metric-modflex').textContent = formatMetric(metrics.modflex);
+            document.getElementById('metric-tag-errors').textContent = formatMetric(metrics.tag_errors);
+            document.getElementById('metric-mods').textContent = formatMetric(metrics.mods);
+            document.getElementById('metric-pcs').textContent = formatMetric(metrics.pcs);
+            document.getElementById('metric-pinpoint').textContent = formatMetric(metrics.pinpoint);
+
             document.getElementById('results-container').classList.remove('hidden');
         }
 
