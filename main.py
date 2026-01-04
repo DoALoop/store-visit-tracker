@@ -367,9 +367,12 @@ Extract and return as JSON:
    - Convert to YYYY-MM-DD format (assume current year if not specified)
 
 3. "rating": "Green", "Yellow", "Red", or null if no rating is visible
-   - May be written as: G/Y/R, circled, highlighted, or spelled out
-   - May be a checkmark next to a color name
-   - If no rating indicator is found, return null
+   - ONLY extract if explicitly labeled as "Rating:", "Store Rating:", or similar
+   - May be written as: G/Y/R, circled, highlighted, or spelled out next to a rating label
+   - DO NOT confuse "Good" from the "Good Notes" or "What's Good" section as a rating
+   - DO NOT guess or infer a rating based on the content of notes
+   - If there is no explicit rating label with a color, return null
+   - When in doubt, return null - do not hallucinate a rating
 
 4. "store_notes": Array of general observations (each note = one array item)
    - Transcribe EXACTLY as written, preserving the original wording
