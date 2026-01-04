@@ -418,6 +418,8 @@ Extract and return as JSON:
 5. Preserve original wording - do not "clean up" or standardize the notes
 6. If truly illegible after careful analysis, use null rather than guessing wildly
 7. For notes that are 70%+ legible, make your best interpretation
+8. Do NOT include incomplete notes - if a note is just a label with nothing after it (e.g., "Vestibules -", "Grocery:", "Receiving -"), skip it entirely
+9. Only include notes that have actual content/observations after the label or prefix
 
 === ANTI-HALLUCINATION RULES ===
 
@@ -426,6 +428,7 @@ Extract and return as JSON:
 - Do NOT fill in "expected" content that isn't there
 - If a section is blank, return null or []
 - When uncertain, transcribe your best reading rather than making something up
+- Do NOT include placeholder notes or labels without content (e.g., "Department -" with nothing after)
     """
 
     try:
