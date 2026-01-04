@@ -561,8 +561,9 @@ def save_visit():
             ("storeNbr", calendar_date, rating,
              sales_comp_yest, sales_index_yest, sales_comp_wtd, sales_index_wtd,
              sales_comp_mtd, sales_index_mtd, vizpick, overstock, picks, vizfashion,
-             modflex, tag_errors, mods, pcs, pinpoint, ftpr, presub)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             modflex, tag_errors, mods, pcs, pinpoint, ftpr, presub,
+             topstock_grocery, vizpick_health, cases, locations)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
         """
 
@@ -587,7 +588,11 @@ def save_visit():
             clean_numeric(metrics.get('pcs')),
             clean_numeric(metrics.get('pinpoint')),
             clean_numeric(metrics.get('ftpr')),
-            clean_numeric(metrics.get('presub'))
+            clean_numeric(metrics.get('presub')),
+            clean_numeric(metrics.get('topstock_grocery')),
+            clean_numeric(metrics.get('vizpick_health')),
+            clean_numeric(metrics.get('cases')),
+            clean_numeric(metrics.get('locations'))
         )
 
         cursor.execute(visit_query, visit_values)
