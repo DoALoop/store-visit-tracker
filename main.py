@@ -384,7 +384,10 @@ Extract and return as JSON:
    - "Me" often means "Market" in this context
 
 6. "good": Array of positive observations
-   - Look for: checkmarks, "+", "good", "great", "excellent", wins
+   - Look for content under sections labeled "Good", "What's Good", "+", etc.
+   - If "Good" is just a header/label with nothing written underneath, return []
+   - DO NOT add the word "Good" itself as a note - only actual observations
+   - DO NOT include section headers or labels as notes
 
 7. "top_3": Array of opportunities/action items (0-3 items)
    - Each note starts with a dash "-" on the paper
@@ -435,6 +438,13 @@ Extract and return as JSON:
 - If a section is blank, return null or []
 - When uncertain, transcribe your best reading rather than making something up
 - Do NOT include placeholder notes or labels without content (e.g., "Department -" with nothing after)
+
+=== SECTION SEPARATION RULES ===
+
+- "Gold Star Notes" or "Gold Stars" is a SEPARATE section - do NOT put these notes into store_notes, good, or top_3
+- Notes under "Gold Star" should be EXCLUDED from this extraction entirely (they are tracked separately)
+- Section headers like "Good", "Market", "Top 3" are labels, not notes themselves
+- If a section header exists but has no content below it, return [] for that section
     """
 
     try:
