@@ -314,6 +314,10 @@
                                     <p id="metric-vizpick" class="text-lg font-bold text-gray-900">--</p>
                                 </div>
                                 <div>
+                                    <p class="text-xs text-gray-500">VP Health</p>
+                                    <p id="metric-vizpick-health" class="text-lg font-bold text-gray-900">--</p>
+                                </div>
+                                <div>
                                     <p class="text-xs text-gray-500">Overstock</p>
                                     <p id="metric-overstock" class="text-lg font-bold text-gray-900">--</p>
                                 </div>
@@ -324,6 +328,14 @@
                                 <div>
                                     <p class="text-xs text-gray-500">Fashion</p>
                                     <p id="metric-fashion" class="text-lg font-bold text-gray-900">--</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-500">Topstock</p>
+                                    <p id="metric-topstock-grocery" class="text-lg font-bold text-gray-900">--</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-500">Cases</p>
+                                    <p id="metric-cases" class="text-lg font-bold text-gray-900">--</p>
                                 </div>
                             </div>
                         </div>
@@ -351,6 +363,10 @@
                                 <div>
                                     <p class="text-xs text-gray-500">Pinpoint</p>
                                     <p id="metric-pinpoint" class="text-lg font-bold text-gray-900">--</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-500">Locations</p>
+                                    <p id="metric-locations" class="text-lg font-bold text-gray-900">--</p>
                                 </div>
                             </div>
                         </div>
@@ -2342,8 +2358,9 @@
             const metricIds = [
                 'metric-sales-comp-yest', 'metric-sales-comp-wtd', 'metric-sales-comp-mtd',
                 'metric-sales-index-yest', 'metric-sales-index-wtd', 'metric-sales-index-mtd',
-                'metric-ftpr', 'metric-presub', 'metric-vizpick', 'metric-overstock', 'metric-picks', 'metric-fashion',
-                'metric-modflex', 'metric-tag-errors', 'metric-mods', 'metric-pcs', 'metric-pinpoint'
+                'metric-ftpr', 'metric-presub', 'metric-vizpick', 'metric-vizpick-health',
+                'metric-overstock', 'metric-picks', 'metric-fashion', 'metric-topstock-grocery', 'metric-cases',
+                'metric-modflex', 'metric-tag-errors', 'metric-mods', 'metric-pcs', 'metric-pinpoint', 'metric-locations'
             ];
             metricIds.forEach(id => {
                 const el = document.getElementById(id);
@@ -2423,6 +2440,12 @@
             document.getElementById('metric-mods').textContent = formatMetric(metrics.mods);
             document.getElementById('metric-pcs').textContent = formatMetric(metrics.pcs);
             document.getElementById('metric-pinpoint').textContent = formatMetric(metrics.pinpoint);
+            document.getElementById('metric-locations').textContent = formatMetric(metrics.locations);
+
+            // Additional Inventory Health metrics
+            document.getElementById('metric-vizpick-health').textContent = formatMetric(metrics.vizpick_health);
+            document.getElementById('metric-topstock-grocery').textContent = formatMetric(metrics.topstock_grocery);
+            document.getElementById('metric-cases').textContent = formatMetric(metrics.cases);
 
             document.getElementById('results-container').classList.remove('hidden');
         }
