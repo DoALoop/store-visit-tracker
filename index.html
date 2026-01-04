@@ -263,6 +263,16 @@
                             <p id="result-top-3" class="mt-2 text-sm text-gray-700 whitespace-pre-wrap"></p>
                         </div>
                     </div>
+
+                    <!-- Action Buttons -->
+                    <div class="flex gap-3">
+                        <button id="reanalyze-button" onclick="reanalyzeNotes()" class="flex-1 py-3 px-4 border-2 border-walmart-blue text-walmart-blue text-sm font-medium rounded-lg hover:bg-walmart-blue hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-walmart-blue transition-colors">
+                            <i class="fas fa-redo mr-2"></i>Re-Analyze
+                        </button>
+                        <button id="save-visit-button" onclick="manualSaveVisit()" class="flex-1 py-3 px-4 bg-walmart-blue text-white text-sm font-medium rounded-lg hover:bg-walmart-dark-blue focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-walmart-blue transition-colors">
+                            <i class="fas fa-save mr-2"></i>Save Visit
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2145,6 +2155,45 @@
                 setLoading(false);
             }
         });
+
+        async function reanalyzeNotes() {
+            if (!base64ImageData) {
+                showError('No image to analyze. Please upload an image first.');
+                return;
+            }
+
+            setLoading(true);
+            document.getElementById('results-container').classList.add('hidden');
+
+            try {
+                const response = await fetch('/api/analyze-visit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mime_type: fileMimeType, image_data: base64ImageData })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || 'Re-analysis failed');
+                }
+
+                currentParsedData = await response.json();
+                displayResults(currentParsedData);
+                // Don't auto-save on re-analyze - let user review first
+            } catch (e) {
+                showError(e.message);
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        async function manualSaveVisit() {
+            if (!currentParsedData) {
+                showError('No data to save. Please analyze an image first.');
+                return;
+            }
+            await checkAndSave(currentParsedData);
+        }
 
         async function checkAndSave(data) {
             try {
