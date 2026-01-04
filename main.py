@@ -409,6 +409,7 @@ Extract and return as JSON:
      "sales_comp_mtd": Look for "Comp MTD", month-to-date
      "sales_index_mtd": Look for "Index MTD"
      "vizpick": Often on LEFT side, "VizPick", "VP", "Viz Pick"
+     "vizpick_health": "VizPick Health", "VP Health", percentage
      "overstock": "OS", "O/S", "Overstock"
      "picks": Number of picks
      "vizfashion": "Fashion", "Viz Fashion", "VF" - often on left side
@@ -419,6 +420,9 @@ Extract and return as JSON:
      "pinpoint": "Pinpoint", "PP"
      "ftpr": "FTPR", First Time Pick Rate
      "presub": "Presub", "Pre-Sub"
+     "topstock_grocery": "Topstock", "TS Grocery", "Topstock Grocery"
+     "cases": "Cases", number of cases
+     "locations": "Locations", "Locs", number of locations
    }
    NOTE: Metrics are often written on the LEFT MARGIN of the paper!
 
@@ -451,7 +455,8 @@ Extract and return as JSON:
 - If a section header exists but has no content below it, return [] for that section
 - METRICS are NOT notes - any numerical values with these labels go in "metrics" object ONLY:
   * Sales: Comp Y, Comp WTD, Comp MTD, Index Y, Index WTD, Index MTD
-  * Inventory Health: FTPR, Presub, VizPick, Overstock, Picks, Fashion, Modflex, Tag Errors, Mods, PCS, Pinpoint
+  * Inventory Health: FTPR, Presub, VizPick, VizPick Health, Overstock, Picks, Fashion, Modflex, Tag Errors, Mods, PCS, Pinpoint
+  * Other: Topstock Grocery, Cases, Locations
 - Never duplicate metric data into notes arrays
     """
 
