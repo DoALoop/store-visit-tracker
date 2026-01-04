@@ -574,7 +574,7 @@ def save_visit():
         conn.commit()
         cursor.close()
 
-        return jsonify({"message": "Visit saved successfully", "visit_id": visit_id, "data": data})
+        return jsonify({"success": True, "message": "Visit saved successfully", "visit_id": visit_id, "data": data})
 
     except Exception as e:
         conn.rollback()
