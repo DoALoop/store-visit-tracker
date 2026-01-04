@@ -387,8 +387,11 @@ Extract and return as JSON:
    - Look for: checkmarks, "+", "good", "great", "excellent", wins
 
 7. "top_3": Array of opportunities/action items (0-3 items)
-   - Look for: numbered items, bullets, "focus on", "needs", "opportunity"
-   - Only include what's actually written
+   - Each note starts with a dash "-" on the paper
+   - A note may span multiple lines on the paper but should be captured as ONE complete note
+   - Include all text after the "-" until the next "-" as a single note
+   - Only include what's actually written, do not split multi-line notes into separate items
+   - Example: "- Need to work on\n  backroom organization" = one note: "Need to work on backroom organization"
 
 8. "metrics": Object with numerical values (null if not found):
    {
