@@ -366,9 +366,10 @@ Extract and return as JSON:
    - Look for: MM/DD/YY, MM/DD, or written dates like "Dec 5" or "12/5"
    - Convert to YYYY-MM-DD format (assume current year if not specified)
 
-3. "rating": "Green", "Yellow", or "Red"
+3. "rating": "Green", "Yellow", "Red", or null if no rating is visible
    - May be written as: G/Y/R, circled, highlighted, or spelled out
    - May be a checkmark next to a color name
+   - If no rating indicator is found, return null
 
 4. "store_notes": Array of general observations (each note = one array item)
    - Transcribe EXACTLY as written, preserving the original wording
@@ -486,10 +487,14 @@ def save_visit():
     data = request.get_json()
 
     # Simple validation
-    required_fields = ['storeNbr', 'calendar_date', 'rating']
+    required_fields = ['storeNbr', 'calendar_date']
     for field in required_fields:
         if field not in data:
             return jsonify({"error": f"Missing required field: {field}"}), 400
+
+    # Default rating to "Unknown" if not provided
+    if not data.get('rating'):
+        data['rating'] = 'Unknown'
 
     conn = get_db_connection()
     if not conn:
