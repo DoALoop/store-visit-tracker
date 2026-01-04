@@ -1750,15 +1750,12 @@ def add_issue():
         cursor.close()
 
         return jsonify({
-            "success": True,
-            "issue": {
-                "id": new_issue["id"],
-                "type": new_issue["type"],
-                "title": new_issue["title"],
-                "description": new_issue["description"],
-                "status": new_issue["status"],
-                "created_at": new_issue["created_at"].isoformat() if new_issue["created_at"] else None
-            }
+            "id": new_issue["id"],
+            "type": new_issue["type"],
+            "title": new_issue["title"],
+            "description": new_issue["description"],
+            "status": new_issue["status"],
+            "created_at": new_issue["created_at"].isoformat() if new_issue["created_at"] else None
         })
 
     except Exception as e:
