@@ -2174,10 +2174,27 @@
                 }
                 console.log('Saved successfully');
                 alert('Visit saved successfully!');
+                // Reset form for next entry
+                resetLogVisitForm();
             } catch (e) {
                 console.error('Save error:', e);
                 showError('Failed to save: ' + e.message);
             }
+        }
+
+        function resetLogVisitForm() {
+            // Clear image data
+            base64ImageData = null;
+            fileMimeType = null;
+            currentParsedData = null;
+            // Hide preview and results
+            document.getElementById('image-preview-container').classList.add('hidden');
+            document.getElementById('image-preview').src = '';
+            document.getElementById('results-container').classList.add('hidden');
+            document.getElementById('error-message').classList.add('hidden');
+            // Reset file inputs
+            document.getElementById('image-upload').value = '';
+            document.getElementById('camera-input').value = '';
         }
 
         function showDuplicateModal(records) {
