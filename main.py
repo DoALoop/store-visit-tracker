@@ -369,6 +369,7 @@ Extract and return as JSON:
 3. "rating": "Green", "Yellow", "Red", or null if no rating is visible
    - ONLY extract if explicitly labeled as "Rating:", "Store Rating:", or similar
    - May be written as: G/Y/R, circled, highlighted, or spelled out next to a rating label
+   - "Light Green", "Lt Green", "LG" should be normalized to "Green"
    - DO NOT confuse "Good" from the "Good Notes" or "What's Good" section as a rating
    - DO NOT guess or infer a rating based on the content of notes
    - If there is no explicit rating label with a color, return null
