@@ -72,6 +72,9 @@
             <button onclick="switchNotesView('daily')" class="notes-tab flex-1 py-2 text-sm font-medium text-center border-b-2 border-transparent hover:border-walmart-yellow/50" data-view="daily">
                 Daily
             </button>
+            <button onclick="switchNotesView('graph')" class="notes-tab flex-1 py-2 text-sm font-medium text-center border-b-2 border-transparent hover:border-walmart-yellow/50" data-view="graph">
+                Graph
+            </button>
         </div>
     </header>
 
@@ -122,6 +125,12 @@
             <div id="daily-note-content" class="bg-white rounded-lg shadow p-4">
                 <p class="text-center text-gray-500 py-8">Tap to create today's note</p>
             </div>
+        </div>
+
+        <!-- Graph View -->
+        <div id="view-graph" class="hidden" style="height: calc(100vh - 180px);">
+            <canvas id="graph-canvas" class="w-full h-full"></canvas>
+            <div id="graph-tooltip" class="fixed bg-gray-800 text-white text-sm px-3 py-2 rounded shadow-lg pointer-events-none hidden"></div>
         </div>
     </main>
 
@@ -230,6 +239,7 @@ Use - [ ] for tasks"
             document.getElementById('view-all-notes').classList.add('hidden');
             document.getElementById('view-tasks').classList.add('hidden');
             document.getElementById('view-daily').classList.add('hidden');
+            document.getElementById('view-graph').classList.add('hidden');
 
             if (view === 'all') {
                 document.getElementById('view-all-notes').classList.remove('hidden');
@@ -240,6 +250,9 @@ Use - [ ] for tasks"
             } else if (view === 'daily') {
                 document.getElementById('view-daily').classList.remove('hidden');
                 loadDailyNote();
+            } else if (view === 'graph') {
+                document.getElementById('view-graph').classList.remove('hidden');
+                loadGraph();
             }
         }
 
@@ -638,6 +651,303 @@ Use - [ ] for tasks"
         function toggleTaskInContent(checkbox) {
             // TODO: Implement in-content task toggling
             console.log('Toggle task in content');
+        }
+
+        // --- Graph Visualization ---
+        let graphNodes = [];
+        let graphEdges = [];
+        let graphCanvas = null;
+        let graphCtx = null;
+        let graphAnimationId = null;
+        let isDragging = false;
+        let dragNode = null;
+        let hoveredNode = null;
+
+        async function loadGraph() {
+            try {
+                const response = await fetch(`${API_BASE}/api/notes/graph`);
+                if (!response.ok) throw new Error('Failed to load graph');
+
+                const data = await response.json();
+                graphNodes = data.nodes || [];
+                graphEdges = data.edges || [];
+
+                if (graphNodes.length === 0) {
+                    const container = document.getElementById('view-graph');
+                    container.innerHTML = `
+                        <div class="flex items-center justify-center h-full text-gray-500">
+                            <div class="text-center">
+                                <i class="fas fa-project-diagram text-4xl mb-3 text-gray-300"></i>
+                                <p>No notes to visualize</p>
+                                <p class="text-sm mt-2">Create some notes with [[wikilinks]] to see connections</p>
+                            </div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                initGraph();
+            } catch (error) {
+                console.error('Error loading graph:', error);
+            }
+        }
+
+        function initGraph() {
+            graphCanvas = document.getElementById('graph-canvas');
+            graphCtx = graphCanvas.getContext('2d');
+
+            // Set canvas size
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+
+            // Initialize node positions randomly
+            const centerX = graphCanvas.width / 2;
+            const centerY = graphCanvas.height / 2;
+            const radius = Math.min(graphCanvas.width, graphCanvas.height) * 0.35;
+
+            graphNodes.forEach((node, i) => {
+                const angle = (2 * Math.PI * i) / graphNodes.length;
+                node.x = centerX + radius * Math.cos(angle) + (Math.random() - 0.5) * 50;
+                node.y = centerY + radius * Math.sin(angle) + (Math.random() - 0.5) * 50;
+                node.vx = 0;
+                node.vy = 0;
+                node.radius = 20 + Math.min(node.link_count + node.backlink_count, 10) * 3;
+            });
+
+            // Add event listeners
+            graphCanvas.addEventListener('mousedown', onGraphMouseDown);
+            graphCanvas.addEventListener('mousemove', onGraphMouseMove);
+            graphCanvas.addEventListener('mouseup', onGraphMouseUp);
+            graphCanvas.addEventListener('click', onGraphClick);
+            graphCanvas.addEventListener('touchstart', onGraphTouchStart, { passive: false });
+            graphCanvas.addEventListener('touchmove', onGraphTouchMove, { passive: false });
+            graphCanvas.addEventListener('touchend', onGraphTouchEnd);
+
+            // Start animation
+            animateGraph();
+        }
+
+        function resizeCanvas() {
+            if (!graphCanvas) return;
+            const container = document.getElementById('view-graph');
+            graphCanvas.width = container.clientWidth;
+            graphCanvas.height = container.clientHeight;
+        }
+
+        function animateGraph() {
+            if (!graphCtx) return;
+
+            // Apply forces
+            applyForces();
+
+            // Clear canvas
+            graphCtx.fillStyle = '#f3f4f6';
+            graphCtx.fillRect(0, 0, graphCanvas.width, graphCanvas.height);
+
+            // Draw edges
+            graphCtx.strokeStyle = '#cbd5e1';
+            graphCtx.lineWidth = 2;
+            graphEdges.forEach(edge => {
+                const source = graphNodes.find(n => n.id === edge.source);
+                const target = graphNodes.find(n => n.id === edge.target);
+                if (source && target) {
+                    graphCtx.beginPath();
+                    graphCtx.moveTo(source.x, source.y);
+                    graphCtx.lineTo(target.x, target.y);
+                    graphCtx.stroke();
+
+                    // Draw arrow
+                    const angle = Math.atan2(target.y - source.y, target.x - source.x);
+                    const arrowX = target.x - target.radius * Math.cos(angle);
+                    const arrowY = target.y - target.radius * Math.sin(angle);
+                    drawArrow(arrowX, arrowY, angle);
+                }
+            });
+
+            // Draw nodes
+            graphNodes.forEach(node => {
+                const isHovered = hoveredNode === node;
+                const isDailyNote = node.title.match(/^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)/);
+
+                // Node circle
+                graphCtx.beginPath();
+                graphCtx.arc(node.x, node.y, node.radius, 0, 2 * Math.PI);
+                graphCtx.fillStyle = isHovered ? '#ffc220' : (isDailyNote ? '#10b981' : '#0071ce');
+                graphCtx.fill();
+                graphCtx.strokeStyle = '#fff';
+                graphCtx.lineWidth = 2;
+                graphCtx.stroke();
+
+                // Node label
+                graphCtx.fillStyle = '#1f2937';
+                graphCtx.font = '12px sans-serif';
+                graphCtx.textAlign = 'center';
+                graphCtx.textBaseline = 'top';
+                const label = node.title.length > 15 ? node.title.substring(0, 15) + '...' : node.title;
+                graphCtx.fillText(label, node.x, node.y + node.radius + 5);
+            });
+
+            graphAnimationId = requestAnimationFrame(animateGraph);
+        }
+
+        function drawArrow(x, y, angle) {
+            const size = 8;
+            graphCtx.fillStyle = '#cbd5e1';
+            graphCtx.beginPath();
+            graphCtx.moveTo(x, y);
+            graphCtx.lineTo(x - size * Math.cos(angle - Math.PI / 6), y - size * Math.sin(angle - Math.PI / 6));
+            graphCtx.lineTo(x - size * Math.cos(angle + Math.PI / 6), y - size * Math.sin(angle + Math.PI / 6));
+            graphCtx.closePath();
+            graphCtx.fill();
+        }
+
+        function applyForces() {
+            const centerX = graphCanvas.width / 2;
+            const centerY = graphCanvas.height / 2;
+
+            graphNodes.forEach(node => {
+                // Center gravity
+                node.vx += (centerX - node.x) * 0.0005;
+                node.vy += (centerY - node.y) * 0.0005;
+
+                // Repulsion from other nodes
+                graphNodes.forEach(other => {
+                    if (node === other) return;
+                    const dx = node.x - other.x;
+                    const dy = node.y - other.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                    const force = 2000 / (dist * dist);
+                    node.vx += (dx / dist) * force;
+                    node.vy += (dy / dist) * force;
+                });
+            });
+
+            // Edge attraction
+            graphEdges.forEach(edge => {
+                const source = graphNodes.find(n => n.id === edge.source);
+                const target = graphNodes.find(n => n.id === edge.target);
+                if (source && target) {
+                    const dx = target.x - source.x;
+                    const dy = target.y - source.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                    const force = (dist - 150) * 0.01;
+                    source.vx += (dx / dist) * force;
+                    source.vy += (dy / dist) * force;
+                    target.vx -= (dx / dist) * force;
+                    target.vy -= (dy / dist) * force;
+                }
+            });
+
+            // Apply velocity and damping
+            graphNodes.forEach(node => {
+                if (node === dragNode) return;
+                node.vx *= 0.9;
+                node.vy *= 0.9;
+                node.x += node.vx;
+                node.y += node.vy;
+
+                // Keep in bounds
+                const margin = node.radius + 10;
+                node.x = Math.max(margin, Math.min(graphCanvas.width - margin, node.x));
+                node.y = Math.max(margin, Math.min(graphCanvas.height - margin, node.y));
+            });
+        }
+
+        function getNodeAtPosition(x, y) {
+            for (let i = graphNodes.length - 1; i >= 0; i--) {
+                const node = graphNodes[i];
+                const dx = x - node.x;
+                const dy = y - node.y;
+                if (dx * dx + dy * dy < node.radius * node.radius) {
+                    return node;
+                }
+            }
+            return null;
+        }
+
+        function onGraphMouseDown(e) {
+            const rect = graphCanvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            dragNode = getNodeAtPosition(x, y);
+            if (dragNode) {
+                isDragging = true;
+                graphCanvas.style.cursor = 'grabbing';
+            }
+        }
+
+        function onGraphMouseMove(e) {
+            const rect = graphCanvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            if (isDragging && dragNode) {
+                dragNode.x = x;
+                dragNode.y = y;
+                dragNode.vx = 0;
+                dragNode.vy = 0;
+            } else {
+                const node = getNodeAtPosition(x, y);
+                hoveredNode = node;
+                graphCanvas.style.cursor = node ? 'pointer' : 'default';
+
+                // Update tooltip
+                const tooltip = document.getElementById('graph-tooltip');
+                if (node) {
+                    tooltip.textContent = `${node.title} (${node.link_count} links, ${node.backlink_count} backlinks)`;
+                    tooltip.style.left = (e.clientX + 10) + 'px';
+                    tooltip.style.top = (e.clientY + 10) + 'px';
+                    tooltip.classList.remove('hidden');
+                } else {
+                    tooltip.classList.add('hidden');
+                }
+            }
+        }
+
+        function onGraphMouseUp() {
+            isDragging = false;
+            dragNode = null;
+            graphCanvas.style.cursor = 'default';
+        }
+
+        function onGraphClick(e) {
+            if (isDragging) return;
+            const rect = graphCanvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const node = getNodeAtPosition(x, y);
+            if (node) {
+                openNote(node.id);
+            }
+        }
+
+        function onGraphTouchStart(e) {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const rect = graphCanvas.getBoundingClientRect();
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
+            dragNode = getNodeAtPosition(x, y);
+            if (dragNode) isDragging = true;
+        }
+
+        function onGraphTouchMove(e) {
+            e.preventDefault();
+            if (!isDragging || !dragNode) return;
+            const touch = e.touches[0];
+            const rect = graphCanvas.getBoundingClientRect();
+            dragNode.x = touch.clientX - rect.left;
+            dragNode.y = touch.clientY - rect.top;
+            dragNode.vx = 0;
+            dragNode.vy = 0;
+        }
+
+        function onGraphTouchEnd(e) {
+            if (!isDragging && dragNode) {
+                openNote(dragNode.id);
+            }
+            isDragging = false;
+            dragNode = null;
         }
 
         // --- Initialize ---
