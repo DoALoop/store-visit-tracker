@@ -155,6 +155,10 @@ except Exception as e:
 def index():
     return send_from_directory('.', 'index.html')
 
+@app.route('/notes.html')
+def notes_page():
+    return send_from_directory('.', 'notes.html')
+
 # --- API Routes ---
 
 @app.route('/api/visits', methods=['GET'])
