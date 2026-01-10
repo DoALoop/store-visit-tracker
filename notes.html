@@ -266,7 +266,7 @@ Use - [ ] for tasks"
                 if (!response.ok) throw new Error('Failed to load notes');
 
                 const data = await response.json();
-                allNotes = data.notes || [];
+                allNotes = Array.isArray(data) ? data : (data.notes || []);
                 renderNotesList(allNotes);
             } catch (error) {
                 console.error('Error loading notes:', error);
@@ -478,7 +478,7 @@ Use - [ ] for tasks"
                 if (!response.ok) throw new Error('Failed to load tasks');
 
                 const data = await response.json();
-                allTasks = data.tasks || [];
+                allTasks = Array.isArray(data) ? data : (data.tasks || []);
                 renderTasksList(allTasks);
             } catch (error) {
                 console.error('Error loading tasks:', error);
@@ -605,7 +605,7 @@ Use - [ ] for tasks"
                 if (!response.ok) throw new Error('Search failed');
 
                 const data = await response.json();
-                const results = data.notes || [];
+                const results = Array.isArray(data) ? data : (data.notes || []);
 
                 if (results.length === 0) {
                     document.getElementById('search-results').innerHTML = '<p class="text-center text-gray-500">No results found</p>';
