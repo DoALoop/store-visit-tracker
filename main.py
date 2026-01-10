@@ -152,6 +152,7 @@ except Exception as e:
 
 # --- Static File Route ---
 @app.route('/')
+@app.route('/index.html')
 def index():
     return send_from_directory('.', 'index.html')
 
