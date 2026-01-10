@@ -1967,7 +1967,7 @@ def update_note_links(cursor, note_id, content):
         # Try to find existing note with this title
         cursor.execute("SELECT id FROM notes WHERE title = %s AND deleted_at IS NULL", (target_title,))
         target_note = cursor.fetchone()
-        target_note_id = target_note[0] if target_note else None
+        target_note_id = target_note['id'] if target_note else None
 
         cursor.execute("""
             INSERT INTO note_links (source_note_id, target_note_id, target_title)
