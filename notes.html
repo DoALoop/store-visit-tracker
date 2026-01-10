@@ -64,7 +64,10 @@
         <!-- Sub-navigation tabs -->
         <div class="flex border-t border-walmart-dark-blue">
             <button onclick="switchNotesView('all')" class="notes-tab flex-1 py-2 text-sm font-medium text-center border-b-2 border-walmart-yellow" data-view="all">
-                All Notes
+                Notes
+            </button>
+            <button onclick="switchNotesView('market')" class="notes-tab flex-1 py-2 text-sm font-medium text-center border-b-2 border-transparent hover:border-walmart-yellow/50" data-view="market">
+                Market
             </button>
             <button onclick="switchNotesView('tasks')" class="notes-tab flex-1 py-2 text-sm font-medium text-center border-b-2 border-transparent hover:border-walmart-yellow/50" data-view="tasks">
                 Tasks
@@ -95,6 +98,18 @@
                     <p class="text-sm mt-2">Tap + to create your first note</p>
                     <p class="text-xs mt-4 text-gray-400">Database migration required - see console for details</p>
                 </div>
+            </div>
+        </div>
+
+        <!-- Market Notes View -->
+        <div id="view-market" class="p-4 hidden">
+            <div class="mb-4 flex space-x-2 overflow-x-auto">
+                <button onclick="filterMarketNotes('all')" class="market-filter px-3 py-1 rounded-full text-sm bg-walmart-blue text-white whitespace-nowrap" data-filter="all">All</button>
+                <button onclick="filterMarketNotes('pending')" class="market-filter px-3 py-1 rounded-full text-sm bg-gray-200 text-gray-700 whitespace-nowrap" data-filter="pending">Pending</button>
+                <button onclick="filterMarketNotes('completed')" class="market-filter px-3 py-1 rounded-full text-sm bg-gray-200 text-gray-700 whitespace-nowrap" data-filter="completed">Completed</button>
+            </div>
+            <div id="market-notes-list" class="space-y-2">
+                <p class="text-center text-gray-500 py-8">Loading market notes...</p>
             </div>
         </div>
 
@@ -237,6 +252,7 @@ Use - [ ] for tasks"
             document.querySelector(`.notes-tab[data-view="${view}"]`).classList.add('border-walmart-yellow');
 
             document.getElementById('view-all-notes').classList.add('hidden');
+            document.getElementById('view-market').classList.add('hidden');
             document.getElementById('view-tasks').classList.add('hidden');
             document.getElementById('view-daily').classList.add('hidden');
             document.getElementById('view-graph').classList.add('hidden');
@@ -244,6 +260,9 @@ Use - [ ] for tasks"
             if (view === 'all') {
                 document.getElementById('view-all-notes').classList.remove('hidden');
                 loadNotes();
+            } else if (view === 'market') {
+                document.getElementById('view-market').classList.remove('hidden');
+                loadMarketNotes();
             } else if (view === 'tasks') {
                 document.getElementById('view-tasks').classList.remove('hidden');
                 loadTasks();
@@ -527,6 +546,104 @@ Use - [ ] for tasks"
                 loadTasks();
             } catch (error) {
                 console.error('Error toggling task:', error);
+            }
+        }
+
+        // --- Market Notes ---
+        let allMarketNotes = [];
+        let currentMarketFilter = 'all';
+
+        async function loadMarketNotes(filter = 'all') {
+            currentMarketFilter = filter;
+            try {
+                const response = await fetch(`${API_BASE}/api/market-notes`);
+                if (!response.ok) throw new Error('Failed to load market notes');
+
+                const data = await response.json();
+                allMarketNotes = Array.isArray(data) ? data : [];
+
+                // Apply filter
+                let filtered = allMarketNotes;
+                if (filter === 'pending') {
+                    filtered = allMarketNotes.filter(n => !n.completed);
+                } else if (filter === 'completed') {
+                    filtered = allMarketNotes.filter(n => n.completed);
+                }
+
+                renderMarketNotesList(filtered);
+            } catch (error) {
+                console.error('Error loading market notes:', error);
+                document.getElementById('market-notes-list').innerHTML = '<p class="text-center text-gray-500 py-8">Failed to load market notes</p>';
+            }
+        }
+
+        function renderMarketNotesList(notes) {
+            const container = document.getElementById('market-notes-list');
+
+            if (!notes || notes.length === 0) {
+                container.innerHTML = '<p class="text-center text-gray-500 py-8">No market notes found</p>';
+                return;
+            }
+
+            // Group by store
+            const byStore = {};
+            notes.forEach(note => {
+                if (!byStore[note.store_nbr]) {
+                    byStore[note.store_nbr] = [];
+                }
+                byStore[note.store_nbr].push(note);
+            });
+
+            container.innerHTML = Object.entries(byStore).map(([store, storeNotes]) => `
+                <div class="mb-4">
+                    <h3 class="font-medium text-gray-700 mb-2 flex items-center">
+                        <i class="fas fa-store text-walmart-blue mr-2"></i>
+                        Store ${store}
+                    </h3>
+                    <div class="space-y-2">
+                        ${storeNotes.map(note => `
+                            <div class="bg-white rounded-lg shadow p-3 flex items-start space-x-3">
+                                <input type="checkbox" ${note.completed ? 'checked' : ''}
+                                       class="mt-1 cursor-pointer" onclick="toggleMarketNote(${note.visit_id}, '${escapeHtml(note.note_text)}')">
+                                <div class="flex-1 min-w-0">
+                                    <p class="${note.completed ? 'line-through text-gray-400' : ''}">${escapeHtml(note.note_text)}</p>
+                                    <div class="text-xs text-gray-400 mt-1">
+                                        ${note.calendar_date || ''}
+                                        <span class="ml-2 px-2 py-0.5 rounded text-xs ${
+                                            note.status === 'new' ? 'bg-blue-100 text-blue-700' :
+                                            note.status === 'in_progress' ? 'bg-yellow-100 text-yellow-700' :
+                                            'bg-green-100 text-green-700'
+                                        }">${note.status}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function filterMarketNotes(filter) {
+            document.querySelectorAll('.market-filter').forEach(btn => {
+                btn.classList.remove('bg-walmart-blue', 'text-white');
+                btn.classList.add('bg-gray-200', 'text-gray-700');
+            });
+            document.querySelector(`.market-filter[data-filter="${filter}"]`).classList.remove('bg-gray-200', 'text-gray-700');
+            document.querySelector(`.market-filter[data-filter="${filter}"]`).classList.add('bg-walmart-blue', 'text-white');
+            loadMarketNotes(filter);
+        }
+
+        async function toggleMarketNote(visitId, noteText) {
+            try {
+                const response = await fetch(`${API_BASE}/api/market-notes/${visitId}/toggle`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ note_text: noteText })
+                });
+                if (!response.ok) throw new Error('Failed to toggle market note');
+                loadMarketNotes(currentMarketFilter);
+            } catch (error) {
+                console.error('Error toggling market note:', error);
             }
         }
 
