@@ -1902,6 +1902,836 @@ def delete_issue(issue_id):
         release_db_connection(conn)
 
 
+# ==================== NOTES MODULE API ====================
+
+import uuid
+import re as regex_module
+
+def parse_wikilinks(content):
+    """Extract [[wikilinks]] from content. Returns list of (target_title, display_text)"""
+    if not content:
+        return []
+    pattern = r'\[\[([^\]|]+)(?:\|([^\]]+))?\]\]'
+    matches = regex_module.findall(pattern, content)
+    return [(match[0].strip(), match[1].strip() if match[1] else match[0].strip()) for match in matches]
+
+def parse_tags(content):
+    """Extract #tags from content"""
+    if not content:
+        return []
+    pattern = r'#([\w-]+)'
+    return list(set(regex_module.findall(pattern, content)))
+
+def extract_due_date(text):
+    """Extract due date from task text (format: 📅 YYYY-MM-DD)"""
+    match = regex_module.search(r'📅\s*(\d{4}-\d{2}-\d{2})', text)
+    return match.group(1) if match else None
+
+def extract_priority(text):
+    """Extract priority from task text (emoji markers)"""
+    if '🔺' in text or '⏫' in text:
+        return 3  # high
+    elif '🔼' in text:
+        return 2  # medium
+    elif '🔽' in text or '⏬' in text:
+        return 1  # low
+    return 0  # none
+
+def parse_tasks(content):
+    """Extract - [ ] tasks from content"""
+    if not content:
+        return []
+    tasks = []
+    lines = content.split('\n')
+    for i, line in enumerate(lines):
+        match = regex_module.match(r'^(\s*)-\s*\[([ xX])\]\s*(.+)$', line)
+        if match:
+            task_text = match.group(3)
+            tasks.append({
+                'content': task_text,
+                'is_completed': match.group(2).lower() == 'x',
+                'line_number': i,
+                'due_date': extract_due_date(task_text),
+                'priority': extract_priority(task_text)
+            })
+    return tasks
+
+def update_note_links(cursor, note_id, content):
+    """Parse wikilinks and update note_links table"""
+    # Delete existing links from this note
+    cursor.execute("DELETE FROM note_links WHERE source_note_id = %s", (note_id,))
+
+    # Parse and insert new links
+    links = parse_wikilinks(content)
+    for target_title, _ in links:
+        # Try to find existing note with this title
+        cursor.execute("SELECT id FROM notes WHERE title = %s AND deleted_at IS NULL", (target_title,))
+        target_note = cursor.fetchone()
+        target_note_id = target_note[0] if target_note else None
+
+        cursor.execute("""
+            INSERT INTO note_links (source_note_id, target_note_id, target_title)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (source_note_id, target_note_id) DO NOTHING
+        """, (note_id, target_note_id, target_title))
+
+def update_note_tags(cursor, note_id, content):
+    """Parse tags and update note_tags table"""
+    # Delete existing tags for this note
+    cursor.execute("DELETE FROM note_tags WHERE note_id = %s", (note_id,))
+
+    # Parse and insert new tags
+    tags = parse_tags(content)
+    for tag in tags:
+        cursor.execute("""
+            INSERT INTO note_tags (note_id, tag)
+            VALUES (%s, %s)
+            ON CONFLICT (note_id, tag) DO NOTHING
+        """, (note_id, tag.lower()))
+
+def update_note_tasks(cursor, note_id, content):
+    """Parse tasks and update note_tasks table"""
+    # Delete existing tasks for this note
+    cursor.execute("DELETE FROM note_tasks WHERE note_id = %s", (note_id,))
+
+    # Parse and insert new tasks
+    tasks = parse_tasks(content)
+    for task in tasks:
+        cursor.execute("""
+            INSERT INTO note_tasks (note_id, content, is_completed, due_date, priority, line_number)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (note_id, task['content'], task['is_completed'], task['due_date'], task['priority'], task['line_number']))
+
+
+@app.route('/api/notes', methods=['GET'])
+def get_notes():
+    """Get all notes, optionally filtered by folder, visit, or search"""
+    folder_path = request.args.get('folder_path')
+    linked_visit_id = request.args.get('linked_visit_id')
+    include_deleted = request.args.get('include_deleted', 'false').lower() == 'true'
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        query = """
+            SELECT n.*,
+                   array_agg(DISTINCT nt.tag) FILTER (WHERE nt.tag IS NOT NULL) as tags,
+                   COUNT(DISTINCT nl.source_note_id) as backlink_count
+            FROM notes n
+            LEFT JOIN note_tags nt ON n.id = nt.note_id
+            LEFT JOIN note_links nl ON n.id = nl.target_note_id
+            WHERE 1=1
+        """
+        params = []
+
+        if not include_deleted:
+            query += " AND n.deleted_at IS NULL"
+
+        if folder_path:
+            query += " AND n.folder_path = %s"
+            params.append(folder_path)
+
+        if linked_visit_id:
+            query += " AND n.linked_visit_id = %s"
+            params.append(int(linked_visit_id))
+
+        query += """
+            GROUP BY n.id
+            ORDER BY n.is_pinned DESC, n.updated_at DESC
+        """
+
+        cursor.execute(query, params)
+        notes = cursor.fetchall()
+
+        # Convert dates to strings
+        for note in notes:
+            if note.get('created_at'):
+                note['created_at'] = note['created_at'].isoformat()
+            if note.get('updated_at'):
+                note['updated_at'] = note['updated_at'].isoformat()
+            if note.get('deleted_at'):
+                note['deleted_at'] = note['deleted_at'].isoformat()
+            if note.get('daily_date'):
+                note['daily_date'] = note['daily_date'].isoformat()
+
+        cursor.close()
+        return jsonify(notes)
+
+    except Exception as e:
+        print(f"Error getting notes: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/notes/<note_id>', methods=['GET'])
+def get_note(note_id):
+    """Get single note with backlinks and tags"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Get the note
+        cursor.execute("SELECT * FROM notes WHERE id = %s", (note_id,))
+        note = cursor.fetchone()
+
+        if not note:
+            return jsonify({"error": "Note not found"}), 404
+
+        # Get tags
+        cursor.execute("SELECT tag FROM note_tags WHERE note_id = %s", (note_id,))
+        note['tags'] = [row['tag'] for row in cursor.fetchall()]
+
+        # Get backlinks (notes that link TO this note)
+        cursor.execute("""
+            SELECT n.id, n.title, n.folder_path
+            FROM notes n
+            JOIN note_links nl ON n.id = nl.source_note_id
+            WHERE nl.target_note_id = %s AND n.deleted_at IS NULL
+        """, (note_id,))
+        note['backlinks'] = cursor.fetchall()
+
+        # Get outgoing links (notes this note links TO)
+        cursor.execute("""
+            SELECT nl.target_note_id, nl.target_title, n.id as resolved_id, n.title as resolved_title
+            FROM note_links nl
+            LEFT JOIN notes n ON nl.target_note_id = n.id AND n.deleted_at IS NULL
+            WHERE nl.source_note_id = %s
+        """, (note_id,))
+        note['outgoing_links'] = cursor.fetchall()
+
+        # Get tasks
+        cursor.execute("""
+            SELECT * FROM note_tasks WHERE note_id = %s ORDER BY line_number
+        """, (note_id,))
+        note['tasks'] = cursor.fetchall()
+
+        # Convert dates
+        if note.get('created_at'):
+            note['created_at'] = note['created_at'].isoformat()
+        if note.get('updated_at'):
+            note['updated_at'] = note['updated_at'].isoformat()
+        if note.get('deleted_at'):
+            note['deleted_at'] = note['deleted_at'].isoformat()
+        if note.get('daily_date'):
+            note['daily_date'] = note['daily_date'].isoformat()
+
+        for task in note['tasks']:
+            if task.get('created_at'):
+                task['created_at'] = task['created_at'].isoformat()
+            if task.get('updated_at'):
+                task['updated_at'] = task['updated_at'].isoformat()
+            if task.get('due_date'):
+                task['due_date'] = task['due_date'].isoformat()
+
+        cursor.close()
+        return jsonify(note)
+
+    except Exception as e:
+        print(f"Error getting note: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/notes', methods=['POST'])
+def create_note():
+    """Create new note, parse links/tags/tasks"""
+    data = request.get_json()
+
+    title = data.get('title', '').strip()
+    if not title:
+        return jsonify({"error": "Title is required"}), 400
+
+    content = data.get('content', '')
+    folder_path = data.get('folder_path', '/')
+    is_pinned = data.get('is_pinned', False)
+    is_daily_note = data.get('is_daily_note', False)
+    daily_date = data.get('daily_date')
+    linked_visit_id = data.get('linked_visit_id')
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Generate UUID for new note
+        note_id = str(uuid.uuid4())
+
+        cursor.execute("""
+            INSERT INTO notes (id, title, content, folder_path, is_pinned, is_daily_note, daily_date, linked_visit_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING *
+        """, (note_id, title, content, folder_path, is_pinned, is_daily_note, daily_date, linked_visit_id))
+
+        note = cursor.fetchone()
+
+        # Parse and store links, tags, tasks
+        update_note_links(cursor, note_id, content)
+        update_note_tags(cursor, note_id, content)
+        update_note_tasks(cursor, note_id, content)
+
+        conn.commit()
+
+        # Convert dates
+        if note.get('created_at'):
+            note['created_at'] = note['created_at'].isoformat()
+        if note.get('updated_at'):
+            note['updated_at'] = note['updated_at'].isoformat()
+        if note.get('daily_date'):
+            note['daily_date'] = note['daily_date'].isoformat()
+
+        cursor.close()
+        return jsonify(note), 201
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error creating note: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/notes/<note_id>', methods=['PUT'])
+def update_note(note_id):
+    """Update note, re-parse links/tags/tasks"""
+    data = request.get_json()
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Check note exists
+        cursor.execute("SELECT id FROM notes WHERE id = %s AND deleted_at IS NULL", (note_id,))
+        if not cursor.fetchone():
+            return jsonify({"error": "Note not found"}), 404
+
+        # Build update query dynamically
+        updates = []
+        params = []
+
+        if 'title' in data:
+            updates.append("title = %s")
+            params.append(data['title'])
+        if 'content' in data:
+            updates.append("content = %s")
+            params.append(data['content'])
+        if 'folder_path' in data:
+            updates.append("folder_path = %s")
+            params.append(data['folder_path'])
+        if 'is_pinned' in data:
+            updates.append("is_pinned = %s")
+            params.append(data['is_pinned'])
+        if 'linked_visit_id' in data:
+            updates.append("linked_visit_id = %s")
+            params.append(data['linked_visit_id'])
+
+        if not updates:
+            return jsonify({"error": "No fields to update"}), 400
+
+        params.append(note_id)
+        cursor.execute(f"""
+            UPDATE notes SET {', '.join(updates)}
+            WHERE id = %s
+            RETURNING *
+        """, params)
+
+        note = cursor.fetchone()
+
+        # Re-parse links, tags, tasks if content was updated
+        if 'content' in data:
+            update_note_links(cursor, note_id, data['content'])
+            update_note_tags(cursor, note_id, data['content'])
+            update_note_tasks(cursor, note_id, data['content'])
+
+        conn.commit()
+
+        # Convert dates
+        if note.get('created_at'):
+            note['created_at'] = note['created_at'].isoformat()
+        if note.get('updated_at'):
+            note['updated_at'] = note['updated_at'].isoformat()
+        if note.get('daily_date'):
+            note['daily_date'] = note['daily_date'].isoformat()
+
+        cursor.close()
+        return jsonify(note)
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error updating note: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/notes/<note_id>', methods=['DELETE'])
+def soft_delete_note(note_id):
+    """Soft delete note"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            UPDATE notes SET deleted_at = CURRENT_TIMESTAMP
+            WHERE id = %s AND deleted_at IS NULL
+        """, (note_id,))
+
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Note not found"}), 404
+
+        conn.commit()
+        cursor.close()
+        return jsonify({"success": True, "message": "Note deleted"})
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error deleting note: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/notes/search', methods=['GET'])
+def search_notes_endpoint():
+    """Full-text search across notes"""
+    query = request.args.get('q', '').strip()
+    if not query:
+        return jsonify({"error": "Search query required"}), 400
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        cursor.execute("""
+            SELECT id, title, folder_path, updated_at,
+                   ts_headline('english', content, plainto_tsquery('english', %s),
+                              'StartSel=<mark>, StopSel=</mark>, MaxWords=50, MinWords=20') as snippet,
+                   ts_rank(to_tsvector('english', coalesce(title,'') || ' ' || coalesce(content,'')),
+                          plainto_tsquery('english', %s)) as rank
+            FROM notes
+            WHERE to_tsvector('english', coalesce(title,'') || ' ' || coalesce(content,''))
+                  @@ plainto_tsquery('english', %s)
+              AND deleted_at IS NULL
+            ORDER BY rank DESC
+            LIMIT 50
+        """, (query, query, query))
+
+        results = cursor.fetchall()
+
+        for result in results:
+            if result.get('updated_at'):
+                result['updated_at'] = result['updated_at'].isoformat()
+
+        cursor.close()
+        return jsonify(results)
+
+    except Exception as e:
+        print(f"Error searching notes: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/notes/tasks', methods=['GET'])
+def get_all_tasks():
+    """Get all tasks across notes with filters"""
+    filter_type = request.args.get('filter', 'all')  # all, today, upcoming, overdue, completed
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        query = """
+            SELECT t.*, n.title as note_title, n.id as note_id
+            FROM note_tasks t
+            JOIN notes n ON t.note_id = n.id
+            WHERE n.deleted_at IS NULL
+        """
+
+        if filter_type == 'today':
+            query += " AND t.due_date = CURRENT_DATE AND NOT t.is_completed"
+        elif filter_type == 'upcoming':
+            query += " AND t.due_date > CURRENT_DATE AND NOT t.is_completed"
+        elif filter_type == 'overdue':
+            query += " AND t.due_date < CURRENT_DATE AND NOT t.is_completed"
+        elif filter_type == 'completed':
+            query += " AND t.is_completed"
+        elif filter_type == 'incomplete':
+            query += " AND NOT t.is_completed"
+
+        query += " ORDER BY t.due_date ASC NULLS LAST, t.priority DESC, t.created_at DESC"
+
+        cursor.execute(query)
+        tasks = cursor.fetchall()
+
+        for task in tasks:
+            if task.get('created_at'):
+                task['created_at'] = task['created_at'].isoformat()
+            if task.get('updated_at'):
+                task['updated_at'] = task['updated_at'].isoformat()
+            if task.get('due_date'):
+                task['due_date'] = task['due_date'].isoformat()
+
+        cursor.close()
+        return jsonify(tasks)
+
+    except Exception as e:
+        print(f"Error getting tasks: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/notes/tasks/<task_id>/toggle', methods=['POST'])
+def toggle_task(task_id):
+    """Toggle task completion and update note content"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Get task and its note
+        cursor.execute("""
+            SELECT t.*, n.content as note_content
+            FROM note_tasks t
+            JOIN notes n ON t.note_id = n.id
+            WHERE t.id = %s
+        """, (task_id,))
+        task = cursor.fetchone()
+
+        if not task:
+            return jsonify({"error": "Task not found"}), 404
+
+        new_completed = not task['is_completed']
+
+        # Update task
+        cursor.execute("""
+            UPDATE note_tasks SET is_completed = %s WHERE id = %s
+        """, (new_completed, task_id))
+
+        # Update note content (toggle checkbox)
+        lines = task['note_content'].split('\n')
+        if task['line_number'] < len(lines):
+            line = lines[task['line_number']]
+            if new_completed:
+                line = regex_module.sub(r'- \[ \]', '- [x]', line)
+            else:
+                line = regex_module.sub(r'- \[[xX]\]', '- [ ]', line)
+            lines[task['line_number']] = line
+            new_content = '\n'.join(lines)
+
+            cursor.execute("UPDATE notes SET content = %s WHERE id = %s", (new_content, task['note_id']))
+
+        conn.commit()
+
+        cursor.execute("SELECT * FROM note_tasks WHERE id = %s", (task_id,))
+        updated_task = cursor.fetchone()
+
+        if updated_task.get('due_date'):
+            updated_task['due_date'] = updated_task['due_date'].isoformat()
+
+        cursor.close()
+        return jsonify(updated_task)
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error toggling task: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/notes/tags', methods=['GET'])
+def get_all_tags():
+    """Get all tags with counts"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        cursor.execute("""
+            SELECT nt.tag, COUNT(*) as count
+            FROM note_tags nt
+            JOIN notes n ON nt.note_id = n.id
+            WHERE n.deleted_at IS NULL
+            GROUP BY nt.tag
+            ORDER BY count DESC, nt.tag ASC
+        """)
+
+        tags = cursor.fetchall()
+        cursor.close()
+        return jsonify(tags)
+
+    except Exception as e:
+        print(f"Error getting tags: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/notes/backlinks/<note_id>', methods=['GET'])
+def get_backlinks(note_id):
+    """Get notes that link to this note"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        cursor.execute("""
+            SELECT n.id, n.title, n.folder_path, n.updated_at
+            FROM notes n
+            JOIN note_links nl ON n.id = nl.source_note_id
+            WHERE nl.target_note_id = %s AND n.deleted_at IS NULL
+            ORDER BY n.updated_at DESC
+        """, (note_id,))
+
+        backlinks = cursor.fetchall()
+
+        for link in backlinks:
+            if link.get('updated_at'):
+                link['updated_at'] = link['updated_at'].isoformat()
+
+        cursor.close()
+        return jsonify(backlinks)
+
+    except Exception as e:
+        print(f"Error getting backlinks: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/notes/graph', methods=['GET'])
+def get_note_graph():
+    """Get nodes and edges for graph visualization"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Get all notes as nodes
+        cursor.execute("""
+            SELECT n.id, n.title,
+                   COUNT(DISTINCT nl_out.target_note_id) as link_count,
+                   COUNT(DISTINCT nl_in.source_note_id) as backlink_count
+            FROM notes n
+            LEFT JOIN note_links nl_out ON n.id = nl_out.source_note_id
+            LEFT JOIN note_links nl_in ON n.id = nl_in.target_note_id
+            WHERE n.deleted_at IS NULL
+            GROUP BY n.id, n.title
+        """)
+        nodes = cursor.fetchall()
+
+        # Get all links as edges
+        cursor.execute("""
+            SELECT nl.source_note_id as source, nl.target_note_id as target
+            FROM note_links nl
+            JOIN notes ns ON nl.source_note_id = ns.id
+            JOIN notes nt ON nl.target_note_id = nt.id
+            WHERE ns.deleted_at IS NULL AND nt.deleted_at IS NULL
+        """)
+        edges = cursor.fetchall()
+
+        cursor.close()
+        return jsonify({"nodes": nodes, "edges": edges})
+
+    except Exception as e:
+        print(f"Error getting graph: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/notes/daily/<date>', methods=['GET', 'POST'])
+def daily_note(date):
+    """Get or create daily note for date"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Try to find existing daily note
+        cursor.execute("""
+            SELECT * FROM notes
+            WHERE is_daily_note = TRUE AND daily_date = %s AND deleted_at IS NULL
+        """, (date,))
+        note = cursor.fetchone()
+
+        if note:
+            if note.get('created_at'):
+                note['created_at'] = note['created_at'].isoformat()
+            if note.get('updated_at'):
+                note['updated_at'] = note['updated_at'].isoformat()
+            if note.get('daily_date'):
+                note['daily_date'] = note['daily_date'].isoformat()
+            cursor.close()
+            return jsonify(note)
+
+        # Create new daily note if POST or doesn't exist
+        if request.method == 'POST' or not note:
+            from datetime import datetime
+            try:
+                parsed_date = datetime.strptime(date, '%Y-%m-%d')
+                title = parsed_date.strftime('%A, %B %d, %Y')
+            except:
+                title = date
+
+            # Get daily template if exists
+            cursor.execute("SELECT content FROM note_templates WHERE is_daily_template = TRUE LIMIT 1")
+            template = cursor.fetchone()
+            content = template['content'] if template else f"# {title}\n\n## Tasks\n- [ ] \n\n## Notes\n\n"
+
+            # Replace template variables
+            content = content.replace('{{date}}', date)
+            content = content.replace('{{title}}', title)
+
+            note_id = str(uuid.uuid4())
+            cursor.execute("""
+                INSERT INTO notes (id, title, content, folder_path, is_daily_note, daily_date)
+                VALUES (%s, %s, %s, '/Daily Notes', TRUE, %s)
+                RETURNING *
+            """, (note_id, title, content, date))
+
+            note = cursor.fetchone()
+            conn.commit()
+
+            if note.get('created_at'):
+                note['created_at'] = note['created_at'].isoformat()
+            if note.get('updated_at'):
+                note['updated_at'] = note['updated_at'].isoformat()
+            if note.get('daily_date'):
+                note['daily_date'] = note['daily_date'].isoformat()
+
+        cursor.close()
+        return jsonify(note), 201 if request.method == 'POST' else 200
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error with daily note: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/notes/templates', methods=['GET', 'POST'])
+def templates():
+    """List or create templates"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        if request.method == 'GET':
+            cursor.execute("SELECT * FROM note_templates ORDER BY name")
+            templates_list = cursor.fetchall()
+
+            for t in templates_list:
+                if t.get('created_at'):
+                    t['created_at'] = t['created_at'].isoformat()
+                if t.get('updated_at'):
+                    t['updated_at'] = t['updated_at'].isoformat()
+
+            cursor.close()
+            return jsonify(templates_list)
+
+        else:  # POST
+            data = request.get_json()
+            name = data.get('name', '').strip()
+            if not name:
+                return jsonify({"error": "Name is required"}), 400
+
+            content = data.get('content', '')
+            is_daily_template = data.get('is_daily_template', False)
+
+            template_id = str(uuid.uuid4())
+            cursor.execute("""
+                INSERT INTO note_templates (id, name, content, is_daily_template)
+                VALUES (%s, %s, %s, %s)
+                RETURNING *
+            """, (template_id, name, content, is_daily_template))
+
+            template = cursor.fetchone()
+            conn.commit()
+
+            if template.get('created_at'):
+                template['created_at'] = template['created_at'].isoformat()
+            if template.get('updated_at'):
+                template['updated_at'] = template['updated_at'].isoformat()
+
+            cursor.close()
+            return jsonify(template), 201
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error with templates: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/notes/folders', methods=['GET'])
+def get_folders():
+    """Get all unique folder paths with counts"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        cursor.execute("""
+            SELECT folder_path, COUNT(*) as note_count
+            FROM notes
+            WHERE deleted_at IS NULL
+            GROUP BY folder_path
+            ORDER BY folder_path
+        """)
+
+        folders = cursor.fetchall()
+        cursor.close()
+        return jsonify(folders)
+
+    except Exception as e:
+        print(f"Error getting folders: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
 # --- Chatbot API ---
 @app.route('/api/chat', methods=['POST'])
 def chat():

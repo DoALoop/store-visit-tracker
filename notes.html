@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Notes - Store Visit Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'walmart-blue': '#0071ce',
+                        'walmart-dark-blue': '#004c91',
+                        'walmart-yellow': '#ffc220'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @supports(padding: max(0px)) {
+            .pb-safe { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+            .pt-safe { padding-top: max(0.5rem, env(safe-area-inset-top)); }
+        }
+        .note-content { min-height: 200px; }
+        .markdown-preview a { color: #0071ce; text-decoration: underline; }
+        .markdown-preview h1 { font-size: 1.5rem; font-weight: bold; margin-top: 1rem; }
+        .markdown-preview h2 { font-size: 1.25rem; font-weight: bold; margin-top: 0.75rem; }
+        .markdown-preview h3 { font-size: 1.1rem; font-weight: bold; margin-top: 0.5rem; }
+        .markdown-preview ul, .markdown-preview ol { margin-left: 1.5rem; margin-top: 0.5rem; }
+        .markdown-preview ul { list-style-type: disc; }
+        .markdown-preview ol { list-style-type: decimal; }
+        .markdown-preview code { background: #f3f4f6; padding: 0.125rem 0.25rem; border-radius: 0.25rem; font-family: monospace; }
+        .markdown-preview pre { background: #f3f4f6; padding: 0.75rem; border-radius: 0.5rem; overflow-x: auto; }
+        .markdown-preview blockquote { border-left: 4px solid #0071ce; padding-left: 1rem; margin: 0.5rem 0; color: #6b7280; }
+        .wikilink { color: #0071ce; cursor: pointer; text-decoration: underline; }
+        .wikilink.unresolved { color: #9ca3af; }
+        .tag { color: #0071ce; cursor: pointer; }
+        .task-checkbox { cursor: pointer; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- Header -->
+    <header class="bg-walmart-blue text-white sticky top-0 z-50 pt-safe">
+        <div class="flex items-center justify-between px-4 py-3">
+            <div class="flex items-center space-x-3">
+                <a href="index.html" class="text-white hover:text-walmart-yellow">
+                    <i class="fas fa-arrow-left text-xl"></i>
+                </a>
+                <h1 class="text-lg font-semibold">Notes</h1>
+            </div>
+            <div class="flex items-center space-x-3">
+                <button onclick="showSearch()" class="p-2 rounded-full hover:bg-walmart-dark-blue">
+                    <i class="fas fa-search"></i>
+                </button>
+                <button onclick="createNote()" class="p-2 rounded-full hover:bg-walmart-dark-blue">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+        </div>
+        <!-- Sub-navigation tabs -->
+        <div class="flex border-t border-walmart-dark-blue">
+            <button onclick="switchNotesView('all')" class="notes-tab flex-1 py-2 text-sm font-medium text-center border-b-2 border-walmart-yellow" data-view="all">
+                All Notes
+            </button>
+            <button onclick="switchNotesView('tasks')" class="notes-tab flex-1 py-2 text-sm font-medium text-center border-b-2 border-transparent hover:border-walmart-yellow/50" data-view="tasks">
+                Tasks
+            </button>
+            <button onclick="switchNotesView('daily')" class="notes-tab flex-1 py-2 text-sm font-medium text-center border-b-2 border-transparent hover:border-walmart-yellow/50" data-view="daily">
+                Daily
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="pb-20">
+        <!-- All Notes View -->
+        <div id="view-all-notes" class="p-4">
+            <!-- Folder breadcrumb -->
+            <div id="folder-breadcrumb" class="mb-4 text-sm text-gray-600">
+                <span class="cursor-pointer hover:text-walmart-blue" onclick="navigateFolder('/')">/</span>
+            </div>
+
+            <!-- Notes list -->
+            <div id="notes-list" class="space-y-3">
+                <div class="text-center text-gray-500 py-8">
+                    <i class="fas fa-sticky-note text-4xl mb-3 text-gray-300"></i>
+                    <p>No notes yet</p>
+                    <p class="text-sm mt-2">Tap + to create your first note</p>
+                    <p class="text-xs mt-4 text-gray-400">Database migration required - see console for details</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tasks View -->
+        <div id="view-tasks" class="p-4 hidden">
+            <div class="mb-4 flex space-x-2">
+                <button onclick="filterTasks('all')" class="task-filter px-3 py-1 rounded-full text-sm bg-walmart-blue text-white" data-filter="all">All</button>
+                <button onclick="filterTasks('today')" class="task-filter px-3 py-1 rounded-full text-sm bg-gray-200 text-gray-700" data-filter="today">Today</button>
+                <button onclick="filterTasks('upcoming')" class="task-filter px-3 py-1 rounded-full text-sm bg-gray-200 text-gray-700" data-filter="upcoming">Upcoming</button>
+                <button onclick="filterTasks('completed')" class="task-filter px-3 py-1 rounded-full text-sm bg-gray-200 text-gray-700" data-filter="completed">Completed</button>
+            </div>
+            <div id="tasks-list" class="space-y-2">
+                <p class="text-center text-gray-500 py-8">No tasks found</p>
+            </div>
+        </div>
+
+        <!-- Daily Notes View -->
+        <div id="view-daily" class="p-4 hidden">
+            <div class="flex items-center justify-between mb-4">
+                <button onclick="previousDay()" class="p-2 text-walmart-blue">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <span id="daily-date" class="font-medium"></span>
+                <button onclick="nextDay()" class="p-2 text-walmart-blue">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+            <div id="daily-note-content" class="bg-white rounded-lg shadow p-4">
+                <p class="text-center text-gray-500 py-8">Tap to create today's note</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- Note Editor Modal -->
+    <div id="note-editor-modal" class="fixed inset-0 bg-white z-50 hidden">
+        <div class="flex flex-col h-full">
+            <!-- Editor Header -->
+            <header class="bg-walmart-blue text-white px-4 py-3 flex items-center justify-between pt-safe">
+                <button onclick="closeEditor()" class="p-2">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+                <div class="flex space-x-2">
+                    <button onclick="togglePreview()" id="preview-btn" class="px-3 py-1 rounded text-sm border border-white/50">
+                        Preview
+                    </button>
+                    <button onclick="saveCurrentNote()" class="px-3 py-1 rounded text-sm bg-walmart-yellow text-walmart-dark-blue font-medium">
+                        Save
+                    </button>
+                </div>
+            </header>
+
+            <!-- Title Input -->
+            <input type="text" id="note-title" placeholder="Note title"
+                class="px-4 py-3 text-xl font-semibold border-b focus:outline-none focus:border-walmart-blue">
+
+            <!-- Editor/Preview Area -->
+            <div class="flex-1 overflow-hidden">
+                <textarea id="note-content" placeholder="Start writing...
+
+Use [[Note Title]] for wikilinks
+Use #tag for tags
+Use - [ ] for tasks"
+                    class="w-full h-full p-4 resize-none focus:outline-none note-content"></textarea>
+                <div id="note-preview" class="w-full h-full p-4 overflow-auto hidden markdown-preview"></div>
+            </div>
+
+            <!-- Backlinks Section -->
+            <div id="backlinks-section" class="border-t p-4 hidden">
+                <h3 class="text-sm font-medium text-gray-500 mb-2">Linked mentions</h3>
+                <div id="backlinks-list" class="space-y-2"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search Modal -->
+    <div id="search-modal" class="fixed inset-0 bg-white z-50 hidden">
+        <header class="bg-walmart-blue text-white px-4 py-3 flex items-center space-x-3 pt-safe">
+            <button onclick="hideSearch()" class="p-2">
+                <i class="fas fa-arrow-left text-xl"></i>
+            </button>
+            <input type="text" id="search-input" placeholder="Search notes..."
+                class="flex-1 bg-walmart-dark-blue text-white placeholder-white/70 rounded-lg px-4 py-2 focus:outline-none">
+        </header>
+        <div id="search-results" class="p-4">
+            <p class="text-center text-gray-500">Type to search...</p>
+        </div>
+    </div>
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="fixed bottom-0 w-full bg-white border-t border-gray-200 pb-safe z-40">
+        <div class="grid grid-cols-5 h-16">
+            <a href="index.html" class="w-full h-full flex flex-col items-center justify-center space-y-1 text-gray-500 hover:text-walmart-blue focus:outline-none">
+                <i class="fas fa-home text-xl"></i>
+                <span class="text-xs font-medium">Home</span>
+            </a>
+            <a href="index.html#log-visit" class="w-full h-full flex flex-col items-center justify-center space-y-1 text-gray-500 hover:text-walmart-blue focus:outline-none">
+                <i class="fas fa-camera text-xl"></i>
+                <span class="text-xs font-medium">Log Visit</span>
+            </a>
+            <a href="index.html#visits" class="w-full h-full flex flex-col items-center justify-center space-y-1 text-gray-500 hover:text-walmart-blue focus:outline-none">
+                <i class="fas fa-clipboard-list text-xl"></i>
+                <span class="text-xs font-medium">Tracker</span>
+            </a>
+            <a href="index.html#market-notes" class="w-full h-full flex flex-col items-center justify-center space-y-1 text-gray-500 hover:text-walmart-blue focus:outline-none">
+                <i class="fas fa-tasks text-xl"></i>
+                <span class="text-xs font-medium">Tasks</span>
+            </a>
+            <a href="notes.html" class="w-full h-full flex flex-col items-center justify-center space-y-1 text-walmart-blue focus:outline-none">
+                <i class="fas fa-sticky-note text-xl"></i>
+                <span class="text-xs font-medium">Notes</span>
+            </a>
+        </div>
+    </nav>
+
+    <script>
+        // --- State ---
+        let currentNoteId = null;
+        let currentFolder = '/';
+        let currentDailyDate = new Date();
+        let isPreviewMode = false;
+        let allNotes = [];
+        let allTasks = [];
+
+        // --- API Base URL ---
+        const API_BASE = '';
+
+        // --- View Switching ---
+        function switchNotesView(view) {
+            document.querySelectorAll('.notes-tab').forEach(tab => {
+                tab.classList.remove('border-walmart-yellow');
+                tab.classList.add('border-transparent');
+            });
+            document.querySelector(`.notes-tab[data-view="${view}"]`).classList.remove('border-transparent');
+            document.querySelector(`.notes-tab[data-view="${view}"]`).classList.add('border-walmart-yellow');
+
+            document.getElementById('view-all-notes').classList.add('hidden');
+            document.getElementById('view-tasks').classList.add('hidden');
+            document.getElementById('view-daily').classList.add('hidden');
+
+            if (view === 'all') {
+                document.getElementById('view-all-notes').classList.remove('hidden');
+                loadNotes();
+            } else if (view === 'tasks') {
+                document.getElementById('view-tasks').classList.remove('hidden');
+                loadTasks();
+            } else if (view === 'daily') {
+                document.getElementById('view-daily').classList.remove('hidden');
+                loadDailyNote();
+            }
+        }
+
+        // --- Notes CRUD ---
+        async function loadNotes(folderPath = null) {
+            try {
+                const params = new URLSearchParams();
+                if (folderPath) params.append('folder_path', folderPath);
+
+                const response = await fetch(`${API_BASE}/api/notes?${params}`);
+                if (!response.ok) throw new Error('Failed to load notes');
+
+                const data = await response.json();
+                allNotes = data.notes || [];
+                renderNotesList(allNotes);
+            } catch (error) {
+                console.error('Error loading notes:', error);
+                document.getElementById('notes-list').innerHTML = `
+                    <div class="text-center text-gray-500 py-8">
+                        <i class="fas fa-exclamation-circle text-4xl mb-3 text-red-300"></i>
+                        <p>Failed to load notes</p>
+                        <p class="text-sm mt-2">Make sure the database migration has been run</p>
+                    </div>
+                `;
+            }
+        }
+
+        function renderNotesList(notes) {
+            const container = document.getElementById('notes-list');
+
+            if (!notes || notes.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-gray-500 py-8">
+                        <i class="fas fa-sticky-note text-4xl mb-3 text-gray-300"></i>
+                        <p>No notes yet</p>
+                        <p class="text-sm mt-2">Tap + to create your first note</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = notes.map(note => `
+                <div class="bg-white rounded-lg shadow p-4 cursor-pointer hover:shadow-md transition-shadow"
+                     onclick="openNote('${note.id}')">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1 min-w-0">
+                            <h3 class="font-medium text-gray-900 truncate">${escapeHtml(note.title)}</h3>
+                            <p class="text-sm text-gray-500 mt-1 line-clamp-2">${escapeHtml(note.content?.substring(0, 100) || '')}</p>
+                            ${note.tags?.length ? `
+                                <div class="flex flex-wrap gap-1 mt-2">
+                                    ${note.tags.map(tag => `<span class="text-xs text-walmart-blue">#${escapeHtml(tag)}</span>`).join('')}
+                                </div>
+                            ` : ''}
+                        </div>
+                        ${note.is_pinned ? '<i class="fas fa-thumbtack text-walmart-yellow ml-2"></i>' : ''}
+                    </div>
+                    <div class="text-xs text-gray-400 mt-2">
+                        ${new Date(note.updated_at).toLocaleDateString()}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function openNote(noteId) {
+            try {
+                const response = await fetch(`${API_BASE}/api/notes/${noteId}`);
+                if (!response.ok) throw new Error('Failed to load note');
+
+                const note = await response.json();
+                currentNoteId = note.id;
+
+                document.getElementById('note-title').value = note.title || '';
+                document.getElementById('note-content').value = note.content || '';
+
+                // Load backlinks
+                if (note.backlinks?.length) {
+                    document.getElementById('backlinks-section').classList.remove('hidden');
+                    document.getElementById('backlinks-list').innerHTML = note.backlinks.map(bl => `
+                        <div class="text-sm text-walmart-blue cursor-pointer hover:underline"
+                             onclick="openNote('${bl.id}')">${escapeHtml(bl.title)}</div>
+                    `).join('');
+                } else {
+                    document.getElementById('backlinks-section').classList.add('hidden');
+                }
+
+                showEditor();
+            } catch (error) {
+                console.error('Error opening note:', error);
+                alert('Failed to open note');
+            }
+        }
+
+        function createNote() {
+            currentNoteId = null;
+            document.getElementById('note-title').value = '';
+            document.getElementById('note-content').value = '';
+            document.getElementById('backlinks-section').classList.add('hidden');
+            showEditor();
+        }
+
+        async function saveCurrentNote() {
+            const title = document.getElementById('note-title').value.trim();
+            const content = document.getElementById('note-content').value;
+
+            if (!title) {
+                alert('Please enter a title');
+                return;
+            }
+
+            try {
+                const payload = {
+                    title,
+                    content,
+                    folder_path: currentFolder
+                };
+
+                let response;
+                if (currentNoteId) {
+                    response = await fetch(`${API_BASE}/api/notes/${currentNoteId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                } else {
+                    response = await fetch(`${API_BASE}/api/notes`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                }
+
+                if (!response.ok) throw new Error('Failed to save note');
+
+                const savedNote = await response.json();
+                currentNoteId = savedNote.id;
+
+                closeEditor();
+                loadNotes(currentFolder);
+            } catch (error) {
+                console.error('Error saving note:', error);
+                alert('Failed to save note');
+            }
+        }
+
+        // --- Editor ---
+        function showEditor() {
+            document.getElementById('note-editor-modal').classList.remove('hidden');
+            document.getElementById('note-content').classList.remove('hidden');
+            document.getElementById('note-preview').classList.add('hidden');
+            isPreviewMode = false;
+            document.getElementById('preview-btn').textContent = 'Preview';
+        }
+
+        function closeEditor() {
+            document.getElementById('note-editor-modal').classList.add('hidden');
+        }
+
+        function togglePreview() {
+            isPreviewMode = !isPreviewMode;
+            if (isPreviewMode) {
+                const content = document.getElementById('note-content').value;
+                document.getElementById('note-preview').innerHTML = renderMarkdown(content);
+                document.getElementById('note-content').classList.add('hidden');
+                document.getElementById('note-preview').classList.remove('hidden');
+                document.getElementById('preview-btn').textContent = 'Edit';
+            } else {
+                document.getElementById('note-content').classList.remove('hidden');
+                document.getElementById('note-preview').classList.add('hidden');
+                document.getElementById('preview-btn').textContent = 'Preview';
+            }
+        }
+
+        // --- Markdown Rendering ---
+        function renderMarkdown(content) {
+            if (!content) return '';
+
+            // Process wikilinks: [[Title]] or [[Title|Display]]
+            let processed = content.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (match, title, display) => {
+                return `<span class="wikilink" onclick="navigateToNote('${escapeHtml(title)}')">${escapeHtml(display || title)}</span>`;
+            });
+
+            // Process tags: #tagname
+            processed = processed.replace(/#([\w-]+)/g, '<span class="tag" onclick="filterByTag(\'$1\')">#$1</span>');
+
+            // Process tasks: - [ ] or - [x]
+            processed = processed.replace(/^(\s*)- \[ \] (.+)$/gm, '$1<input type="checkbox" class="task-checkbox mr-2" onclick="toggleTaskInContent(this)"><span>$2</span>');
+            processed = processed.replace(/^(\s*)- \[x\] (.+)$/gim, '$1<input type="checkbox" class="task-checkbox mr-2" checked onclick="toggleTaskInContent(this)"><span class="line-through text-gray-400">$2</span>');
+
+            // Use marked for the rest
+            return marked.parse(processed);
+        }
+
+        function navigateToNote(title) {
+            // Search for note by title and open it
+            const note = allNotes.find(n => n.title.toLowerCase() === title.toLowerCase());
+            if (note) {
+                openNote(note.id);
+            } else {
+                // Create new note with this title
+                if (confirm(`Note "${title}" doesn't exist. Create it?`)) {
+                    currentNoteId = null;
+                    document.getElementById('note-title').value = title;
+                    document.getElementById('note-content').value = '';
+                    showEditor();
+                }
+            }
+        }
+
+        // --- Tasks ---
+        async function loadTasks(filter = 'all') {
+            try {
+                const params = new URLSearchParams();
+                if (filter === 'today') {
+                    const today = new Date().toISOString().split('T')[0];
+                    params.append('due_date', today);
+                } else if (filter === 'completed') {
+                    params.append('is_completed', 'true');
+                } else if (filter === 'upcoming') {
+                    params.append('upcoming', 'true');
+                }
+
+                const response = await fetch(`${API_BASE}/api/notes/tasks?${params}`);
+                if (!response.ok) throw new Error('Failed to load tasks');
+
+                const data = await response.json();
+                allTasks = data.tasks || [];
+                renderTasksList(allTasks);
+            } catch (error) {
+                console.error('Error loading tasks:', error);
+                document.getElementById('tasks-list').innerHTML = '<p class="text-center text-gray-500 py-8">Failed to load tasks</p>';
+            }
+        }
+
+        function renderTasksList(tasks) {
+            const container = document.getElementById('tasks-list');
+
+            if (!tasks || tasks.length === 0) {
+                container.innerHTML = '<p class="text-center text-gray-500 py-8">No tasks found</p>';
+                return;
+            }
+
+            container.innerHTML = tasks.map(task => `
+                <div class="bg-white rounded-lg shadow p-3 flex items-start space-x-3">
+                    <input type="checkbox" ${task.is_completed ? 'checked' : ''}
+                           class="mt-1 cursor-pointer" onclick="toggleTask('${task.id}')">
+                    <div class="flex-1 min-w-0">
+                        <p class="${task.is_completed ? 'line-through text-gray-400' : ''}">${escapeHtml(task.content)}</p>
+                        <div class="text-xs text-gray-400 mt-1">
+                            ${task.due_date ? `Due: ${task.due_date}` : ''}
+                            <span class="text-walmart-blue cursor-pointer hover:underline"
+                                  onclick="openNote('${task.note_id}')">Open note</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function filterTasks(filter) {
+            document.querySelectorAll('.task-filter').forEach(btn => {
+                btn.classList.remove('bg-walmart-blue', 'text-white');
+                btn.classList.add('bg-gray-200', 'text-gray-700');
+            });
+            document.querySelector(`.task-filter[data-filter="${filter}"]`).classList.remove('bg-gray-200', 'text-gray-700');
+            document.querySelector(`.task-filter[data-filter="${filter}"]`).classList.add('bg-walmart-blue', 'text-white');
+            loadTasks(filter);
+        }
+
+        async function toggleTask(taskId) {
+            try {
+                const response = await fetch(`${API_BASE}/api/notes/tasks/${taskId}/toggle`, { method: 'POST' });
+                if (!response.ok) throw new Error('Failed to toggle task');
+                loadTasks();
+            } catch (error) {
+                console.error('Error toggling task:', error);
+            }
+        }
+
+        // --- Daily Notes ---
+        async function loadDailyNote() {
+            const dateStr = currentDailyDate.toISOString().split('T')[0];
+            document.getElementById('daily-date').textContent = currentDailyDate.toLocaleDateString('en-US', {
+                weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+            });
+
+            try {
+                const response = await fetch(`${API_BASE}/api/notes/daily/${dateStr}`);
+                if (!response.ok) throw new Error('Failed to load daily note');
+
+                const data = await response.json();
+                if (data.note) {
+                    document.getElementById('daily-note-content').innerHTML = `
+                        <div class="cursor-pointer" onclick="openNote('${data.note.id}')">
+                            ${renderMarkdown(data.note.content)}
+                        </div>
+                    `;
+                } else {
+                    document.getElementById('daily-note-content').innerHTML = `
+                        <p class="text-center text-gray-500 py-8 cursor-pointer" onclick="createDailyNote()">
+                            Tap to create today's note
+                        </p>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading daily note:', error);
+            }
+        }
+
+        async function createDailyNote() {
+            const dateStr = currentDailyDate.toISOString().split('T')[0];
+            try {
+                const response = await fetch(`${API_BASE}/api/notes/daily/${dateStr}`, { method: 'POST' });
+                if (!response.ok) throw new Error('Failed to create daily note');
+
+                const data = await response.json();
+                openNote(data.note.id);
+            } catch (error) {
+                console.error('Error creating daily note:', error);
+            }
+        }
+
+        function previousDay() {
+            currentDailyDate.setDate(currentDailyDate.getDate() - 1);
+            loadDailyNote();
+        }
+
+        function nextDay() {
+            currentDailyDate.setDate(currentDailyDate.getDate() + 1);
+            loadDailyNote();
+        }
+
+        // --- Search ---
+        function showSearch() {
+            document.getElementById('search-modal').classList.remove('hidden');
+            document.getElementById('search-input').focus();
+        }
+
+        function hideSearch() {
+            document.getElementById('search-modal').classList.add('hidden');
+        }
+
+        document.getElementById('search-input')?.addEventListener('input', debounce(async (e) => {
+            const query = e.target.value.trim();
+            if (query.length < 2) {
+                document.getElementById('search-results').innerHTML = '<p class="text-center text-gray-500">Type to search...</p>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/api/notes/search?q=${encodeURIComponent(query)}`);
+                if (!response.ok) throw new Error('Search failed');
+
+                const data = await response.json();
+                const results = data.notes || [];
+
+                if (results.length === 0) {
+                    document.getElementById('search-results').innerHTML = '<p class="text-center text-gray-500">No results found</p>';
+                } else {
+                    document.getElementById('search-results').innerHTML = results.map(note => `
+                        <div class="bg-white rounded-lg shadow p-3 mb-2 cursor-pointer" onclick="hideSearch(); openNote('${note.id}')">
+                            <h4 class="font-medium">${escapeHtml(note.title)}</h4>
+                            <p class="text-sm text-gray-500 truncate">${escapeHtml(note.content?.substring(0, 80) || '')}</p>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Search error:', error);
+            }
+        }, 300));
+
+        // --- Utilities ---
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function debounce(func, wait) {
+            let timeout;
+            return function(...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), wait);
+            };
+        }
+
+        function navigateFolder(path) {
+            currentFolder = path;
+            loadNotes(path);
+        }
+
+        function filterByTag(tag) {
+            // TODO: Implement tag filtering
+            console.log('Filter by tag:', tag);
+        }
+
+        function toggleTaskInContent(checkbox) {
+            // TODO: Implement in-content task toggling
+            console.log('Toggle task in content');
+        }
+
+        // --- Initialize ---
+        document.addEventListener('DOMContentLoaded', () => {
+            loadNotes();
+        });
+    </script>
+</body>
+</html>
