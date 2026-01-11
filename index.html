@@ -938,7 +938,7 @@
                     <button onclick="switchNotesSubView('tasks')" class="notes-tab flex-1 py-2 text-sm font-medium text-center border-b-2 border-walmart-yellow" data-view="tasks">Tasks</button>
                     <button onclick="switchNotesSubView('market')" class="notes-tab flex-1 py-2 text-sm font-medium text-center border-b-2 border-transparent hover:border-walmart-yellow/50" data-view="market">Market</button>
                     <button onclick="switchNotesSubView('daily')" class="notes-tab flex-1 py-2 text-sm font-medium text-center border-b-2 border-transparent hover:border-walmart-yellow/50" data-view="daily">Daily</button>
-                    <button onclick="switchNotesSubView('graph')" class="notes-tab flex-1 py-2 text-sm font-medium text-center border-b-2 border-transparent hover:border-walmart-yellow/50" data-view="graph">Graph</button>
+                    <button onclick="switchNotesSubView('graph')" class="notes-tab flex-1 py-2 text-sm font-medium text-center border-b-2 border-transparent hover:border-walmart-yellow/50" data-view="graph">Insights</button>
                 </div>
             </header>
 
@@ -998,9 +998,30 @@
             </div>
 
             <!-- Graph View -->
-            <div id="notes-view-graph" class="hidden" style="height: calc(100vh - 180px);">
-                <canvas id="graph-canvas" class="w-full h-full"></canvas>
-                <div id="graph-tooltip" class="fixed bg-gray-800 text-white text-sm px-3 py-2 rounded shadow-lg pointer-events-none hidden"></div>
+            <div id="notes-view-graph" class="p-4 hidden overflow-y-auto" style="height: calc(100vh - 180px);">
+                <!-- AI Insights Header -->
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-semibold text-gray-800"><i class="fas fa-brain text-walmart-blue mr-2"></i>AI Insights</h2>
+                    <button onclick="loadAIInsights()" id="refresh-insights-btn" class="px-3 py-1.5 bg-walmart-blue text-white rounded-lg text-sm hover:bg-walmart-dark-blue">
+                        <i class="fas fa-sync-alt mr-1"></i>Refresh
+                    </button>
+                </div>
+
+                <!-- Loading State -->
+                <div id="insights-loading" class="hidden text-center py-12">
+                    <i class="fas fa-spinner fa-spin text-4xl text-walmart-blue mb-4"></i>
+                    <p class="text-gray-600">Analyzing your notes with AI...</p>
+                    <p class="text-sm text-gray-400 mt-2">This may take a few seconds</p>
+                </div>
+
+                <!-- Insights Content -->
+                <div id="insights-content" class="space-y-4">
+                    <div class="text-center py-12 text-gray-500">
+                        <i class="fas fa-brain text-4xl mb-3 text-gray-300"></i>
+                        <p>Click Refresh to analyze your notes</p>
+                        <p class="text-sm mt-2">AI will identify themes, patterns, and trends</p>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -4252,236 +4273,140 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             }
         }, 300));
 
-        // --- Graph Visualization ---
-        async function loadGraph() {
+        // --- AI Insights ---
+        async function loadAIInsights() {
+            const loadingEl = document.getElementById('insights-loading');
+            const contentEl = document.getElementById('insights-content');
+            const refreshBtn = document.getElementById('refresh-insights-btn');
+
+            loadingEl.classList.remove('hidden');
+            contentEl.classList.add('hidden');
+            refreshBtn.disabled = true;
+
             try {
-                const response = await fetch('/api/notes/graph');
-                if (!response.ok) throw new Error('Failed to load graph');
+                const response = await fetch('/api/notes/ai-insights');
+                if (!response.ok) throw new Error('Failed to load insights');
                 const data = await response.json();
-                graphNodes = data.nodes || [];
-                graphEdges = data.edges || [];
-                if (graphNodes.length === 0) {
-                    document.getElementById('notes-view-graph').innerHTML = '<div class="flex items-center justify-center h-full text-gray-500"><div class="text-center"><i class="fas fa-project-diagram text-4xl mb-3 text-gray-300"></i><p>No notes to visualize</p><p class="text-sm mt-2">Create some notes with [[wikilinks]] to see connections</p></div></div>';
-                    return;
-                }
-                initGraph();
-            } catch (error) {
-                console.error('Error loading graph:', error);
-            }
-        }
 
-        function initGraph() {
-            graphCanvas = document.getElementById('graph-canvas');
-            graphCtx = graphCanvas.getContext('2d');
-            resizeGraphCanvas();
-            window.addEventListener('resize', resizeGraphCanvas);
-            const centerX = graphCanvas.width / 2;
-            const centerY = graphCanvas.height / 2;
-            const radius = Math.min(graphCanvas.width, graphCanvas.height) * 0.35;
-            graphNodes.forEach((node, i) => {
-                const angle = (2 * Math.PI * i) / graphNodes.length;
-                node.x = centerX + radius * Math.cos(angle) + (Math.random() - 0.5) * 50;
-                node.y = centerY + radius * Math.sin(angle) + (Math.random() - 0.5) * 50;
-                node.vx = 0;
-                node.vy = 0;
-                node.radius = 20 + Math.min(node.link_count + node.backlink_count, 10) * 3;
-            });
-            graphCanvas.addEventListener('mousedown', onGraphMouseDown);
-            graphCanvas.addEventListener('mousemove', onGraphMouseMove);
-            graphCanvas.addEventListener('mouseup', onGraphMouseUp);
-            graphCanvas.addEventListener('click', onGraphClick);
-            graphCanvas.addEventListener('touchstart', onGraphTouchStart, { passive: false });
-            graphCanvas.addEventListener('touchmove', onGraphTouchMove, { passive: false });
-            graphCanvas.addEventListener('touchend', onGraphTouchEnd);
-            animateGraph();
-        }
-
-        function resizeGraphCanvas() {
-            if (!graphCanvas) return;
-            const container = document.getElementById('notes-view-graph');
-            graphCanvas.width = container.clientWidth;
-            graphCanvas.height = container.clientHeight;
-        }
-
-        function animateGraph() {
-            if (!graphCtx) return;
-            applyForces();
-            graphCtx.fillStyle = '#f3f4f6';
-            graphCtx.fillRect(0, 0, graphCanvas.width, graphCanvas.height);
-            graphCtx.strokeStyle = '#cbd5e1';
-            graphCtx.lineWidth = 2;
-            graphEdges.forEach(edge => {
-                const source = graphNodes.find(n => n.id === edge.source);
-                const target = graphNodes.find(n => n.id === edge.target);
-                if (source && target) {
-                    graphCtx.beginPath();
-                    graphCtx.moveTo(source.x, source.y);
-                    graphCtx.lineTo(target.x, target.y);
-                    graphCtx.stroke();
-                    const angle = Math.atan2(target.y - source.y, target.x - source.x);
-                    const arrowX = target.x - target.radius * Math.cos(angle);
-                    const arrowY = target.y - target.radius * Math.sin(angle);
-                    drawArrow(arrowX, arrowY, angle);
-                }
-            });
-            graphNodes.forEach(node => {
-                const isHovered = hoveredNode === node;
-                graphCtx.beginPath();
-                graphCtx.arc(node.x, node.y, node.radius, 0, 2 * Math.PI);
-                graphCtx.fillStyle = isHovered ? '#ffc220' : '#0071ce';
-                graphCtx.fill();
-                graphCtx.strokeStyle = '#fff';
-                graphCtx.lineWidth = 2;
-                graphCtx.stroke();
-                graphCtx.fillStyle = '#1f2937';
-                graphCtx.font = '12px sans-serif';
-                graphCtx.textAlign = 'center';
-                graphCtx.textBaseline = 'top';
-                const label = node.title.length > 15 ? node.title.substring(0, 15) + '...' : node.title;
-                graphCtx.fillText(label, node.x, node.y + node.radius + 5);
-            });
-            graphAnimationId = requestAnimationFrame(animateGraph);
-        }
-
-        function drawArrow(x, y, angle) {
-            const size = 8;
-            graphCtx.fillStyle = '#cbd5e1';
-            graphCtx.beginPath();
-            graphCtx.moveTo(x, y);
-            graphCtx.lineTo(x - size * Math.cos(angle - Math.PI / 6), y - size * Math.sin(angle - Math.PI / 6));
-            graphCtx.lineTo(x - size * Math.cos(angle + Math.PI / 6), y - size * Math.sin(angle + Math.PI / 6));
-            graphCtx.closePath();
-            graphCtx.fill();
-        }
-
-        function applyForces() {
-            const centerX = graphCanvas.width / 2;
-            const centerY = graphCanvas.height / 2;
-            graphNodes.forEach(node => {
-                node.vx += (centerX - node.x) * 0.0005;
-                node.vy += (centerY - node.y) * 0.0005;
-                graphNodes.forEach(other => {
-                    if (node === other) return;
-                    const dx = node.x - other.x;
-                    const dy = node.y - other.y;
-                    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-                    const force = 2000 / (dist * dist);
-                    node.vx += (dx / dist) * force;
-                    node.vy += (dy / dist) * force;
-                });
-            });
-            graphEdges.forEach(edge => {
-                const source = graphNodes.find(n => n.id === edge.source);
-                const target = graphNodes.find(n => n.id === edge.target);
-                if (source && target) {
-                    const dx = target.x - source.x;
-                    const dy = target.y - source.y;
-                    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-                    const force = (dist - 150) * 0.01;
-                    source.vx += (dx / dist) * force;
-                    source.vy += (dy / dist) * force;
-                    target.vx -= (dx / dist) * force;
-                    target.vy -= (dy / dist) * force;
-                }
-            });
-            graphNodes.forEach(node => {
-                if (node === dragNode) return;
-                node.vx *= 0.9;
-                node.vy *= 0.9;
-                node.x += node.vx;
-                node.y += node.vy;
-                const margin = node.radius + 10;
-                node.x = Math.max(margin, Math.min(graphCanvas.width - margin, node.x));
-                node.y = Math.max(margin, Math.min(graphCanvas.height - margin, node.y));
-            });
-        }
-
-        function getNodeAtPosition(x, y) {
-            for (let i = graphNodes.length - 1; i >= 0; i--) {
-                const node = graphNodes[i];
-                const dx = x - node.x;
-                const dy = y - node.y;
-                if (dx * dx + dy * dy < node.radius * node.radius) return node;
-            }
-            return null;
-        }
-
-        function onGraphMouseDown(e) {
-            const rect = graphCanvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            dragNode = getNodeAtPosition(x, y);
-            if (dragNode) {
-                isDragging = true;
-                graphCanvas.style.cursor = 'grabbing';
-            }
-        }
-
-        function onGraphMouseMove(e) {
-            const rect = graphCanvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            if (isDragging && dragNode) {
-                dragNode.x = x;
-                dragNode.y = y;
-                dragNode.vx = 0;
-                dragNode.vy = 0;
-            } else {
-                const node = getNodeAtPosition(x, y);
-                hoveredNode = node;
-                graphCanvas.style.cursor = node ? 'pointer' : 'default';
-                const tooltip = document.getElementById('graph-tooltip');
-                if (node) {
-                    tooltip.textContent = `${node.title} (${node.link_count} links, ${node.backlink_count} backlinks)`;
-                    tooltip.style.left = (e.clientX + 10) + 'px';
-                    tooltip.style.top = (e.clientY + 10) + 'px';
-                    tooltip.classList.remove('hidden');
+                if (data.error) {
+                    contentEl.innerHTML = `<div class="text-center py-8 text-red-500"><i class="fas fa-exclamation-circle text-2xl mb-2"></i><p>${notesEscapeHtml(data.error)}</p></div>`;
                 } else {
-                    tooltip.classList.add('hidden');
+                    renderAIInsights(data);
                 }
+            } catch (error) {
+                console.error('Error loading AI insights:', error);
+                contentEl.innerHTML = `<div class="text-center py-8 text-red-500"><i class="fas fa-exclamation-circle text-2xl mb-2"></i><p>Failed to load insights</p></div>`;
+            } finally {
+                loadingEl.classList.add('hidden');
+                contentEl.classList.remove('hidden');
+                refreshBtn.disabled = false;
             }
         }
 
-        function onGraphMouseUp() {
-            isDragging = false;
-            dragNode = null;
-            graphCanvas.style.cursor = 'default';
+        function renderAIInsights(data) {
+            const contentEl = document.getElementById('insights-content');
+            let html = '';
+
+            // Summary
+            if (data.summary) {
+                html += `
+                    <div class="bg-walmart-blue text-white rounded-lg p-4">
+                        <h3 class="font-semibold mb-2"><i class="fas fa-lightbulb mr-2"></i>Summary</h3>
+                        <p class="text-sm">${notesEscapeHtml(data.summary)}</p>
+                    </div>
+                `;
+            }
+
+            // Themes
+            if (data.themes && data.themes.length > 0) {
+                html += `
+                    <div class="bg-white rounded-lg shadow p-4">
+                        <h3 class="font-semibold text-gray-800 mb-3"><i class="fas fa-tags text-walmart-blue mr-2"></i>Key Themes</h3>
+                        <div class="space-y-2">
+                            ${data.themes.map(t => `
+                                <div class="flex items-start space-x-3 p-2 rounded ${t.priority === 'high' ? 'bg-red-50' : t.priority === 'medium' ? 'bg-yellow-50' : 'bg-gray-50'}">
+                                    <span class="px-2 py-0.5 rounded text-xs font-medium ${t.priority === 'high' ? 'bg-red-100 text-red-700' : t.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'}">${t.priority || 'low'}</span>
+                                    <div class="flex-1">
+                                        <p class="font-medium text-gray-800">${notesEscapeHtml(t.name)}</p>
+                                        <p class="text-sm text-gray-600">${notesEscapeHtml(t.description)}</p>
+                                        ${t.count ? `<span class="text-xs text-gray-400">${t.count} related items</span>` : ''}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Store Patterns
+            if (data.store_patterns && data.store_patterns.length > 0) {
+                html += `
+                    <div class="bg-white rounded-lg shadow p-4">
+                        <h3 class="font-semibold text-gray-800 mb-3"><i class="fas fa-store text-purple-600 mr-2"></i>Store Patterns</h3>
+                        <div class="space-y-2">
+                            ${data.store_patterns.map(s => `
+                                <div class="flex items-start space-x-3 p-2 rounded bg-purple-50">
+                                    <span class="px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">Store ${s.store}</span>
+                                    <div class="flex-1">
+                                        <p class="text-sm text-gray-800">${notesEscapeHtml(s.pattern)}</p>
+                                        <span class="text-xs text-gray-400">${s.frequency || ''}</span>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Time Trends
+            if (data.time_trends && data.time_trends.length > 0) {
+                html += `
+                    <div class="bg-white rounded-lg shadow p-4">
+                        <h3 class="font-semibold text-gray-800 mb-3"><i class="fas fa-chart-line text-green-600 mr-2"></i>Time Trends</h3>
+                        <div class="space-y-2">
+                            ${data.time_trends.map(t => `
+                                <div class="flex items-start space-x-3 p-2 rounded bg-green-50">
+                                    <i class="fas fa-arrow-${t.direction === 'increasing' ? 'up text-red-500' : t.direction === 'decreasing' ? 'down text-green-500' : 'right text-gray-500'} mt-1"></i>
+                                    <div class="flex-1">
+                                        <p class="text-sm text-gray-800">${notesEscapeHtml(t.trend)}</p>
+                                        <span class="text-xs text-gray-400">${t.timeframe || ''}</span>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Recommendations
+            if (data.recommendations && data.recommendations.length > 0) {
+                html += `
+                    <div class="bg-white rounded-lg shadow p-4">
+                        <h3 class="font-semibold text-gray-800 mb-3"><i class="fas fa-check-circle text-walmart-blue mr-2"></i>Recommendations</h3>
+                        <div class="space-y-2">
+                            ${data.recommendations.map(r => `
+                                <div class="flex items-start space-x-3 p-2 rounded ${r.priority === 'high' ? 'bg-blue-50 border-l-4 border-walmart-blue' : 'bg-gray-50'}">
+                                    <div class="flex-1">
+                                        <p class="font-medium text-gray-800">${notesEscapeHtml(r.action)}</p>
+                                        <p class="text-sm text-gray-600">${notesEscapeHtml(r.reason)}</p>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (!html) {
+                html = `<div class="text-center py-8 text-gray-500"><i class="fas fa-info-circle text-2xl mb-2"></i><p>No insights available yet. Add more notes and try again.</p></div>`;
+            }
+
+            contentEl.innerHTML = html;
         }
 
-        function onGraphClick(e) {
-            if (isDragging) return;
-            const rect = graphCanvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            const node = getNodeAtPosition(x, y);
-            if (node) openNote(node.id);
-        }
-
-        function onGraphTouchStart(e) {
-            e.preventDefault();
-            const touch = e.touches[0];
-            const rect = graphCanvas.getBoundingClientRect();
-            const x = touch.clientX - rect.left;
-            const y = touch.clientY - rect.top;
-            dragNode = getNodeAtPosition(x, y);
-            if (dragNode) isDragging = true;
-        }
-
-        function onGraphTouchMove(e) {
-            e.preventDefault();
-            if (!isDragging || !dragNode) return;
-            const touch = e.touches[0];
-            const rect = graphCanvas.getBoundingClientRect();
-            dragNode.x = touch.clientX - rect.left;
-            dragNode.y = touch.clientY - rect.top;
-            dragNode.vx = 0;
-            dragNode.vy = 0;
-        }
-
-        function onGraphTouchEnd(e) {
-            if (!isDragging && dragNode) openNote(dragNode.id);
-            isDragging = false;
-            dragNode = null;
+        // Keep loadGraph as alias for backwards compatibility
+        function loadGraph() {
+            // No-op - graph replaced with AI insights
         }
 
         // --- Notes Utilities ---

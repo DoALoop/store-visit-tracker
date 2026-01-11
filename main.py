@@ -2678,6 +2678,135 @@ def get_note_graph():
         release_db_connection(conn)
 
 
+@app.route('/api/notes/ai-insights', methods=['GET'])
+def get_ai_insights():
+    """Use Gemini to analyze notes for themes, store patterns, and time trends"""
+    if not model:
+        return jsonify({"error": "AI model not available"}), 503
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Get all notes with content
+        cursor.execute("""
+            SELECT n.id, n.title, n.content, n.store_number, n.created_at::date as date
+            FROM notes n
+            WHERE n.deleted_at IS NULL AND n.content IS NOT NULL AND n.content != ''
+            ORDER BY n.created_at DESC
+            LIMIT 100
+        """)
+        notes = cursor.fetchall()
+
+        # Get all tasks
+        cursor.execute("""
+            SELECT t.content, t.status, t.store_number, t.due_date, t.created_at::date as date,
+                   n.title as note_title
+            FROM note_tasks t
+            JOIN notes n ON t.note_id = n.id
+            WHERE n.deleted_at IS NULL
+            ORDER BY t.created_at DESC
+            LIMIT 100
+        """)
+        tasks = cursor.fetchall()
+
+        # Get market notes
+        cursor.execute("""
+            SELECT sv."storeNbr" as store_nbr, smn.note_text,
+                   COALESCE(mnc.status, 'new') as status, sv.calendar_date as visit_date
+            FROM store_market_notes smn
+            JOIN store_visits sv ON smn.visit_id = sv.id
+            LEFT JOIN market_note_completions mnc
+                ON smn.visit_id = mnc.visit_id AND smn.note_text = mnc.note_text
+            ORDER BY sv.calendar_date DESC
+            LIMIT 50
+        """)
+        market_notes = cursor.fetchall()
+
+        cursor.close()
+
+        # Build context for Gemini
+        notes_text = "\n".join([
+            f"[{n['date']}] {n['title']} (Store: {n['store_number'] or 'General'}): {n['content'][:500]}"
+            for n in notes
+        ])
+
+        tasks_text = "\n".join([
+            f"[{t['date']}] Task: {t['content']} (Store: {t['store_number'] or 'General'}, Status: {t['status']})"
+            for t in tasks
+        ])
+
+        market_text = "\n".join([
+            f"[{m['visit_date']}] Store {m['store_nbr']}: {m['note_text']} (Status: {m['status']})"
+            for m in market_notes
+        ])
+
+        prompt = f"""Analyze these notes, tasks, and market observations from a Walmart Market Manager. Provide insights in JSON format.
+
+NOTES:
+{notes_text}
+
+TASKS:
+{tasks_text}
+
+MARKET OBSERVATIONS:
+{market_text}
+
+Respond with valid JSON only (no markdown):
+{{
+  "themes": [
+    {{"name": "Theme Name", "description": "Brief description", "count": number_of_related_items, "priority": "high/medium/low"}}
+  ],
+  "store_patterns": [
+    {{"store": "store_number", "pattern": "Description of recurring pattern or issue", "frequency": "frequent/occasional/rare"}}
+  ],
+  "time_trends": [
+    {{"trend": "Description of trend over time", "direction": "increasing/decreasing/stable", "timeframe": "description"}}
+  ],
+  "recommendations": [
+    {{"action": "Recommended action", "reason": "Why this is recommended", "priority": "high/medium/low"}}
+  ],
+  "summary": "2-3 sentence executive summary of key insights"
+}}
+
+Focus on actionable insights. Identify patterns that could help improve store performance."""
+
+        # Call Gemini
+        response = model.generate_content(prompt)
+        response_text = response.text.strip()
+
+        # Try to parse as JSON
+        import json
+        # Remove markdown code blocks if present
+        if response_text.startswith('```'):
+            response_text = response_text.split('\n', 1)[1]
+            if response_text.endswith('```'):
+                response_text = response_text.rsplit('```', 1)[0]
+
+        try:
+            insights = json.loads(response_text)
+        except json.JSONDecodeError:
+            # Return raw text if JSON parsing fails
+            insights = {
+                "summary": response_text,
+                "themes": [],
+                "store_patterns": [],
+                "time_trends": [],
+                "recommendations": []
+            }
+
+        return jsonify(insights)
+
+    except Exception as e:
+        print(f"Error getting AI insights: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
 @app.route('/api/notes/daily/<date>', methods=['GET', 'POST'])
 def daily_note(date):
     """Get or create daily note for date"""
