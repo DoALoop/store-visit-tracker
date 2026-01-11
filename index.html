@@ -1236,6 +1236,12 @@
                 </div>
             </header>
             <input type="text" id="note-title" placeholder="Note title" class="px-4 py-3 text-xl font-semibold border-b focus:outline-none focus:border-walmart-blue">
+            <div class="px-4 py-2 border-b bg-gray-50 flex items-center space-x-3">
+                <label class="text-sm text-gray-600">Store:</label>
+                <select id="note-store-number" class="flex-1 border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-walmart-blue">
+                    <option value="">None (General)</option>
+                </select>
+            </div>
             <div class="flex-1 overflow-hidden">
                 <textarea id="note-content" placeholder="Start writing...
 
@@ -1341,6 +1347,12 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                         <button onclick="setNotesTaskPriority(2)" class="ntm-priority-btn px-3 py-2 rounded-lg text-sm border-2" data-priority="2">Medium</button>
                         <button onclick="setNotesTaskPriority(3)" class="ntm-priority-btn px-3 py-2 rounded-lg text-sm border-2" data-priority="3">High</button>
                     </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Store</label>
+                    <select id="ntm-store-number" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-walmart-blue">
+                        <option value="">None (General)</option>
+                    </select>
                 </div>
                 <button onclick="saveNotesTaskDetails()" class="w-full bg-walmart-blue text-white py-3 rounded-lg font-medium hover:bg-walmart-dark-blue">Save Changes</button>
             </div>
@@ -3784,6 +3796,7 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                 notesCurrentNoteId = note.id;
                 document.getElementById('note-title').value = note.title || '';
                 document.getElementById('note-content').value = note.content || '';
+                document.getElementById('note-store-number').value = note.store_number || '';
                 if (note.backlinks?.length) {
                     document.getElementById('backlinks-section').classList.remove('hidden');
                     document.getElementById('backlinks-list').innerHTML = note.backlinks.map(bl => `<div class="text-sm text-walmart-blue cursor-pointer hover:underline" onclick="openNote('${bl.id}')">${notesEscapeHtml(bl.title)}</div>`).join('');
@@ -3801,6 +3814,7 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             notesCurrentNoteId = null;
             document.getElementById('note-title').value = '';
             document.getElementById('note-content').value = '';
+            document.getElementById('note-store-number').value = '';
             document.getElementById('backlinks-section').classList.add('hidden');
             showNoteEditor();
         }
@@ -3808,9 +3822,10 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
         async function saveCurrentNote() {
             const title = document.getElementById('note-title').value.trim();
             const content = document.getElementById('note-content').value;
+            const storeNumber = document.getElementById('note-store-number').value || null;
             if (!title) { alert('Please enter a title'); return; }
             try {
-                const payload = { title, content, folder_path: notesCurrentFolder };
+                const payload = { title, content, folder_path: notesCurrentFolder, store_number: storeNumber };
                 let response;
                 if (notesCurrentNoteId) {
                     response = await fetch(`/api/notes/${notesCurrentNoteId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -3829,7 +3844,14 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
         }
 
         // --- Note Editor ---
+        function populateStoreDropdown(selectId) {
+            const select = document.getElementById(selectId);
+            const stores = getMarketStores();
+            select.innerHTML = '<option value="">None (General)</option>' + stores.map(s => `<option value="${s}">${s}</option>`).join('');
+        }
+
         function showNoteEditor() {
+            populateStoreDropdown('note-store-number');
             document.getElementById('note-editor-modal').classList.remove('hidden');
             document.getElementById('note-content').classList.remove('hidden');
             document.getElementById('note-preview').classList.add('hidden');
@@ -3921,6 +3943,7 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                             ${task.priority > 0 ? `<span class="px-2 py-0.5 rounded text-xs ${task.priority === 3 ? 'bg-red-100 text-red-700' : task.priority === 2 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-700'}">${task.priority === 3 ? 'High' : task.priority === 2 ? 'Medium' : 'Low'}</span>` : ''}
                             ${task.assigned_to ? `<span class="text-walmart-blue"><i class="fas fa-user mr-1"></i>${notesEscapeHtml(task.assigned_to)}</span>` : ''}
                             ${task.due_date ? `<span class="text-gray-600"><i class="fas fa-calendar mr-1"></i>${task.due_date}</span>` : ''}
+                            ${task.store_number ? `<span class="text-purple-600"><i class="fas fa-store mr-1"></i>${task.store_number}</span>` : ''}
                             <span class="text-gray-400">${notesEscapeHtml(task.note_title || '')}</span>
                         </div>
                     </div>
@@ -3956,6 +3979,8 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             document.getElementById('ntm-task-text').textContent = task.content;
             document.getElementById('ntm-assigned-to').value = task.assigned_to || '';
             document.getElementById('ntm-due-date').value = task.due_date || '';
+            populateStoreDropdown('ntm-store-number');
+            document.getElementById('ntm-store-number').value = task.store_number || '';
             updateNotesTaskStatusButtons(task.status || (task.is_completed ? 'completed' : 'new'));
             updateNotesTaskPriorityButtons(task.priority || 0);
             document.getElementById('notes-task-modal').classList.remove('hidden');
@@ -4010,11 +4035,12 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             if (!notesCurrentTask) return;
             const assignedTo = document.getElementById('ntm-assigned-to').value.trim();
             const dueDate = document.getElementById('ntm-due-date').value || null;
+            const storeNumber = document.getElementById('ntm-store-number').value || null;
             try {
                 const response = await fetch(`/api/notes/tasks/${notesCurrentTask.id}/update`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ status: notesCurrentTask.status, is_completed: notesCurrentTask.status === 'completed', assigned_to: assignedTo || null, due_date: dueDate, priority: notesCurrentTask.priority })
+                    body: JSON.stringify({ status: notesCurrentTask.status, is_completed: notesCurrentTask.status === 'completed', assigned_to: assignedTo || null, due_date: dueDate, priority: notesCurrentTask.priority, store_number: storeNumber })
                 });
                 if (!response.ok) throw new Error('Failed to save task');
                 closeNotesTaskModal();

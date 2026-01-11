@@ -2160,6 +2160,7 @@ def create_note():
     is_daily_note = data.get('is_daily_note', False)
     daily_date = data.get('daily_date')
     linked_visit_id = data.get('linked_visit_id')
+    store_number = data.get('store_number')
 
     conn = get_db_connection()
     if not conn:
@@ -2172,10 +2173,10 @@ def create_note():
         note_id = str(uuid.uuid4())
 
         cursor.execute("""
-            INSERT INTO notes (id, title, content, folder_path, is_pinned, is_daily_note, daily_date, linked_visit_id)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO notes (id, title, content, folder_path, is_pinned, is_daily_note, daily_date, linked_visit_id, store_number)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING *
-        """, (note_id, title, content, folder_path, is_pinned, is_daily_note, daily_date, linked_visit_id))
+        """, (note_id, title, content, folder_path, is_pinned, is_daily_note, daily_date, linked_visit_id, store_number))
 
         note = cursor.fetchone()
 
@@ -2241,6 +2242,9 @@ def update_note(note_id):
         if 'linked_visit_id' in data:
             updates.append("linked_visit_id = %s")
             params.append(data['linked_visit_id'])
+        if 'store_number' in data:
+            updates.append("store_number = %s")
+            params.append(data['store_number'])
 
         if not updates:
             return jsonify({"error": "No fields to update"}), 400
@@ -2511,6 +2515,10 @@ def update_task_details(task_id):
         if 'priority' in data:
             updates.append("priority = %s")
             params.append(data['priority'])
+
+        if 'store_number' in data:
+            updates.append("store_number = %s")
+            params.append(data['store_number'] if data['store_number'] else None)
 
         if not updates:
             return jsonify({"error": "No fields to update"}), 400
