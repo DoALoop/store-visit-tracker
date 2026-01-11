@@ -63,14 +63,11 @@
         </div>
         <!-- Sub-navigation tabs -->
         <div class="flex border-t border-walmart-dark-blue">
-            <button onclick="switchNotesView('all')" class="notes-tab flex-1 py-2 text-sm font-medium text-center border-b-2 border-walmart-yellow" data-view="all">
-                Notes
+            <button onclick="switchNotesView('tasks')" class="notes-tab flex-1 py-2 text-sm font-medium text-center border-b-2 border-walmart-yellow" data-view="tasks">
+                Tasks
             </button>
             <button onclick="switchNotesView('market')" class="notes-tab flex-1 py-2 text-sm font-medium text-center border-b-2 border-transparent hover:border-walmart-yellow/50" data-view="market">
                 Market
-            </button>
-            <button onclick="switchNotesView('tasks')" class="notes-tab flex-1 py-2 text-sm font-medium text-center border-b-2 border-transparent hover:border-walmart-yellow/50" data-view="tasks">
-                Tasks
             </button>
             <button onclick="switchNotesView('daily')" class="notes-tab flex-1 py-2 text-sm font-medium text-center border-b-2 border-transparent hover:border-walmart-yellow/50" data-view="daily">
                 Daily
@@ -84,7 +81,7 @@
     <!-- Main Content -->
     <main class="pb-20">
         <!-- All Notes View -->
-        <div id="view-all-notes" class="p-4">
+        <div id="view-all-notes" class="p-4 hidden">
             <!-- Folder breadcrumb -->
             <div id="folder-breadcrumb" class="mb-4 text-sm text-gray-600">
                 <span class="cursor-pointer hover:text-walmart-blue" onclick="navigateFolder('/')">/</span>
@@ -114,7 +111,7 @@
         </div>
 
         <!-- Tasks View -->
-        <div id="view-tasks" class="p-4 hidden">
+        <div id="view-tasks" class="p-4">
             <div class="mb-4 flex space-x-2">
                 <button onclick="filterTasks('all')" class="task-filter px-3 py-1 rounded-full text-sm bg-walmart-blue text-white" data-filter="all">All</button>
                 <button onclick="filterTasks('today')" class="task-filter px-3 py-1 rounded-full text-sm bg-gray-200 text-gray-700" data-filter="today">Today</button>
@@ -260,6 +257,87 @@ Use - [ ] for tasks"
 
                 <!-- Save Button -->
                 <button onclick="saveMarketNoteDetails()" class="w-full bg-walmart-blue text-white py-3 rounded-lg font-medium hover:bg-walmart-dark-blue">
+                    Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Task Detail Modal -->
+    <div id="task-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <header class="bg-walmart-blue text-white px-4 py-3 flex items-center justify-between rounded-t-lg">
+                <h2 class="font-semibold">Task Details</h2>
+                <button onclick="closeTaskModal()" class="p-1">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </header>
+            <div class="p-4 space-y-4">
+                <!-- Source Note Info -->
+                <div class="text-sm text-gray-500">
+                    <span>From: </span>
+                    <span id="tm-note-title" class="font-medium text-walmart-blue cursor-pointer hover:underline" onclick="openNoteFromTask()"></span>
+                </div>
+
+                <!-- Task Text -->
+                <div class="bg-gray-50 rounded-lg p-3">
+                    <p id="tm-task-text" class="text-gray-800"></p>
+                </div>
+
+                <!-- Status -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                    <div class="grid grid-cols-4 gap-2">
+                        <button onclick="setTaskStatus('new')" class="tm-status-btn px-3 py-2 rounded-lg text-sm border-2" data-status="new">
+                            New
+                        </button>
+                        <button onclick="setTaskStatus('in_progress')" class="tm-status-btn px-3 py-2 rounded-lg text-sm border-2" data-status="in_progress">
+                            In Progress
+                        </button>
+                        <button onclick="setTaskStatus('stalled')" class="tm-status-btn px-3 py-2 rounded-lg text-sm border-2" data-status="stalled">
+                            Stalled
+                        </button>
+                        <button onclick="setTaskStatus('completed')" class="tm-status-btn px-3 py-2 rounded-lg text-sm border-2" data-status="completed">
+                            Completed
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Assigned To -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Assigned To</label>
+                    <input type="text" id="tm-assigned-to" placeholder="Enter name..."
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-walmart-blue">
+                </div>
+
+                <!-- Due Date -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Due Date</label>
+                    <input type="date" id="tm-due-date"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-walmart-blue">
+                </div>
+
+                <!-- Priority -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Priority</label>
+                    <div class="grid grid-cols-4 gap-2">
+                        <button onclick="setTaskPriority(0)" class="tm-priority-btn px-3 py-2 rounded-lg text-sm border-2" data-priority="0">
+                            None
+                        </button>
+                        <button onclick="setTaskPriority(1)" class="tm-priority-btn px-3 py-2 rounded-lg text-sm border-2" data-priority="1">
+                            Low
+                        </button>
+                        <button onclick="setTaskPriority(2)" class="tm-priority-btn px-3 py-2 rounded-lg text-sm border-2" data-priority="2">
+                            Medium
+                        </button>
+                        <button onclick="setTaskPriority(3)" class="tm-priority-btn px-3 py-2 rounded-lg text-sm border-2" data-priority="3">
+                            High
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Save Button -->
+                <button onclick="saveTaskDetails()" class="w-full bg-walmart-blue text-white py-3 rounded-lg font-medium hover:bg-walmart-dark-blue">
                     Save Changes
                 </button>
             </div>
@@ -576,17 +654,30 @@ Use - [ ] for tasks"
             }
 
             container.innerHTML = tasks.map(task => `
-                <div class="bg-white rounded-lg shadow p-3 flex items-start space-x-3">
+                <div class="bg-white rounded-lg shadow p-3 flex items-start space-x-3 cursor-pointer hover:shadow-md transition-shadow"
+                     onclick="openTaskModal(${JSON.stringify(task).replace(/"/g, '&quot;')})">
                     <input type="checkbox" ${task.is_completed ? 'checked' : ''}
-                           class="mt-1 cursor-pointer" onclick="toggleTask('${task.id}')">
+                           class="mt-1 cursor-pointer" onclick="event.stopPropagation(); toggleTask('${task.id}')">
                     <div class="flex-1 min-w-0">
                         <p class="${task.is_completed ? 'line-through text-gray-400' : ''}">${escapeHtml(task.content)}</p>
-                        <div class="text-xs text-gray-400 mt-1">
-                            ${task.due_date ? `Due: ${task.due_date}` : ''}
-                            <span class="text-walmart-blue cursor-pointer hover:underline"
-                                  onclick="openNote('${task.note_id}')">Open note</span>
+                        <div class="text-xs text-gray-400 mt-1 flex flex-wrap items-center gap-2">
+                            <span class="px-2 py-0.5 rounded text-xs ${
+                                (task.status || 'new') === 'new' ? 'bg-blue-100 text-blue-700' :
+                                (task.status || 'new') === 'in_progress' ? 'bg-yellow-100 text-yellow-700' :
+                                (task.status || 'new') === 'stalled' ? 'bg-red-100 text-red-700' :
+                                'bg-green-100 text-green-700'
+                            }">${(task.status || 'new') === 'in_progress' ? 'In Progress' : ((task.status || 'new').charAt(0).toUpperCase() + (task.status || 'new').slice(1))}</span>
+                            ${task.priority > 0 ? `<span class="px-2 py-0.5 rounded text-xs ${
+                                task.priority === 3 ? 'bg-red-100 text-red-700' :
+                                task.priority === 2 ? 'bg-orange-100 text-orange-700' :
+                                'bg-gray-100 text-gray-700'
+                            }">${task.priority === 3 ? 'High' : task.priority === 2 ? 'Medium' : 'Low'}</span>` : ''}
+                            ${task.assigned_to ? `<span class="text-walmart-blue"><i class="fas fa-user mr-1"></i>${escapeHtml(task.assigned_to)}</span>` : ''}
+                            ${task.due_date ? `<span class="text-gray-600"><i class="fas fa-calendar mr-1"></i>${task.due_date}</span>` : ''}
+                            <span class="text-gray-400">${escapeHtml(task.note_title || '')}</span>
                         </div>
                     </div>
+                    <i class="fas fa-chevron-right text-gray-300 mt-1"></i>
                 </div>
             `).join('');
         }
@@ -608,6 +699,109 @@ Use - [ ] for tasks"
                 loadTasks();
             } catch (error) {
                 console.error('Error toggling task:', error);
+            }
+        }
+
+        // Task Modal
+        let currentTask = null;
+        let currentTaskFilter = 'all';
+
+        function openTaskModal(task) {
+            currentTask = task;
+
+            // Populate modal
+            document.getElementById('tm-note-title').textContent = task.note_title || 'Unknown note';
+            document.getElementById('tm-task-text').textContent = task.content;
+            document.getElementById('tm-assigned-to').value = task.assigned_to || '';
+            document.getElementById('tm-due-date').value = task.due_date || '';
+
+            // Update status buttons
+            updateTaskStatusButtons(task.status || (task.is_completed ? 'completed' : 'new'));
+
+            // Update priority buttons
+            updateTaskPriorityButtons(task.priority || 0);
+
+            // Show modal
+            document.getElementById('task-modal').classList.remove('hidden');
+        }
+
+        function closeTaskModal() {
+            document.getElementById('task-modal').classList.add('hidden');
+            currentTask = null;
+        }
+
+        function updateTaskStatusButtons(activeStatus) {
+            document.querySelectorAll('.tm-status-btn').forEach(btn => {
+                const status = btn.dataset.status;
+                btn.classList.remove('border-walmart-blue', 'bg-walmart-blue', 'text-white', 'border-gray-300');
+                if (status === activeStatus) {
+                    btn.classList.add('border-walmart-blue', 'bg-walmart-blue', 'text-white');
+                } else {
+                    btn.classList.add('border-gray-300');
+                }
+            });
+        }
+
+        function updateTaskPriorityButtons(activePriority) {
+            document.querySelectorAll('.tm-priority-btn').forEach(btn => {
+                const priority = parseInt(btn.dataset.priority);
+                btn.classList.remove('border-walmart-blue', 'bg-walmart-blue', 'text-white', 'border-gray-300');
+                if (priority === activePriority) {
+                    btn.classList.add('border-walmart-blue', 'bg-walmart-blue', 'text-white');
+                } else {
+                    btn.classList.add('border-gray-300');
+                }
+            });
+        }
+
+        function setTaskStatus(status) {
+            if (currentTask) {
+                currentTask.status = status;
+                currentTask.is_completed = status === 'completed';
+                updateTaskStatusButtons(status);
+            }
+        }
+
+        function setTaskPriority(priority) {
+            if (currentTask) {
+                currentTask.priority = priority;
+                updateTaskPriorityButtons(priority);
+            }
+        }
+
+        function openNoteFromTask() {
+            if (currentTask && currentTask.note_id) {
+                closeTaskModal();
+                openNote(currentTask.note_id);
+            }
+        }
+
+        async function saveTaskDetails() {
+            if (!currentTask) return;
+
+            const assignedTo = document.getElementById('tm-assigned-to').value.trim();
+            const dueDate = document.getElementById('tm-due-date').value || null;
+
+            try {
+                const response = await fetch(`${API_BASE}/api/notes/tasks/${currentTask.id}/update`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        status: currentTask.status,
+                        is_completed: currentTask.status === 'completed',
+                        assigned_to: assignedTo || null,
+                        due_date: dueDate,
+                        priority: currentTask.priority
+                    })
+                });
+
+                if (!response.ok) throw new Error('Failed to save task');
+
+                closeTaskModal();
+                loadTasks(currentTaskFilter);
+            } catch (error) {
+                console.error('Error saving task:', error);
+                alert('Failed to save changes');
             }
         }
 
@@ -1210,7 +1404,7 @@ Use - [ ] for tasks"
 
         // --- Initialize ---
         document.addEventListener('DOMContentLoaded', () => {
-            loadNotes();
+            loadTasks();
         });
     </script>
 </body>

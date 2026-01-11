@@ -2473,6 +2473,100 @@ def toggle_task(task_id):
         release_db_connection(conn)
 
 
+@app.route('/api/notes/tasks/<task_id>/update', methods=['POST'])
+def update_task_details(task_id):
+    """Update task details (status, assigned_to, due_date, priority)"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        data = request.json
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Get current task
+        cursor.execute("SELECT * FROM note_tasks WHERE id = %s", (task_id,))
+        task = cursor.fetchone()
+
+        if not task:
+            return jsonify({"error": "Task not found"}), 404
+
+        # Build update query dynamically
+        updates = []
+        params = []
+
+        if 'status' in data:
+            updates.append("status = %s")
+            params.append(data['status'])
+            # Also update is_completed based on status
+            if data['status'] == 'completed':
+                updates.append("is_completed = TRUE")
+            elif data['status'] in ('new', 'in_progress', 'stalled'):
+                updates.append("is_completed = FALSE")
+
+        if 'assigned_to' in data:
+            updates.append("assigned_to = %s")
+            params.append(data['assigned_to'] if data['assigned_to'] else None)
+
+        if 'due_date' in data:
+            updates.append("due_date = %s")
+            params.append(data['due_date'] if data['due_date'] else None)
+
+        if 'priority' in data:
+            updates.append("priority = %s")
+            params.append(data['priority'])
+
+        if not updates:
+            return jsonify({"error": "No fields to update"}), 400
+
+        params.append(task_id)
+        query = f"UPDATE note_tasks SET {', '.join(updates)} WHERE id = %s"
+        cursor.execute(query, params)
+
+        # If status changed to completed/incomplete, update note content checkbox
+        if 'status' in data:
+            cursor.execute("""
+                SELECT n.content FROM notes n
+                JOIN note_tasks t ON t.note_id = n.id
+                WHERE t.id = %s
+            """, (task_id,))
+            note = cursor.fetchone()
+            if note and task['line_number'] is not None:
+                lines = note['content'].split('\n')
+                if task['line_number'] < len(lines):
+                    line = lines[task['line_number']]
+                    if data['status'] == 'completed':
+                        line = regex_module.sub(r'- \[ \]', '- [x]', line)
+                    else:
+                        line = regex_module.sub(r'- \[[xX]\]', '- [ ]', line)
+                    lines[task['line_number']] = line
+                    new_content = '\n'.join(lines)
+                    cursor.execute("UPDATE notes SET content = %s WHERE id = %s", (new_content, task['note_id']))
+
+        conn.commit()
+
+        # Return updated task
+        cursor.execute("SELECT * FROM note_tasks WHERE id = %s", (task_id,))
+        updated_task = cursor.fetchone()
+
+        if updated_task.get('due_date'):
+            updated_task['due_date'] = updated_task['due_date'].isoformat()
+        if updated_task.get('created_at'):
+            updated_task['created_at'] = updated_task['created_at'].isoformat()
+        if updated_task.get('updated_at'):
+            updated_task['updated_at'] = updated_task['updated_at'].isoformat()
+
+        cursor.close()
+        return jsonify(updated_task)
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error updating task: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
 @app.route('/api/notes/tags', methods=['GET'])
 def get_all_tags():
     """Get all tags with counts"""
