@@ -282,19 +282,36 @@ def analyze_visit():
         return jsonify({"error": "AI Model not initialized."}), 500
 
     data = request.get_json()
-    if not data or 'image_data' not in data:
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+
+    images_to_process = []
+
+    # Handle multiple images
+    if 'images' in data and isinstance(data['images'], list):
+        for img_entry in data['images']:
+            if 'image_data' in img_entry:
+                images_to_process.append({
+                    'data': img_entry['image_data'],
+                    'mime_type': img_entry.get('mime_type', 'image/jpeg')
+                })
+    # Handle single image (backward compatibility)
+    elif 'image_data' in data:
+        images_to_process.append({
+            'data': data['image_data'],
+            'mime_type': data.get('mime_type', 'image/jpeg')
+        })
+
+    if not images_to_process:
         return jsonify({"error": "No image data provided"}), 400
 
-    image_b64 = data['image_data']
-    mime_type = data.get('mime_type', 'image/jpeg')
-
-    print("Received image for analysis...")
+    print(f"Received {len(images_to_process)} image(s) for analysis...")
 
     # Construct the prompt - optimized for handwriting recognition based on research
     text_prompt = """
 You are the world's greatest transcriber of handwritten notes. You have exceptional skill at reading messy, rushed, or unclear handwriting. You excel at deciphering difficult penmanship by analyzing letter shapes, using context clues, and applying your deep knowledge of retail terminology.
 
-YOUR TASK: Transcribe the handwritten text from this image accurately and extract structured data.
+YOUR TASK: Transcribe the handwritten text from these images accurately and extract structured data.
 
 === HANDWRITING TRANSCRIPTION PROCESS ===
 
@@ -476,11 +493,19 @@ Extract and return as JSON:
     """
 
     try:
-        image_part = Part.from_data(
-            data=base64.decodebytes(image_b64.encode('utf-8')),
-            mime_type=mime_type
-        )
+        content_parts = []
         
+        # Add all images to the request
+        for img in images_to_process:
+            image_part = Part.from_data(
+                data=base64.decodebytes(img['data'].encode('utf-8')),
+                mime_type=img['mime_type']
+            )
+            content_parts.append(image_part)
+        
+        # Add prompt at the end
+        content_parts.append(text_prompt)
+
         generation_config = {
             "max_output_tokens": 8192,
             "temperature": 0.1,  # Very low temperature for maximum transcription accuracy
@@ -489,7 +514,7 @@ Extract and return as JSON:
         }
 
         responses = model.generate_content(
-            [image_part, text_prompt],
+            content_parts,
             generation_config=generation_config,
             stream=False,
         )

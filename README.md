@@ -73,8 +73,8 @@ Store Visit Tracker is a full-stack application designed to help District Manage
 ### Core Features
 
 ✅ **Upload & AI Analysis**
-- Take a photo of handwritten notes with your camera or upload from gallery
-- Vertex AI (Gemini Vision) automatically transcribes and categorizes the notes
+- Take multiple photos of handwritten notes or upload a batch from the gallery
+- Vertex AI (Gemini 2.5 Flash) analyzes all images together to transcribe and categorize the notes
 - Extract structured data: store number, date, rating, notes, metrics
 - Intelligent duplicate detection before saving
 
@@ -354,8 +354,8 @@ All endpoints are documented in [API_ENDPOINTS.md](./API_ENDPOINTS.md).
 |--------|----------|----------|
 | GET | `/` | Web frontend |
 | GET | `/api/visits?storeNbr=1234` | List visit briefs |
-| **GET** | **`/api/visit/<id>`** | **Full visit details** ⭐ NEW |
-| POST | `/api/analyze-visit` | AI analyze image |
+| GET | `/api/visit/<id>` | Full visit details |
+| POST | `/api/analyze-visit` | AI analyze multiple images |
 | POST | `/api/save-visit` | Save visit to DB |
 | GET | `/api/check-duplicate` | Check for duplicates |
 | GET | `/api/summary` | Store health summary |
@@ -372,9 +372,9 @@ All endpoints are documented in [API_ENDPOINTS.md](./API_ENDPOINTS.md).
 
 1. **Upload Notes**
    - User clicks "Home" tab
-   - Takes photo or uploads image of handwritten notes
+   - Takes photos or uploads multiple images of handwritten notes
    - Clicks "Analyze Notes"
-   - Vertex AI transcribes and structures the data
+   - Vertex AI analyzes all images collectively to transcribe and structure the data
 
 2. **Review & Save**
    - System checks for duplicates
@@ -515,6 +515,17 @@ gunicorn --bind 0.0.0.0:8080 --workers 4 --threads 8 --timeout 120 main:app
 ---
 
 ## 📊 Recent Updates
+
+### Latest Features (January 2026)
+
+#### 📸 Multi-image AI Analysis
+
+**Date:** January 10, 2026
+
+- Support for uploading multiple photos per store visit for collective AI analysis
+- Updated `POST /api/analyze-visit` to handle a list of images
+- Enhanced UI with image preview grid and incremental selection (camera or gallery)
+- Gemini 2.5 Flash now processes all provided images in a single context for better transcription accuracy
 
 ### Latest Features (December 2024)
 

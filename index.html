@@ -189,7 +189,7 @@
 
                             <label for="image-upload" class="cursor-pointer text-walmart-blue hover:text-walmart-dark-blue font-medium">
                                 <span>Upload from Gallery</span>
-                                <input id="image-upload" type="file" class="sr-only" accept="image/*">
+                                <input id="image-upload" type="file" class="sr-only" accept="image/*" multiple>
                             </label>
                             <p class="text-xs text-gray-500">PNG, JPG up to 10MB</p>
                         </div>
@@ -198,7 +198,7 @@
                     <!-- Preview Image -->
                     <div id="image-preview-container" class="hidden">
                         <p class="block text-sm font-medium text-gray-700">Preview:</p>
-                        <img id="image-preview" src="" alt="Preview" class="mt-2 rounded-lg shadow-md max-h-48 w-auto mx-auto"/>
+                        <div id="image-previews-grid" class="grid grid-cols-3 gap-2 mt-2"></div>
                     </div>
 
                     <button id="analyze-button" class="w-full py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-walmart-blue hover:bg-walmart-dark-blue focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-walmart-blue disabled:bg-gray-400">
@@ -1515,8 +1515,7 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
         let currentFilter = null;
         let currentRatingFilter = null;
         let currentSort = { column: null, ascending: true };
-        let base64ImageData = null;
-        let fileMimeType = null;
+        let analysisImages = [];
         let currentParsedData = null;
 
         // --- Market Configuration ---
@@ -2592,31 +2591,65 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
 
         // --- Image Upload ---
         const handleImageSelect = (e) => {
-            const file = e.target.files[0];
-            if (!file || !file.type.startsWith('image/')) return;
+            if (!e.target.files || e.target.files.length === 0) return;
 
-            fileMimeType = file.type;
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                document.getElementById('image-preview').src = ev.target.result;
-                document.getElementById('image-preview-container').classList.remove('hidden');
-                base64ImageData = ev.target.result.split(',')[1];
-            };
-            reader.readAsDataURL(file);
+            // Process all selected files
+            Array.from(e.target.files).forEach(file => {
+                if (!file.type.startsWith('image/')) return;
+
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    analysisImages.push({
+                        image_data: ev.target.result.split(',')[1],
+                        mime_type: file.type,
+                        url: ev.target.result
+                    });
+                    renderAnalysisPreviews();
+                };
+                reader.readAsDataURL(file);
+            });
+            
+            // Clear input so same files can be selected again if needed
+            e.target.value = '';
         };
+
+        function renderAnalysisPreviews() {
+            const container = document.getElementById('image-preview-container');
+            const grid = document.getElementById('image-previews-grid');
+            
+            if (analysisImages.length === 0) {
+                container.classList.add('hidden');
+                return;
+            }
+            
+            container.classList.remove('hidden');
+            grid.innerHTML = analysisImages.map((img, idx) => `
+                <div class="relative group">
+                    <img src="${img.url}" class="w-full h-24 object-cover rounded-lg shadow-sm border border-gray-200">
+                    <button onclick="removeAnalysisImage(${idx})" class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 focus:outline-none">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function removeAnalysisImage(index) {
+            analysisImages.splice(index, 1);
+            renderAnalysisPreviews();
+        }
 
         document.getElementById('image-upload').addEventListener('change', handleImageSelect);
         document.getElementById('camera-input').addEventListener('change', handleImageSelect);
 
         document.getElementById('analyze-button').addEventListener('click', async () => {
-            if (!base64ImageData) { showError('Please upload an image first.'); return; }
+            if (analysisImages.length === 0) { showError('Please upload at least one image.'); return; }
 
             setLoading(true);
             try {
                 const response = await fetch('/api/analyze-visit', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ mime_type: fileMimeType, image_data: base64ImageData })
+                    body: JSON.stringify({ images: analysisImages })
                 });
 
                 if (!response.ok) {
@@ -2635,8 +2668,8 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
         });
 
         async function reanalyzeNotes() {
-            if (!base64ImageData) {
-                showError('No image to analyze. Please upload an image first.');
+            if (analysisImages.length === 0) {
+                showError('No images to analyze.');
                 return;
             }
 
@@ -2647,7 +2680,7 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                 const response = await fetch('/api/analyze-visit', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ mime_type: fileMimeType, image_data: base64ImageData })
+                    body: JSON.stringify({ images: analysisImages })
                 });
 
                 if (!response.ok) {
@@ -2736,14 +2769,13 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
 
         function resetLogVisitForm() {
             // Clear image data
-            base64ImageData = null;
-            fileMimeType = null;
+            analysisImages = [];
             currentParsedData = null;
             currentSavedVisitId = null;
             pendingPhotos = [];
             // Hide preview and results
             document.getElementById('image-preview-container').classList.add('hidden');
-            document.getElementById('image-preview').src = '';
+            document.getElementById('image-previews-grid').innerHTML = '';
             document.getElementById('results-container').classList.add('hidden');
             document.getElementById('error-message').classList.add('hidden');
             // Reset file inputs

@@ -126,9 +126,25 @@ client.newCall(request).enqueue(new Callback() {
 ### 3. Analyze Visit (Image Upload)
 **POST** `/api/analyze-visit`
 
-Upload an image of handwritten store visit notes and get AI-powered transcription and analysis.
+Upload images of handwritten store visit notes and get AI-powered transcription and analysis. Supports single or multiple images.
 
-**Request Body:**
+**Request Body (Multiple Images):**
+```json
+{
+  "images": [
+    {
+      "image_data": "base64-encoded-image-data-1",
+      "mime_type": "image/jpeg"
+    },
+    {
+      "image_data": "base64-encoded-image-data-2",
+      "mime_type": "image/png"
+    }
+  ]
+}
+```
+
+**Request Body (Single Image - Backward Compatible):**
 ```json
 {
   "image_data": "base64-encoded-image-data",
