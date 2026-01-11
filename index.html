@@ -161,7 +161,10 @@
         <!-- VIEW: LOG VISIT (Upload Form) -->
         <div id="view-log-visit" class="hidden-view flex flex-col items-center py-6 px-4">
             <div class="max-w-2xl w-full space-y-6 p-6 bg-white rounded-xl shadow-lg">
-                <div class="text-center">
+                <div class="text-center relative">
+                    <button onclick="showManualVisitModal()" class="absolute right-0 top-0 w-10 h-10 bg-walmart-blue text-white rounded-full hover:bg-walmart-dark-blue focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-walmart-blue" title="Add Manual Visit">
+                        <i class="fas fa-plus"></i>
+                    </button>
                     <h2 class="text-2xl font-bold text-gray-900">Log Store Visit</h2>
                     <p class="mt-2 text-sm text-gray-600">Upload a photo of your handwritten notes to automatically categorize them.</p>
                 </div>
@@ -234,6 +237,74 @@
                                 <button id="duplicate-cancel-btn" class="flex-1 px-4 py-2 bg-gray-200 text-gray-800 font-medium rounded-lg hover:bg-gray-300">Cancel</button>
                                 <button id="duplicate-submit-btn" class="flex-1 px-4 py-2 bg-walmart-blue text-white font-medium rounded-lg hover:bg-walmart-dark-blue">Submit Anyway</button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Manual Visit Modal -->
+                <div id="manual-visit-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+                    <div class="relative top-10 mx-auto p-5 border w-11/12 md:w-96 shadow-lg rounded-xl bg-white max-h-[90vh] overflow-y-auto">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-bold text-gray-900">Manual Visit Entry</h3>
+                            <button onclick="hideManualVisitModal()" class="text-gray-500 hover:text-gray-700">
+                                <i class="fas fa-times text-xl"></i>
+                            </button>
+                        </div>
+
+                        <div class="space-y-4">
+                            <!-- Date -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Visit Date</label>
+                                <input type="date" id="manual-visit-date" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-walmart-blue focus:border-walmart-blue">
+                            </div>
+
+                            <!-- Store Number -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Store Number</label>
+                                <select id="manual-visit-store" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-walmart-blue focus:border-walmart-blue">
+                                    <option value="">Select Store...</option>
+                                </select>
+                            </div>
+
+                            <!-- Rating -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Store Rating</label>
+                                <select id="manual-visit-rating" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-walmart-blue focus:border-walmart-blue">
+                                    <option value="">Select Rating...</option>
+                                    <option value="Green">Green</option>
+                                    <option value="Yellow">Yellow</option>
+                                    <option value="Red">Red</option>
+                                </select>
+                            </div>
+
+                            <!-- Photos -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Tour Photos</label>
+                                <div class="flex gap-2 mb-2">
+                                    <button type="button" onclick="document.getElementById('manual-photo-camera').click()" class="flex-1 py-2 px-3 bg-walmart-blue text-white text-sm rounded-lg hover:bg-walmart-dark-blue">
+                                        <i class="fas fa-camera mr-1"></i> Camera
+                                    </button>
+                                    <button type="button" onclick="document.getElementById('manual-photo-gallery').click()" class="flex-1 py-2 px-3 border border-walmart-blue text-walmart-blue text-sm rounded-lg hover:bg-walmart-blue hover:text-white">
+                                        <i class="fas fa-folder-open mr-1"></i> Gallery
+                                    </button>
+                                    <input id="manual-photo-camera" type="file" accept="image/*" capture="environment" class="hidden" onchange="addManualPhoto(this)">
+                                    <input id="manual-photo-gallery" type="file" accept="image/*" multiple class="hidden" onchange="addManualPhotos(this)">
+                                </div>
+                                <div id="manual-photos-grid" class="grid grid-cols-3 gap-2">
+                                    <p class="col-span-3 text-center text-gray-400 text-sm py-2">No photos added</p>
+                                </div>
+                            </div>
+
+                            <!-- Optional Notes -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Notes (Optional)</label>
+                                <textarea id="manual-visit-notes" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-walmart-blue focus:border-walmart-blue" placeholder="Any additional notes..."></textarea>
+                            </div>
+
+                            <!-- Save Button -->
+                            <button id="manual-visit-save-btn" onclick="saveManualVisit()" class="w-full py-3 px-4 bg-walmart-blue text-white font-medium rounded-lg hover:bg-walmart-dark-blue focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-walmart-blue">
+                                <i class="fas fa-save mr-2"></i>Save Visit
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -2847,6 +2918,168 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                 </button>
             `;
             document.body.appendChild(viewer);
+        }
+
+        // --- Manual Visit Functions ---
+        let manualVisitPhotos = [];
+
+        function showManualVisitModal() {
+            // Reset form
+            document.getElementById('manual-visit-date').value = new Date().toISOString().split('T')[0];
+            document.getElementById('manual-visit-store').value = '';
+            document.getElementById('manual-visit-rating').value = '';
+            document.getElementById('manual-visit-notes').value = '';
+            manualVisitPhotos = [];
+            document.getElementById('manual-photos-grid').innerHTML = '<p class="col-span-3 text-center text-gray-400 text-sm py-2">No photos added</p>';
+
+            // Populate store dropdown
+            const storeSelect = document.getElementById('manual-visit-store');
+            const stores = getMarketStores().sort((a, b) => a - b);
+            storeSelect.innerHTML = '<option value="">Select Store...</option>' +
+                stores.map(s => `<option value="${s}">${s}</option>`).join('');
+
+            document.getElementById('manual-visit-modal').classList.remove('hidden');
+        }
+
+        function hideManualVisitModal() {
+            document.getElementById('manual-visit-modal').classList.add('hidden');
+            manualVisitPhotos = [];
+        }
+
+        function addManualPhoto(input) {
+            if (!input.files || !input.files[0]) return;
+            addManualPhotoFile(input.files[0]);
+            input.value = '';
+        }
+
+        function addManualPhotos(input) {
+            if (!input.files || input.files.length === 0) return;
+            for (const file of input.files) {
+                addManualPhotoFile(file);
+            }
+            input.value = '';
+        }
+
+        function addManualPhotoFile(file) {
+            const photoId = 'manual-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+            manualVisitPhotos.push({ id: photoId, file: file });
+
+            const grid = document.getElementById('manual-photos-grid');
+            const noPhotosMsg = grid.querySelector('p');
+            if (noPhotosMsg) noPhotosMsg.remove();
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const photoDiv = document.createElement('div');
+                photoDiv.className = 'relative group';
+                photoDiv.id = photoId;
+                photoDiv.innerHTML = `
+                    <img src="${e.target.result}" alt="${file.name}" class="w-full h-20 object-cover rounded-lg cursor-pointer" onclick="openPhotoViewer('${e.target.result}')">
+                    <button onclick="removeManualPhoto('${photoId}')" class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center">
+                        <i class="fas fa-times"></i>
+                    </button>
+                `;
+                grid.appendChild(photoDiv);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function removeManualPhoto(photoId) {
+            manualVisitPhotos = manualVisitPhotos.filter(p => p.id !== photoId);
+            const photoEl = document.getElementById(photoId);
+            if (photoEl) photoEl.remove();
+
+            const grid = document.getElementById('manual-photos-grid');
+            if (grid.children.length === 0) {
+                grid.innerHTML = '<p class="col-span-3 text-center text-gray-400 text-sm py-2">No photos added</p>';
+            }
+        }
+
+        async function saveManualVisit() {
+            const date = document.getElementById('manual-visit-date').value;
+            const store = document.getElementById('manual-visit-store').value;
+            const rating = document.getElementById('manual-visit-rating').value;
+            const notes = document.getElementById('manual-visit-notes').value.trim();
+
+            if (!date) {
+                alert('Please select a visit date.');
+                return;
+            }
+            if (!store) {
+                alert('Please select a store.');
+                return;
+            }
+            if (!rating) {
+                alert('Please select a rating.');
+                return;
+            }
+
+            const saveBtn = document.getElementById('manual-visit-save-btn');
+            saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
+            saveBtn.disabled = true;
+
+            try {
+                // Build visit data
+                const visitData = {
+                    storeNbr: store,
+                    calendar_date: date,
+                    rating: rating,
+                    store_notes: notes ? [notes] : [],
+                    market_notes: [],
+                    positive_notes: [],
+                    wins: [],
+                    opportunities: [],
+                    metrics: {}
+                };
+
+                // Save visit
+                const response = await fetch('/api/save-visit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(visitData)
+                });
+
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    throw new Error(err.error || 'Save failed');
+                }
+
+                const result = await response.json();
+                const visitId = result.visit_id;
+
+                // Upload photos
+                if (manualVisitPhotos.length > 0) {
+                    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Uploading Photos...';
+
+                    for (const photo of manualVisitPhotos) {
+                        try {
+                            const formData = new FormData();
+                            formData.append('photo', photo.file);
+                            await fetch(`/api/visits/${visitId}/photos`, {
+                                method: 'POST',
+                                body: formData
+                            });
+                        } catch (e) {
+                            console.error('Failed to upload photo:', e);
+                        }
+                    }
+                }
+
+                hideManualVisitModal();
+                alert(`Visit saved successfully!${manualVisitPhotos.length > 0 ? ` ${manualVisitPhotos.length} photo(s) uploaded.` : ''}`);
+
+                // Refresh visits if on visits tab
+                if (!document.getElementById('view-visits').classList.contains('hidden-view')) {
+                    loadVisits();
+                }
+
+            } catch (e) {
+                console.error('Save error:', e);
+                alert('Failed to save visit: ' + e.message);
+            } finally {
+                saveBtn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Visit';
+                saveBtn.disabled = false;
+            }
         }
 
         function showDuplicateModal(records) {
