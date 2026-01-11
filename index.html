@@ -3851,20 +3851,54 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             }
 
             // Separate active and completed
-            const activeIssues = filteredIssues.filter(i => i.status !== 'completed');
             const completedIssues = filteredIssues.filter(i => i.status === 'completed');
+            
+            // Group active issues
+            const newIssues = filteredIssues.filter(i => i.status === 'new');
+            const inProgressIssues = filteredIssues.filter(i => i.status === 'in_progress');
+            const stalledIssues = filteredIssues.filter(i => i.status === 'stalled');
+            
+            const totalActive = newIssues.length + inProgressIssues.length + stalledIssues.length;
 
-            // Render active issues
-            if (activeIssues.length === 0 && completedIssues.length === 0) {
+            // Handle Empty State (Active & Completed)
+            if (totalActive === 0 && completedIssues.length === 0) {
                 listEl.innerHTML = '';
                 emptyEl.classList.remove('hidden');
+                completedSection.classList.add('hidden');
+                return;
+            }
+            
+            emptyEl.classList.add('hidden');
+            
+            // Render active groups
+            if (totalActive === 0) {
+                listEl.innerHTML = '<div class="text-center py-8 text-gray-500">No active issues</div>';
             } else {
-                emptyEl.classList.add('hidden');
-                if (activeIssues.length === 0) {
-                    listEl.innerHTML = '<div class="text-center py-8 text-gray-500">No active issues</div>';
-                } else {
-                    listEl.innerHTML = activeIssues.map(issue => renderIssueCard(issue)).join('');
-                }
+                let contentHtml = '';
+                
+                const renderGroup = (title, issues, dotColor) => {
+                    if (issues.length === 0) return '';
+                    return `
+                        <div class="mb-6">
+                            <div class="flex items-center justify-between mb-3 px-1">
+                                <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center">
+                                    <span class="w-2 h-2 rounded-full ${dotColor} mr-2"></span>
+                                    ${title}
+                                </h3>
+                                <span class="bg-gray-100 text-gray-600 text-xs font-bold px-2 py-0.5 rounded-full">${issues.length}</span>
+                            </div>
+                            <div class="space-y-3">
+                                ${issues.map(i => renderIssueCard(i)).join('')}
+                            </div>
+                        </div>
+                    `;
+                };
+
+                contentHtml += renderGroup('New', newIssues, 'bg-blue-500');
+                contentHtml += renderGroup('In Progress', inProgressIssues, 'bg-yellow-500');
+                contentHtml += renderGroup('Stalled', stalledIssues, 'bg-red-500');
+                
+                listEl.innerHTML = contentHtml;
             }
 
             // Render completed section
