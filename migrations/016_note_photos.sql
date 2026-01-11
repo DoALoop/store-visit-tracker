@@ -1,9 +1,9 @@
--- Migration: Create note_photos table
+-- Migration: Create note_photos table (corrected)
 -- Description: Allow attaching photos to notes (similar to visit_photos)
 
 CREATE TABLE IF NOT EXISTS note_photos (
-    id VARCHAR(36) PRIMARY KEY,
-    note_id VARCHAR(36) NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY,
+    note_id UUID NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
     gcs_url TEXT NOT NULL,
     filename VARCHAR(255),
     content_type VARCHAR(100),
