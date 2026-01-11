@@ -964,7 +964,18 @@
         </div>
 
         <!-- VIEW: ISSUES -->
-        <div id="view-issues" class="hidden-view p-4 bg-gray-100 min-h-full">
+        <div id="view-issues" class="hidden-view p-4 bg-gray-100 min-h-full transition-transform duration-200"
+             ontouchstart="handlePullToRefreshStart(event)"
+             ontouchmove="handlePullToRefreshMove(event)"
+             ontouchend="handlePullToRefreshEnd(event)">
+            
+            <!-- Pull to Refresh Indicator -->
+            <div id="pull-refresh-indicator" class="fixed top-14 left-0 right-0 flex justify-center pointer-events-none transition-all duration-200 opacity-0 -translate-y-10 z-40">
+                <div class="bg-white rounded-full p-2 shadow-lg border border-gray-200">
+                    <i id="pull-refresh-icon" class="fas fa-arrow-down text-walmart-blue transition-transform duration-200"></i>
+                </div>
+            </div>
+
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-xl font-bold text-gray-900">Issues & Feedback</h2>
                 <button onclick="openFeedbackModal()" class="bg-walmart-blue text-white px-4 py-2 rounded-lg hover:bg-walmart-dark-blue text-sm font-medium">
@@ -3731,6 +3742,80 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             }
         }
 
+        // --- Issues Pull-to-Refresh ---
+        let touchStartY = 0;
+        let pullDistance = 0;
+        let isRefreshing = false;
+        const PULL_THRESHOLD = 100;
+
+        function handlePullToRefreshStart(e) {
+            const view = document.getElementById('view-issues');
+            if (view.scrollTop > 0) return; // Only trigger if at top
+            touchStartY = e.touches[0].clientY;
+            isRefreshing = false;
+        }
+
+        function handlePullToRefreshMove(e) {
+            const view = document.getElementById('view-issues');
+            if (view.scrollTop > 0) return;
+
+            const touchY = e.touches[0].clientY;
+            const diff = touchY - touchStartY;
+
+            if (diff > 0) {
+                pullDistance = diff;
+                // Add resistance
+                const resistance = Math.min(pullDistance * 0.5, 150);
+                
+                const indicator = document.getElementById('pull-refresh-indicator');
+                const icon = document.getElementById('pull-refresh-icon');
+                
+                indicator.style.opacity = Math.min(resistance / 50, 1);
+                indicator.style.transform = `translateY(${resistance}px)`;
+                icon.style.transform = `rotate(${Math.min(resistance * 2, 180)}deg)`;
+                
+                if (resistance > 60) { // Visual threshold
+                    icon.classList.remove('fa-arrow-down');
+                    icon.classList.add('fa-rotate-right');
+                } else {
+                    icon.classList.remove('fa-rotate-right');
+                    icon.classList.add('fa-arrow-down');
+                }
+            }
+        }
+
+        async function handlePullToRefreshEnd(e) {
+            const view = document.getElementById('view-issues');
+            if (view.scrollTop > 0) return;
+
+            const indicator = document.getElementById('pull-refresh-indicator');
+            const icon = document.getElementById('pull-refresh-icon');
+
+            if (pullDistance > PULL_THRESHOLD && !isRefreshing) {
+                isRefreshing = true;
+                icon.classList.add('fa-spin');
+                
+                // Keep indicator visible during load
+                indicator.style.transform = `translateY(60px)`;
+                
+                await loadIssues();
+                
+                // Reset
+                setTimeout(() => {
+                    icon.classList.remove('fa-spin');
+                    indicator.style.opacity = '0';
+                    indicator.style.transform = 'translateY(-10px)';
+                    isRefreshing = false;
+                    pullDistance = 0;
+                }, 500);
+            } else {
+                // Cancel pull
+                indicator.style.opacity = '0';
+                indicator.style.transform = 'translateY(-10px)';
+                pullDistance = 0;
+            }
+        }
+
         // --- Issues/Feedback ---
         let allIssues = [];
         let currentIssueFilter = 'all';
@@ -3816,13 +3901,13 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             const date = issue.created_at ? new Date(issue.created_at).toLocaleDateString() : '';
 
             return `
-                <div class="bg-white rounded-xl shadow-sm p-4 ${isCompleted ? 'opacity-60' : ''}">
+                <div class="bg-white rounded-xl shadow-sm p-4 ${isCompleted ? 'opacity-60' : ''} cursor-pointer hover:bg-gray-50 transition-colors" onclick="openEditIssueModal(${issue.id})">
                     <div class="flex items-start justify-between mb-2">
                         <div class="flex items-center gap-2">
                             ${typeIcons[issue.type] || ''}
                             <span class="font-medium text-gray-900 ${isCompleted ? 'line-through' : ''}">${escapeHtml(issue.title)}</span>
                         </div>
-                        <div class="flex items-center gap-2">
+                        <div class="flex items-center gap-2" onclick="event.stopPropagation()">
                             <select onchange="updateIssueStatus(${issue.id}, this.value)" class="text-xs border rounded px-2 py-1 ${statusColors[issue.status]}">
                                 <option value="new" ${issue.status === 'new' ? 'selected' : ''}>New</option>
                                 <option value="in_progress" ${issue.status === 'in_progress' ? 'selected' : ''}>In Progress</option>
