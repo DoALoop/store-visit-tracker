@@ -928,7 +928,8 @@ def get_market_notes():
                     COALESCE(mnc.completed, FALSE) as completed,
                     mnc.assigned_to,
                     COALESCE(mnc.status, 'new') as status,
-                    mnc.completed_at
+                    mnc.completed_at,
+                    mnc.due_date
                 FROM store_market_notes smn
                 JOIN store_visits sv ON smn.visit_id = sv.id
                 LEFT JOIN market_note_completions mnc
@@ -937,7 +938,7 @@ def get_market_notes():
                     CASE COALESCE(mnc.status, 'new')
                         WHEN 'in_progress' THEN 1
                         WHEN 'new' THEN 2
-                        WHEN 'on_hold' THEN 3
+                        WHEN 'stalled' THEN 3
                         WHEN 'completed' THEN 4
                     END,
                     sv.calendar_date DESC,
@@ -1036,6 +1037,7 @@ def update_market_note():
     status = data.get('status')
     assigned_to = data.get('assigned_to')
     completed = data.get('completed')
+    due_date = data.get('due_date')
 
     conn = get_db_connection()
     if not conn:
@@ -1062,16 +1064,17 @@ def update_market_note():
 
         if has_new_columns:
             query = """
-                INSERT INTO market_note_completions (visit_id, note_text, completed, completed_at, status, assigned_to)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                INSERT INTO market_note_completions (visit_id, note_text, completed, completed_at, status, assigned_to, due_date)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (visit_id, note_text)
                 DO UPDATE SET
                     completed = COALESCE(EXCLUDED.completed, market_note_completions.completed),
                     completed_at = COALESCE(EXCLUDED.completed_at, market_note_completions.completed_at),
                     status = COALESCE(EXCLUDED.status, market_note_completions.status),
-                    assigned_to = COALESCE(EXCLUDED.assigned_to, market_note_completions.assigned_to)
+                    assigned_to = COALESCE(EXCLUDED.assigned_to, market_note_completions.assigned_to),
+                    due_date = COALESCE(EXCLUDED.due_date, market_note_completions.due_date)
             """
-            cursor.execute(query, (visit_id, note_text, completed, completed_at, status, assigned_to))
+            cursor.execute(query, (visit_id, note_text, completed, completed_at, status, assigned_to, due_date))
         else:
             # Legacy query without new columns
             query = """

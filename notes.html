@@ -204,6 +204,68 @@ Use - [ ] for tasks"
         </div>
     </div>
 
+    <!-- Market Note Detail Modal -->
+    <div id="market-note-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <header class="bg-walmart-blue text-white px-4 py-3 flex items-center justify-between rounded-t-lg">
+                <h2 class="font-semibold">Market Note Details</h2>
+                <button onclick="closeMarketNoteModal()" class="p-1">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </header>
+            <div class="p-4 space-y-4">
+                <!-- Store & Date Info -->
+                <div class="text-sm text-gray-500">
+                    <span id="mnm-store" class="font-medium"></span>
+                    <span id="mnm-date" class="ml-2"></span>
+                </div>
+
+                <!-- Note Text -->
+                <div class="bg-gray-50 rounded-lg p-3">
+                    <p id="mnm-note-text" class="text-gray-800"></p>
+                </div>
+
+                <!-- Status -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                    <div class="grid grid-cols-4 gap-2">
+                        <button onclick="setMarketNoteStatus('new')" class="mnm-status-btn px-3 py-2 rounded-lg text-sm border-2" data-status="new">
+                            New
+                        </button>
+                        <button onclick="setMarketNoteStatus('in_progress')" class="mnm-status-btn px-3 py-2 rounded-lg text-sm border-2" data-status="in_progress">
+                            In Progress
+                        </button>
+                        <button onclick="setMarketNoteStatus('stalled')" class="mnm-status-btn px-3 py-2 rounded-lg text-sm border-2" data-status="stalled">
+                            Stalled
+                        </button>
+                        <button onclick="setMarketNoteStatus('completed')" class="mnm-status-btn px-3 py-2 rounded-lg text-sm border-2" data-status="completed">
+                            Completed
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Assigned To -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Assigned To</label>
+                    <input type="text" id="mnm-assigned-to" placeholder="Enter name..."
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-walmart-blue">
+                </div>
+
+                <!-- Due Date -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Due Date</label>
+                    <input type="date" id="mnm-due-date"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-walmart-blue">
+                </div>
+
+                <!-- Save Button -->
+                <button onclick="saveMarketNoteDetails()" class="w-full bg-walmart-blue text-white py-3 rounded-lg font-medium hover:bg-walmart-dark-blue">
+                    Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Bottom Navigation Bar -->
     <nav class="fixed bottom-0 w-full bg-white border-t border-gray-200 pb-safe z-40">
         <div class="grid grid-cols-5 h-16">
@@ -602,20 +664,25 @@ Use - [ ] for tasks"
                     </h3>
                     <div class="space-y-2">
                         ${storeNotes.map(note => `
-                            <div class="bg-white rounded-lg shadow p-3 flex items-start space-x-3">
+                            <div class="bg-white rounded-lg shadow p-3 flex items-start space-x-3 cursor-pointer hover:shadow-md transition-shadow"
+                                 onclick="openMarketNoteModal(${JSON.stringify(note).replace(/"/g, '&quot;')})">
                                 <input type="checkbox" ${note.completed ? 'checked' : ''}
-                                       class="mt-1 cursor-pointer" onclick="toggleMarketNote(${note.visit_id}, '${escapeHtml(note.note_text)}')">
+                                       class="mt-1 cursor-pointer" onclick="event.stopPropagation(); toggleMarketNote(${note.visit_id}, '${escapeHtml(note.note_text).replace(/'/g, "\\'")}')">
                                 <div class="flex-1 min-w-0">
                                     <p class="${note.completed ? 'line-through text-gray-400' : ''}">${escapeHtml(note.note_text)}</p>
-                                    <div class="text-xs text-gray-400 mt-1">
-                                        ${note.calendar_date || ''}
-                                        <span class="ml-2 px-2 py-0.5 rounded text-xs ${
+                                    <div class="text-xs text-gray-400 mt-1 flex flex-wrap items-center gap-2">
+                                        <span>${note.calendar_date || ''}</span>
+                                        <span class="px-2 py-0.5 rounded text-xs ${
                                             note.status === 'new' ? 'bg-blue-100 text-blue-700' :
                                             note.status === 'in_progress' ? 'bg-yellow-100 text-yellow-700' :
+                                            note.status === 'stalled' ? 'bg-red-100 text-red-700' :
                                             'bg-green-100 text-green-700'
-                                        }">${note.status}</span>
+                                        }">${note.status === 'in_progress' ? 'In Progress' : note.status.charAt(0).toUpperCase() + note.status.slice(1)}</span>
+                                        ${note.assigned_to ? `<span class="text-walmart-blue"><i class="fas fa-user mr-1"></i>${escapeHtml(note.assigned_to)}</span>` : ''}
+                                        ${note.due_date ? `<span class="text-gray-600"><i class="fas fa-calendar mr-1"></i>${note.due_date}</span>` : ''}
                                     </div>
                                 </div>
+                                <i class="fas fa-chevron-right text-gray-300 mt-1"></i>
                             </div>
                         `).join('')}
                     </div>
@@ -644,6 +711,80 @@ Use - [ ] for tasks"
                 loadMarketNotes(currentMarketFilter);
             } catch (error) {
                 console.error('Error toggling market note:', error);
+            }
+        }
+
+        // Market Note Modal
+        let currentMarketNote = null;
+
+        function openMarketNoteModal(note) {
+            currentMarketNote = note;
+
+            // Populate modal
+            document.getElementById('mnm-store').textContent = `Store ${note.store_nbr}`;
+            document.getElementById('mnm-date').textContent = note.calendar_date || '';
+            document.getElementById('mnm-note-text').textContent = note.note_text;
+            document.getElementById('mnm-assigned-to').value = note.assigned_to || '';
+            document.getElementById('mnm-due-date').value = note.due_date || '';
+
+            // Update status buttons
+            updateStatusButtons(note.status || 'new');
+
+            // Show modal
+            document.getElementById('market-note-modal').classList.remove('hidden');
+        }
+
+        function closeMarketNoteModal() {
+            document.getElementById('market-note-modal').classList.add('hidden');
+            currentMarketNote = null;
+        }
+
+        function updateStatusButtons(activeStatus) {
+            document.querySelectorAll('.mnm-status-btn').forEach(btn => {
+                const status = btn.dataset.status;
+                btn.classList.remove('border-walmart-blue', 'bg-walmart-blue', 'text-white', 'border-gray-300');
+                if (status === activeStatus) {
+                    btn.classList.add('border-walmart-blue', 'bg-walmart-blue', 'text-white');
+                } else {
+                    btn.classList.add('border-gray-300');
+                }
+            });
+        }
+
+        function setMarketNoteStatus(status) {
+            if (currentMarketNote) {
+                currentMarketNote.status = status;
+                updateStatusButtons(status);
+            }
+        }
+
+        async function saveMarketNoteDetails() {
+            if (!currentMarketNote) return;
+
+            const assignedTo = document.getElementById('mnm-assigned-to').value.trim();
+            const dueDate = document.getElementById('mnm-due-date').value || null;
+
+            try {
+                const response = await fetch(`${API_BASE}/api/market-notes/update`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        visit_id: currentMarketNote.visit_id,
+                        note_text: currentMarketNote.note_text,
+                        status: currentMarketNote.status,
+                        assigned_to: assignedTo || null,
+                        due_date: dueDate,
+                        completed: currentMarketNote.status === 'completed'
+                    })
+                });
+
+                if (!response.ok) throw new Error('Failed to save market note');
+
+                closeMarketNoteModal();
+                loadMarketNotes(currentMarketFilter);
+            } catch (error) {
+                console.error('Error saving market note:', error);
+                alert('Failed to save changes');
             }
         }
 
