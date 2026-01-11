@@ -192,7 +192,7 @@ def get_visits():
                 SELECT *
                 FROM store_visits
                 WHERE "storeNbr" = %s
-                ORDER BY calendar_date DESC
+                ORDER BY calendar_date DESC, id DESC
                 LIMIT 3
             """
             cursor.execute(query, (store_number,))
@@ -202,7 +202,7 @@ def get_visits():
             query = """
                 SELECT *
                 FROM store_visits
-                ORDER BY calendar_date DESC
+                ORDER BY calendar_date DESC, id DESC
                 LIMIT 100
             """
             cursor.execute(query)
@@ -3018,6 +3018,161 @@ def get_folders():
 
     except Exception as e:
         print(f"Error getting folders: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+# --- Mentee Circle API ---
+
+@app.route('/api/mentees', methods=['GET'])
+def get_mentees():
+    """Get all mentees"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("""
+            SELECT id, name, store_nbr, position, cell_number, created_at
+            FROM mentees
+            ORDER BY name
+        """)
+        mentees = cursor.fetchall()
+        cursor.close()
+
+        # Convert to list of dicts
+        result = []
+        for m in mentees:
+            result.append({
+                "id": m['id'],
+                "name": m['name'],
+                "store_nbr": m['store_nbr'],
+                "position": m['position'],
+                "cell_number": m['cell_number'],
+                "created_at": m['created_at'].isoformat() if m['created_at'] else None
+            })
+
+        return jsonify(result)
+
+    except Exception as e:
+        print(f"Error fetching mentees: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/mentees', methods=['POST'])
+def add_mentee():
+    """Add a new mentee"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        data = request.get_json()
+        name = data.get('name', '').strip()
+        store_nbr = data.get('store_nbr', '').strip()
+        position = data.get('position', '').strip()
+        cell_number = data.get('cell_number', '').strip()
+
+        if not name:
+            return jsonify({"error": "Name is required"}), 400
+
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("""
+            INSERT INTO mentees (name, store_nbr, position, cell_number)
+            VALUES (%s, %s, %s, %s)
+            RETURNING id, name, store_nbr, position, cell_number, created_at
+        """, (name, store_nbr, position, cell_number))
+
+        new_mentee = cursor.fetchone()
+        conn.commit()
+        cursor.close()
+
+        return jsonify({
+            "success": True,
+            "mentee": {
+                "id": new_mentee['id'],
+                "name": new_mentee['name'],
+                "store_nbr": new_mentee['store_nbr'],
+                "position": new_mentee['position'],
+                "cell_number": new_mentee['cell_number'],
+                "created_at": new_mentee['created_at'].isoformat()
+            }
+        })
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error adding mentee: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/mentees/<int:mentee_id>', methods=['PUT'])
+def update_mentee(mentee_id):
+    """Update a mentee"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        data = request.get_json()
+        name = data.get('name', '').strip()
+        store_nbr = data.get('store_nbr', '').strip()
+        position = data.get('position', '').strip()
+        cell_number = data.get('cell_number', '').strip()
+
+        if not name:
+            return jsonify({"error": "Name is required"}), 400
+
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE mentees
+            SET name = %s, store_nbr = %s, position = %s, cell_number = %s, updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+        """, (name, store_nbr, position, cell_number, mentee_id))
+
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Mentee not found"}), 404
+
+        conn.commit()
+        cursor.close()
+
+        return jsonify({"success": True, "message": "Mentee updated"})
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error updating mentee: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/mentees/<int:mentee_id>', methods=['DELETE'])
+def delete_mentee(mentee_id):
+    """Delete a mentee"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM mentees WHERE id = %s", (mentee_id,))
+
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Mentee not found"}), 404
+
+        conn.commit()
+        cursor.close()
+
+        return jsonify({"success": True, "message": "Mentee deleted"})
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error deleting mentee: {e}")
         return jsonify({"error": str(e)}), 500
     finally:
         release_db_connection(conn)

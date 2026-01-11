@@ -92,6 +92,9 @@
             <button onclick="switchTab('champions'); closeDrawer();" class="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg flex items-center">
                 <i class="fas fa-trophy w-6 text-walmart-blue"></i><span class="ml-3">Champions</span>
             </button>
+            <button onclick="switchTab('mentees'); closeDrawer();" class="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg flex items-center">
+                <i class="fas fa-user-friends w-6 text-walmart-blue"></i><span class="ml-3">Mentee Circle</span>
+            </button>
             <button onclick="switchTab('issues'); closeDrawer();" class="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg flex items-center">
                 <i class="fas fa-clipboard-check w-6 text-walmart-blue"></i><span class="ml-3">Issues</span>
             </button>
@@ -852,6 +855,64 @@
                 <i class="fas fa-trophy text-5xl text-gray-300 mb-4"></i>
                 <p class="text-gray-600 font-medium">No champions yet</p>
                 <p class="text-gray-400 text-sm mt-1">Add your first champion to get started</p>
+            </div>
+        </div>
+
+        <!-- VIEW: MENTEE CIRCLE -->
+        <div id="view-mentees" class="hidden-view p-4 bg-gray-100 min-h-full">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-gray-900">Mentee Circle</h2>
+                <button onclick="showAddMenteeForm()" class="bg-walmart-blue text-white px-4 py-2 rounded-lg hover:bg-walmart-dark-blue text-sm font-medium">
+                    <i class="fas fa-plus mr-1"></i> Add
+                </button>
+            </div>
+
+            <!-- Add/Edit Mentee Form -->
+            <div id="mentee-form" class="hidden bg-white rounded-xl shadow-sm p-4 mb-4">
+                <h3 id="mentee-form-title" class="font-semibold text-gray-800 mb-3">Add Mentee</h3>
+                <div class="space-y-3">
+                    <div>
+                        <label class="text-sm text-gray-600">Name</label>
+                        <input type="text" id="mentee-name" class="w-full border border-gray-300 rounded-lg px-3 py-2 mt-1 focus:border-walmart-blue focus:ring-walmart-blue" placeholder="Associate Name">
+                    </div>
+                    <div>
+                        <label class="text-sm text-gray-600">Store Number</label>
+                        <input type="text" id="mentee-store" class="w-full border border-gray-300 rounded-lg px-3 py-2 mt-1 focus:border-walmart-blue focus:ring-walmart-blue" placeholder="Store #">
+                    </div>
+                    <div>
+                        <label class="text-sm text-gray-600">Position</label>
+                        <input type="text" id="mentee-position" class="w-full border border-gray-300 rounded-lg px-3 py-2 mt-1 focus:border-walmart-blue focus:ring-walmart-blue" placeholder="Position">
+                    </div>
+                    <div>
+                        <label class="text-sm text-gray-600">Cell Number</label>
+                        <input type="text" id="mentee-cell" class="w-full border border-gray-300 rounded-lg px-3 py-2 mt-1 focus:border-walmart-blue focus:ring-walmart-blue" placeholder="Cell Number">
+                    </div>
+                    <div class="flex gap-2 pt-2">
+                        <button onclick="hideMenteeForm()" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
+                        <button onclick="saveMentee()" class="flex-1 px-4 py-2 bg-walmart-blue text-white rounded-lg hover:bg-walmart-dark-blue">Save</button>
+                    </div>
+                </div>
+                <input type="hidden" id="mentee-edit-id" value="">
+            </div>
+
+            <!-- Mentees List -->
+            <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                <div class="bg-walmart-blue px-4 py-3 grid grid-cols-12 gap-2 text-white font-semibold text-sm">
+                    <div class="col-span-4">Name</div>
+                    <div class="col-span-2">Store</div>
+                    <div class="col-span-4">Position</div>
+                    <div class="col-span-2 text-center">Actions</div>
+                </div>
+                <div id="mentees-list" class="divide-y divide-gray-100">
+                    <div class="p-8 text-center text-gray-500">Loading...</div>
+                </div>
+            </div>
+
+            <!-- Empty State -->
+            <div id="mentees-empty" class="hidden text-center py-12 bg-white rounded-xl mt-4">
+                <i class="fas fa-user-friends text-5xl text-gray-300 mb-4"></i>
+                <p class="text-gray-600 font-medium">No mentees yet</p>
+                <p class="text-gray-400 text-sm mt-1">Add your first mentee to the circle</p>
             </div>
         </div>
 
@@ -1616,7 +1677,7 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
 
         // --- Navigation ---
         function switchTab(tabName) {
-            ['view-home', 'view-log-visit', 'view-visits', 'view-prior-tours', 'view-market-notes', 'view-gold-stars', 'view-champions', 'view-status', 'view-issues', 'view-notes'].forEach(id => {
+            ['view-home', 'view-log-visit', 'view-visits', 'view-prior-tours', 'view-market-notes', 'view-gold-stars', 'view-champions', 'view-mentees', 'view-status', 'view-issues', 'view-notes'].forEach(id => {
                 document.getElementById(id).classList.add('hidden-view');
             });
 
@@ -1628,6 +1689,7 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             if (tabName === 'market-notes') loadMarketNotes();
             if (tabName === 'gold-stars') loadGoldStars();
             if (tabName === 'champions') loadChampions();
+            if (tabName === 'mentees') loadMentees();
             if (tabName === 'status') loadStatus();
             if (tabName === 'issues') loadIssues();
             if (tabName === 'notes') loadNotesView();
@@ -3658,6 +3720,156 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             } catch (e) {
                 console.error('Error deleting champion:', e);
                 alert('Failed to delete champion');
+            }
+        }
+
+        // --- Mentee Circle ---
+        let allMentees = [];
+        let editingMenteeId = null;
+
+        async function loadMentees() {
+            const listEl = document.getElementById('mentees-list');
+            const emptyEl = document.getElementById('mentees-empty');
+            listEl.innerHTML = '<div class="p-8 text-center"><svg class="animate-spin h-8 w-8 text-walmart-blue mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></div>';
+
+            try {
+                const response = await fetch('/api/mentees');
+                if (!response.ok) throw new Error('Failed to load mentees');
+                allMentees = await response.json();
+
+                renderMentees();
+            } catch (e) {
+                console.error('Error loading mentees:', e);
+                listEl.innerHTML = '<div class="p-8 text-center text-red-500">Error loading mentees</div>';
+            }
+        }
+
+        function renderMentees() {
+            const listEl = document.getElementById('mentees-list');
+            const emptyEl = document.getElementById('mentees-empty');
+            const tableContainer = listEl.parentElement;
+
+            if (allMentees.length === 0) {
+                tableContainer.classList.add('hidden');
+                emptyEl.classList.remove('hidden');
+                return;
+            }
+
+            tableContainer.classList.remove('hidden');
+            emptyEl.classList.add('hidden');
+
+            listEl.innerHTML = allMentees.map(m => `
+                <div class="grid grid-cols-12 gap-2 px-4 py-3 hover:bg-gray-50 items-center">
+                    <div class="col-span-4">
+                        <div class="font-medium text-gray-900">${escapeHtml(m.name)}</div>
+                        <div class="text-xs text-gray-500">${escapeHtml(m.cell_number || '')}</div>
+                    </div>
+                    <div class="col-span-2 text-gray-600 font-medium">#${escapeHtml(m.store_nbr || '')}</div>
+                    <div class="col-span-4 text-gray-600 text-sm">${escapeHtml(m.position || '')}</div>
+                    <div class="col-span-2 flex justify-center gap-2">
+                        <button onclick="editMentee(${m.id})" class="text-walmart-blue hover:text-walmart-dark-blue p-1">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button onclick="deleteMentee(${m.id})" class="text-red-500 hover:text-red-700 p-1">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function showAddMenteeForm() {
+            editingMenteeId = null;
+            document.getElementById('mentee-form-title').textContent = 'Add Mentee';
+            document.getElementById('mentee-name').value = '';
+            document.getElementById('mentee-store').value = '';
+            document.getElementById('mentee-position').value = '';
+            document.getElementById('mentee-cell').value = '';
+            document.getElementById('mentee-edit-id').value = '';
+            document.getElementById('mentee-form').classList.remove('hidden');
+            document.getElementById('mentee-name').focus();
+        }
+
+        function hideMenteeForm() {
+            document.getElementById('mentee-form').classList.add('hidden');
+            editingMenteeId = null;
+        }
+
+        function editMentee(id) {
+            const mentee = allMentees.find(m => m.id === id);
+            if (!mentee) return;
+
+            editingMenteeId = id;
+            document.getElementById('mentee-form-title').textContent = 'Edit Mentee';
+            document.getElementById('mentee-name').value = mentee.name;
+            document.getElementById('mentee-store').value = mentee.store_nbr || '';
+            document.getElementById('mentee-position').value = mentee.position || '';
+            document.getElementById('mentee-cell').value = mentee.cell_number || '';
+            document.getElementById('mentee-edit-id').value = id;
+            document.getElementById('mentee-form').classList.remove('hidden');
+            document.getElementById('mentee-name').focus();
+        }
+
+        async function saveMentee() {
+            const name = document.getElementById('mentee-name').value.trim();
+            const store = document.getElementById('mentee-store').value.trim();
+            const position = document.getElementById('mentee-position').value.trim();
+            const cell = document.getElementById('mentee-cell').value.trim();
+
+            if (!name) {
+                alert('Name is required');
+                return;
+            }
+
+            const payload = { 
+                name: name,
+                store_nbr: store,
+                position: position,
+                cell_number: cell
+            };
+
+            try {
+                let response;
+                if (editingMenteeId) {
+                    // Update existing
+                    response = await fetch(`/api/mentees/${editingMenteeId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                } else {
+                    // Create new
+                    response = await fetch('/api/mentees', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                }
+
+                if (!response.ok) throw new Error('Failed to save');
+
+                hideMenteeForm();
+                await loadMentees();
+            } catch (e) {
+                console.error('Error saving mentee:', e);
+                alert('Failed to save mentee');
+            }
+        }
+
+        async function deleteMentee(id) {
+            if (!confirm('Are you sure you want to delete this mentee?')) return;
+
+            try {
+                const response = await fetch(`/api/mentees/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) throw new Error('Failed to delete');
+
+                await loadMentees();
+            } catch (e) {
+                console.error('Error deleting mentee:', e);
+                alert('Failed to delete mentee');
             }
         }
 
