@@ -3802,12 +3802,14 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             const statusColors = {
                 new: 'bg-blue-100 text-blue-800',
                 in_progress: 'bg-yellow-100 text-yellow-800',
+                stalled: 'bg-red-100 text-red-800',
                 completed: 'bg-green-100 text-green-800'
             };
 
             const statusLabels = {
                 new: 'New',
                 in_progress: 'In Progress',
+                stalled: 'Stalled',
                 completed: 'Completed'
             };
 
@@ -3824,6 +3826,7 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                             <select onchange="updateIssueStatus(${issue.id}, this.value)" class="text-xs border rounded px-2 py-1 ${statusColors[issue.status]}">
                                 <option value="new" ${issue.status === 'new' ? 'selected' : ''}>New</option>
                                 <option value="in_progress" ${issue.status === 'in_progress' ? 'selected' : ''}>In Progress</option>
+                                <option value="stalled" ${issue.status === 'stalled' ? 'selected' : ''}>Stalled</option>
                                 <option value="completed" ${issue.status === 'completed' ? 'selected' : ''}>Completed</option>
                             </select>
                             <button onclick="openEditIssueModal(${issue.id})" class="text-gray-400 hover:text-walmart-blue p-1" title="Edit">

@@ -1775,7 +1775,8 @@ def get_issues():
                 CASE status
                     WHEN 'new' THEN 1
                     WHEN 'in_progress' THEN 2
-                    WHEN 'completed' THEN 3
+                    WHEN 'stalled' THEN 3
+                    WHEN 'completed' THEN 4
                 END,
                 created_at DESC
         """)
@@ -1872,7 +1873,7 @@ def update_issue(issue_id):
         params = []
 
         if status:
-            if status not in ['new', 'in_progress', 'completed']:
+            if status not in ['new', 'in_progress', 'stalled', 'completed']:
                 return jsonify({"error": "Invalid status"}), 400
             updates.append("status = %s")
             params.append(status)
