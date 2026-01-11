@@ -2994,6 +2994,189 @@ def templates():
         release_db_connection(conn)
 
 
+@app.route('/api/notes/process-natural-language', methods=['POST'])
+def process_natural_language_note():
+    """Process natural language text to extract tasks using AI"""
+    if not model:
+        return jsonify({"error": "AI model not available"}), 503
+
+    data = request.get_json()
+    content = data.get('content', '').strip()
+    store_number = data.get('store_number')
+
+    if not content:
+        return jsonify({"error": "Content is required"}), 400
+
+    # Prompt for Gemini
+    prompt = f"""
+    Analyze the following note content and extract actionable tasks.
+    
+    NOTE CONTENT:
+    {content}
+    
+    For each task identified, extract:
+    1. content: The task description
+    2. assigned_to: Person responsible (if mentioned, e.g., "Assign to Bob")
+    3. due_date: Due date in YYYY-MM-DD format (convert "next friday", "tomorrow", etc. relative to today {date.today()})
+    4. priority: Priority level (0=none, 1=low, 2=medium, 3=high/urgent)
+    5. store_number: Store number if mentioned (e.g. "at store 1234"), otherwise use default: {store_number or 'null'}
+
+    Return a JSON object with a "tasks" array.
+    Example: {{ "tasks": [ {{ "content": "Fix shelf", "assigned_to": "Bob", "due_date": "2024-01-01", "priority": 2, "store_number": "1234" }} ] }}
+    """
+
+    try:
+        response = model.generate_content(prompt)
+        response_text = response.text.strip()
+        
+        # Clean up code blocks
+        if response_text.startswith('```'):
+            response_text = response_text.split('\n', 1)[1]
+            if response_text.endswith('```'):
+                response_text = response_text.rsplit('```', 1)[0]
+        
+        import json
+        parsed = json.loads(response_text)
+        return jsonify(parsed)
+
+    except Exception as e:
+        print(f"Error processing note with AI: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/notes/<note_id>/photos', methods=['GET'])
+def get_note_photos(note_id):
+    """Get all photos for a note"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("""
+            SELECT id, note_id, gcs_url, filename, content_type, file_size, caption, uploaded_at
+            FROM note_photos
+            WHERE note_id = %s
+            ORDER BY uploaded_at ASC
+        """, (note_id,))
+        photos = cursor.fetchall()
+
+        for photo in photos:
+            if photo.get('uploaded_at'):
+                photo['uploaded_at'] = photo['uploaded_at'].isoformat()
+
+        cursor.close()
+        return jsonify(photos)
+
+    except Exception as e:
+        print(f"Error getting note photos: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/notes/<note_id>/photos', methods=['POST'])
+def upload_note_photo(note_id):
+    """Upload a photo for a note"""
+    if not gcs_bucket:
+        return jsonify({"error": "Photo storage not configured"}), 503
+
+    if 'photo' not in request.files:
+        return jsonify({"error": "No photo file provided"}), 400
+
+    photo_file = request.files['photo']
+    if photo_file.filename == '':
+        return jsonify({"error": "No file selected"}), 400
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        # Generate unique filename
+        file_ext = photo_file.filename.rsplit('.', 1)[-1].lower() if '.' in photo_file.filename else 'jpg'
+        unique_filename = f"notes/{note_id}/{uuid.uuid4()}.{file_ext}"
+
+        # Upload to GCS
+        blob = gcs_bucket.blob(unique_filename)
+        photo_file.seek(0)
+        file_data = photo_file.read()
+        file_size = len(file_data)
+        content_type = photo_file.content_type
+
+        blob.upload_from_string(file_data, content_type=content_type)
+        blob.make_public()
+        gcs_url = blob.public_url
+
+        # Save to database
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        photo_id = str(uuid.uuid4())
+        caption = request.form.get('caption', '')
+
+        cursor.execute("""
+            INSERT INTO note_photos (id, note_id, gcs_url, filename, content_type, file_size, caption)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, gcs_url, filename, caption, uploaded_at
+        """, (photo_id, note_id, gcs_url, photo_file.filename, content_type, file_size, caption))
+
+        photo = cursor.fetchone()
+        conn.commit()
+
+        if photo.get('uploaded_at'):
+            photo['uploaded_at'] = photo['uploaded_at'].isoformat()
+
+        cursor.close()
+        return jsonify(photo), 201
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error uploading note photo: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/notes/photos/<photo_id>', methods=['DELETE'])
+def delete_note_photo(photo_id):
+    """Delete a photo from a note"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Get photo info
+        cursor.execute("SELECT gcs_url FROM note_photos WHERE id = %s", (photo_id,))
+        photo = cursor.fetchone()
+
+        if not photo:
+            return jsonify({"error": "Photo not found"}), 404
+
+        # Delete from GCS
+        if gcs_bucket and photo['gcs_url']:
+            try:
+                blob_name = photo['gcs_url'].split(f"{GCS_BUCKET_NAME}/")[-1]
+                blob = gcs_bucket.blob(blob_name)
+                blob.delete()
+            except Exception as e:
+                print(f"Warning: Could not delete from GCS: {e}")
+
+        # Delete from DB
+        cursor.execute("DELETE FROM note_photos WHERE id = %s", (photo_id,))
+        conn.commit()
+        cursor.close()
+
+        return jsonify({"success": True})
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error deleting note photo: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
 @app.route('/api/notes/folders', methods=['GET'])
 def get_folders():
     """Get all unique folder paths with counts"""

@@ -1113,7 +1113,6 @@
                 <div class="flex border-t border-blue-600">
                     <button onclick="switchNotesSubView('tasks')" class="notes-tab flex-1 py-2 text-sm font-medium text-center border-b-2 border-walmart-yellow" data-view="tasks">Tasks</button>
                     <button onclick="switchNotesSubView('market')" class="notes-tab flex-1 py-2 text-sm font-medium text-center border-b-2 border-transparent hover:border-walmart-yellow/50" data-view="market">Market</button>
-                    <button onclick="switchNotesSubView('daily')" class="notes-tab flex-1 py-2 text-sm font-medium text-center border-b-2 border-transparent hover:border-walmart-yellow/50" data-view="daily">Daily</button>
                     <button onclick="switchNotesSubView('graph')" class="notes-tab flex-1 py-2 text-sm font-medium text-center border-b-2 border-transparent hover:border-walmart-yellow/50" data-view="graph">Insights</button>
                 </div>
             </header>
@@ -1134,10 +1133,15 @@
 
             <!-- Market Notes View -->
             <div id="notes-view-market" class="p-4 hidden">
-                <div class="mb-4 flex space-x-2 overflow-x-auto">
-                    <button onclick="filterNotesMarketNotes('all')" class="notes-market-filter px-3 py-1 rounded-full text-sm bg-walmart-blue text-white whitespace-nowrap" data-filter="all">All</button>
-                    <button onclick="filterNotesMarketNotes('pending')" class="notes-market-filter px-3 py-1 rounded-full text-sm bg-gray-200 text-gray-700 whitespace-nowrap" data-filter="pending">Pending</button>
-                    <button onclick="filterNotesMarketNotes('completed')" class="notes-market-filter px-3 py-1 rounded-full text-sm bg-gray-200 text-gray-700 whitespace-nowrap" data-filter="completed">Completed</button>
+                <div class="mb-4 flex justify-between items-center">
+                    <div class="flex space-x-2 overflow-x-auto">
+                        <button onclick="filterNotesMarketNotes('all')" class="notes-market-filter px-3 py-1 rounded-full text-sm bg-walmart-blue text-white whitespace-nowrap" data-filter="all">All</button>
+                        <button onclick="filterNotesMarketNotes('pending')" class="notes-market-filter px-3 py-1 rounded-full text-sm bg-gray-200 text-gray-700 whitespace-nowrap" data-filter="pending">Pending</button>
+                        <button onclick="filterNotesMarketNotes('completed')" class="notes-market-filter px-3 py-1 rounded-full text-sm bg-gray-200 text-gray-700 whitespace-nowrap" data-filter="completed">Completed</button>
+                    </div>
+                    <button onclick="openSmartAddModal('market')" class="bg-walmart-blue text-white w-8 h-8 rounded-full flex items-center justify-center shadow-lg hover:bg-walmart-dark-blue">
+                        <i class="fas fa-plus text-sm"></i>
+                    </button>
                 </div>
                 <div id="notes-market-notes-list" class="space-y-2">
                     <p class="text-center text-gray-500 py-8">Loading market notes...</p>
@@ -1146,32 +1150,22 @@
 
             <!-- Tasks View -->
             <div id="notes-view-tasks" class="p-4">
-                <div class="mb-4 flex space-x-2">
-                    <button onclick="filterNotesTasks('all')" class="notes-task-filter px-3 py-1 rounded-full text-sm bg-walmart-blue text-white" data-filter="all">All</button>
-                    <button onclick="filterNotesTasks('today')" class="notes-task-filter px-3 py-1 rounded-full text-sm bg-gray-200 text-gray-700" data-filter="today">Today</button>
-                    <button onclick="filterNotesTasks('upcoming')" class="notes-task-filter px-3 py-1 rounded-full text-sm bg-gray-200 text-gray-700" data-filter="upcoming">Upcoming</button>
-                    <button onclick="filterNotesTasks('completed')" class="notes-task-filter px-3 py-1 rounded-full text-sm bg-gray-200 text-gray-700" data-filter="completed">Completed</button>
+                <div class="mb-4 flex justify-between items-center">
+                    <div class="flex space-x-2">
+                        <button onclick="filterNotesTasks('all')" class="notes-task-filter px-3 py-1 rounded-full text-sm bg-walmart-blue text-white" data-filter="all">All</button>
+                        <button onclick="filterNotesTasks('today')" class="notes-task-filter px-3 py-1 rounded-full text-sm bg-gray-200 text-gray-700" data-filter="today">Today</button>
+                        <button onclick="filterNotesTasks('upcoming')" class="notes-task-filter px-3 py-1 rounded-full text-sm bg-gray-200 text-gray-700" data-filter="upcoming">Upcoming</button>
+                    </div>
+                    <button onclick="openSmartAddModal('task')" class="bg-walmart-blue text-white w-8 h-8 rounded-full flex items-center justify-center shadow-lg hover:bg-walmart-dark-blue">
+                        <i class="fas fa-plus text-sm"></i>
+                    </button>
                 </div>
                 <div id="notes-tasks-list" class="space-y-2">
                     <p class="text-center text-gray-500 py-8">No tasks found</p>
                 </div>
             </div>
 
-            <!-- Daily Notes View -->
-            <div id="notes-view-daily" class="p-4 hidden">
-                <div class="flex items-center justify-between mb-4">
-                    <button onclick="previousDay()" class="p-2 text-walmart-blue">
-                        <i class="fas fa-chevron-left"></i>
-                    </button>
-                    <span id="daily-date" class="font-medium"></span>
-                    <button onclick="nextDay()" class="p-2 text-walmart-blue">
-                        <i class="fas fa-chevron-right"></i>
-                    </button>
-                </div>
-                <div id="daily-note-content" class="bg-white rounded-lg shadow p-4">
-                    <p class="text-center text-gray-500 py-8 cursor-pointer" onclick="createDailyNote()">Tap to create today's note</p>
-                </div>
-            </div>
+            <!-- Daily Notes View (Removed) -->
 
             <!-- Graph View -->
             <div id="notes-view-graph" class="p-4 hidden overflow-y-auto" style="height: calc(100vh - 180px);">
@@ -1435,10 +1429,12 @@
                     <i class="fas fa-times text-xl"></i>
                 </button>
                 <div class="flex space-x-2">
+                    <button onclick="document.getElementById('note-photo-input').click()" class="px-3 py-1 rounded text-sm border border-white/50 hover:bg-white/10"><i class="fas fa-camera"></i></button>
                     <button onclick="toggleNotePreview()" id="preview-btn" class="px-3 py-1 rounded text-sm border border-white/50">Preview</button>
                     <button onclick="saveCurrentNote()" class="px-3 py-1 rounded text-sm bg-walmart-yellow text-walmart-dark-blue font-medium">Save</button>
                 </div>
             </header>
+            <input type="file" id="note-photo-input" accept="image/*" class="hidden" onchange="handleNotePhotoUpload(this)">
             <input type="text" id="note-title" placeholder="Note title" class="px-4 py-3 text-xl font-semibold border-b focus:outline-none focus:border-walmart-blue">
             <div class="px-4 py-2 border-b bg-gray-50 flex items-center space-x-3">
                 <label class="text-sm text-gray-600">Store:</label>
@@ -1559,6 +1555,41 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                     </select>
                 </div>
                 <button onclick="saveNotesTaskDetails()" class="w-full bg-walmart-blue text-white py-3 rounded-lg font-medium hover:bg-walmart-dark-blue">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Smart Add Modal -->
+    <div id="smart-add-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-lg w-full max-w-lg overflow-hidden">
+            <div class="bg-walmart-blue px-4 py-3 flex justify-between items-center">
+                <h3 class="text-white font-semibold flex items-center"><i class="fas fa-magic mr-2"></i>Smart Add</h3>
+                <button onclick="closeSmartAddModal()" class="text-white hover:text-gray-200">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-4 space-y-4">
+                <p class="text-sm text-gray-600">Type your note naturally. AI will extract tasks, dates, priority, and assignments.</p>
+                
+                <textarea id="smart-add-content" rows="4" class="w-full border border-gray-300 rounded-lg p-3 focus:border-walmart-blue focus:ring-walmart-blue" placeholder="e.g. Remind Bob to check the dairy cooler by Friday, priority high"></textarea>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Store Context (Optional)</label>
+                    <select id="smart-add-store" class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                        <option value="">None</option>
+                    </select>
+                </div>
+
+                <div id="smart-add-preview" class="hidden bg-gray-50 p-3 rounded-lg border border-gray-200">
+                    <h4 class="text-xs font-bold text-gray-500 uppercase mb-2">Detected Tasks:</h4>
+                    <div id="smart-add-tasks-list" class="space-y-2 text-sm"></div>
+                </div>
+
+                <div class="flex gap-2">
+                    <button id="btn-process-ai" onclick="processSmartAdd()" class="flex-1 bg-walmart-blue text-white py-2 rounded-lg hover:bg-walmart-dark-blue font-medium">
+                        <i class="fas fa-magic mr-1"></i> Process & Save
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -5341,6 +5372,127 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                 </button>
             </div>
         </div>
-    </div>
+        // --- Smart Add & Note Photos ---
+        function openSmartAddModal(context) {
+            document.getElementById('smart-add-content').value = '';
+            document.getElementById('smart-add-tasks-list').innerHTML = '';
+            document.getElementById('smart-add-preview').classList.add('hidden');
+            populateStoreDropdown('smart-add-store');
+            document.getElementById('smart-add-modal').classList.remove('hidden');
+            document.getElementById('smart-add-content').focus();
+        }
+
+        function closeSmartAddModal() {
+            document.getElementById('smart-add-modal').classList.add('hidden');
+        }
+
+        async function processSmartAdd() {
+            const content = document.getElementById('smart-add-content').value.trim();
+            const store = document.getElementById('smart-add-store').value;
+            const btn = document.getElementById('btn-process-ai');
+
+            if (!content) return;
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Processing...';
+
+            try {
+                // 1. Process with AI
+                const response = await fetch('/api/notes/process-natural-language', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: content, store_number: store })
+                });
+
+                if (!response.ok) throw new Error('AI processing failed');
+                const result = await response.json();
+
+                // 2. Create a new Note titled "Smart Note - [Timestamp]"
+                const noteTitle = `Smart Note - ${new Date().toLocaleString()}`;
+                const noteContent = content; 
+
+                // Create Note
+                const noteResponse = await fetch('/api/notes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        title: noteTitle, 
+                        content: noteContent, 
+                        folder_path: '/Smart Notes',
+                        store_number: store || null
+                    })
+                });
+                
+                if (!noteResponse.ok) throw new Error('Failed to create note');
+                const newNote = await noteResponse.json();
+
+                // Add Tasks (Construct syntax and update note)
+                if (result.tasks && result.tasks.length > 0) {
+                    let taskLines = "\n\n## Extracted Tasks\n";
+                    result.tasks.forEach(t => {
+                        let line = `- [ ] ${t.content}`;
+                        if (t.assigned_to) line += ` @${t.assigned_to}`;
+                        if (t.priority) line += ` ${t.priority === 3 ? '🔺' : (t.priority === 2 ? '🔼' : '🔽')}`;
+                        if (t.due_date) line += ` 📅 ${t.due_date}`;
+                        taskLines += line + "\n";
+                    });
+                    
+                    await fetch(`/api/notes/${newNote.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ content: noteContent + taskLines })
+                    });
+                }
+
+                closeSmartAddModal();
+                loadNotesTasks('all'); 
+                switchTab('notes');
+                switchNotesSubView('tasks'); 
+
+            } catch (e) {
+                console.error(e);
+                alert('Error: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-magic mr-1"></i> Process & Save';
+            }
+        }
+
+        async function handleNotePhotoUpload(input) {
+            if (!input.files || !input.files[0]) return;
+            // currentNoteId must be defined in the broader scope or accessible
+            if (typeof currentNoteId === 'undefined' || !currentNoteId) {
+                alert('Please save the note first before adding photos.');
+                input.value = '';
+                return;
+            }
+
+            const file = input.files[0];
+            const formData = new FormData();
+            formData.append('photo', file);
+
+            try {
+                const response = await fetch(`/api/notes/${currentNoteId}/photos`, {
+                    method: 'POST',
+                    body: formData
+                });
+                if (!response.ok) throw new Error('Upload failed');
+                
+                const photo = await response.json();
+                const photoMarkdown = `\n![Photo](${photo.gcs_url})\n`;
+                
+                const textArea = document.getElementById('note-content');
+                textArea.value += photoMarkdown;
+                
+                // Auto-save to persist the markdown change
+                await saveCurrentNote(); 
+                
+            } catch (e) {
+                console.error(e);
+                alert('Failed to upload photo');
+            }
+            input.value = '';
+        }
+    </script>
 </body>
 </html>
