@@ -1,4 +1,5 @@
 import os
+import uuid
 from datetime import datetime, timedelta, date
 from dotenv import load_dotenv
 
@@ -15,6 +16,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from psycopg2.pool import SimpleConnectionPool
 from werkzeug.exceptions import BadRequest
+from google.cloud import storage as gcs
 
 app = Flask(__name__)
 
@@ -22,6 +24,17 @@ app = Flask(__name__)
 # Vertex AI configuration
 PROJECT_ID = os.environ.get("GOOGLE_PROJECT_ID", "store-visit-tracker")
 LOCATION = os.environ.get("GOOGLE_LOCATION", "us-central1")
+
+# Google Cloud Storage configuration
+GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME", "store-visit-photos")
+try:
+    gcs_client = gcs.Client(project=PROJECT_ID)
+    gcs_bucket = gcs_client.bucket(GCS_BUCKET_NAME)
+    print(f"Successfully connected to GCS bucket: {GCS_BUCKET_NAME}")
+except Exception as e:
+    print(f"Warning: Could not connect to GCS: {e}")
+    gcs_client = None
+    gcs_bucket = None
 
 # PostgreSQL configuration
 DB_HOST = os.environ.get("DB_HOST", "localhost")
@@ -3098,6 +3111,187 @@ Instructions:
     except Exception as e:
         print(f"Chat error: {e}")
         return jsonify({"error": str(e)}), 500
+
+
+# --- Visit Photos API ---
+
+@app.route('/api/visits/<int:visit_id>/photos', methods=['GET'])
+def get_visit_photos(visit_id):
+    """Get all photos for a visit"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("""
+            SELECT id, visit_id, gcs_url, filename, content_type, file_size, caption, uploaded_at
+            FROM visit_photos
+            WHERE visit_id = %s
+            ORDER BY uploaded_at ASC
+        """, (visit_id,))
+        photos = cursor.fetchall()
+
+        for photo in photos:
+            if photo.get('uploaded_at'):
+                photo['uploaded_at'] = photo['uploaded_at'].isoformat()
+
+        cursor.close()
+        return jsonify(photos)
+
+    except Exception as e:
+        print(f"Error getting visit photos: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/visits/<int:visit_id>/photos', methods=['POST'])
+def upload_visit_photo(visit_id):
+    """Upload a photo for a visit"""
+    if not gcs_bucket:
+        return jsonify({"error": "Photo storage not configured"}), 503
+
+    if 'photo' not in request.files:
+        return jsonify({"error": "No photo file provided"}), 400
+
+    photo_file = request.files['photo']
+    if photo_file.filename == '':
+        return jsonify({"error": "No file selected"}), 400
+
+    # Validate file type
+    allowed_types = {'image/jpeg', 'image/png', 'image/gif', 'image/webp'}
+    content_type = photo_file.content_type
+    if content_type not in allowed_types:
+        return jsonify({"error": f"Invalid file type. Allowed: {', '.join(allowed_types)}"}), 400
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        # Generate unique filename
+        file_ext = photo_file.filename.rsplit('.', 1)[-1].lower() if '.' in photo_file.filename else 'jpg'
+        unique_filename = f"visits/{visit_id}/{uuid.uuid4()}.{file_ext}"
+
+        # Upload to GCS
+        blob = gcs_bucket.blob(unique_filename)
+        photo_file.seek(0)
+        file_data = photo_file.read()
+        file_size = len(file_data)
+
+        blob.upload_from_string(file_data, content_type=content_type)
+        blob.make_public()
+        gcs_url = blob.public_url
+
+        # Save to database
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        photo_id = str(uuid.uuid4())
+        caption = request.form.get('caption', '')
+
+        cursor.execute("""
+            INSERT INTO visit_photos (id, visit_id, gcs_url, filename, content_type, file_size, caption)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, visit_id, gcs_url, filename, content_type, file_size, caption, uploaded_at
+        """, (photo_id, visit_id, gcs_url, photo_file.filename, content_type, file_size, caption))
+
+        photo = cursor.fetchone()
+        conn.commit()
+
+        if photo.get('uploaded_at'):
+            photo['uploaded_at'] = photo['uploaded_at'].isoformat()
+
+        cursor.close()
+        return jsonify(photo), 201
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error uploading photo: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/visits/<int:visit_id>/photos/<photo_id>', methods=['DELETE'])
+def delete_visit_photo(visit_id, photo_id):
+    """Delete a photo from a visit"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Get photo info first
+        cursor.execute("""
+            SELECT gcs_url FROM visit_photos WHERE id = %s AND visit_id = %s
+        """, (photo_id, visit_id))
+        photo = cursor.fetchone()
+
+        if not photo:
+            return jsonify({"error": "Photo not found"}), 404
+
+        # Delete from GCS if bucket is available
+        if gcs_bucket and photo['gcs_url']:
+            try:
+                # Extract blob name from URL
+                blob_name = photo['gcs_url'].split(f"{GCS_BUCKET_NAME}/")[-1]
+                blob = gcs_bucket.blob(blob_name)
+                blob.delete()
+            except Exception as e:
+                print(f"Warning: Could not delete from GCS: {e}")
+
+        # Delete from database
+        cursor.execute("DELETE FROM visit_photos WHERE id = %s", (photo_id,))
+        conn.commit()
+
+        cursor.close()
+        return jsonify({"success": True})
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error deleting photo: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/visits/<int:visit_id>/photos/<photo_id>', methods=['PUT'])
+def update_photo_caption(visit_id, photo_id):
+    """Update photo caption"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        data = request.get_json()
+        caption = data.get('caption', '')
+
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("""
+            UPDATE visit_photos SET caption = %s
+            WHERE id = %s AND visit_id = %s
+            RETURNING id, visit_id, gcs_url, filename, content_type, file_size, caption, uploaded_at
+        """, (caption, photo_id, visit_id))
+
+        photo = cursor.fetchone()
+        if not photo:
+            return jsonify({"error": "Photo not found"}), 404
+
+        conn.commit()
+
+        if photo.get('uploaded_at'):
+            photo['uploaded_at'] = photo['uploaded_at'].isoformat()
+
+        cursor.close()
+        return jsonify(photo)
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error updating photo caption: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
 
 
 if __name__ == "__main__":

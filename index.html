@@ -390,6 +390,35 @@
                         </div>
                     </div>
 
+                    <!-- Visit Photos Section -->
+                    <div id="visit-photos-section" class="hidden bg-gray-50 p-4 rounded-xl">
+                        <h4 class="text-sm font-semibold text-gray-700 mb-3"><i class="fas fa-images mr-2"></i>Visit Photos</h4>
+                        <p class="text-xs text-gray-500 mb-3">Add photos from your store tour (save visit first)</p>
+
+                        <!-- Photo Upload Area -->
+                        <div id="photo-upload-area" class="hidden">
+                            <div class="flex gap-2 mb-3">
+                                <button type="button" onclick="document.getElementById('visit-photo-camera').click()" class="flex-1 py-2 px-3 bg-walmart-blue text-white text-sm rounded-lg hover:bg-walmart-dark-blue">
+                                    <i class="fas fa-camera mr-1"></i> Camera
+                                </button>
+                                <button type="button" onclick="document.getElementById('visit-photo-gallery').click()" class="flex-1 py-2 px-3 border border-walmart-blue text-walmart-blue text-sm rounded-lg hover:bg-walmart-blue hover:text-white">
+                                    <i class="fas fa-folder-open mr-1"></i> Gallery
+                                </button>
+                                <input id="visit-photo-camera" type="file" accept="image/*" capture="environment" class="hidden" onchange="uploadVisitPhoto(this)">
+                                <input id="visit-photo-gallery" type="file" accept="image/*" multiple class="hidden" onchange="uploadVisitPhotos(this)">
+                            </div>
+                            <div id="photo-upload-progress" class="hidden text-center py-2">
+                                <i class="fas fa-spinner fa-spin text-walmart-blue"></i>
+                                <span class="text-sm text-gray-600 ml-2">Uploading...</span>
+                            </div>
+                        </div>
+
+                        <!-- Photo Grid -->
+                        <div id="visit-photos-grid" class="grid grid-cols-3 gap-2">
+                            <p class="col-span-3 text-center text-gray-400 text-sm py-4">No photos yet</p>
+                        </div>
+                    </div>
+
                     <!-- Action Buttons -->
                     <div class="flex gap-3">
                         <button id="reanalyze-button" onclick="reanalyzeNotes()" class="flex-1 py-3 px-4 border-2 border-walmart-blue text-walmart-blue text-sm font-medium rounded-lg hover:bg-walmart-blue hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-walmart-blue transition-colors">
@@ -1235,6 +1264,13 @@
                         <i class="fas fa-chart-bar text-walmart-blue mr-2"></i>Metrics
                     </h3>
                     <div class="grid grid-cols-2 sm:grid-cols-3 gap-3" id="modal-metrics"></div>
+                </div>
+
+                <div id="modal-photos-section" class="hidden">
+                    <h3 class="text-sm font-semibold text-gray-700 uppercase mb-2 flex items-center">
+                        <i class="fas fa-images text-walmart-blue mr-2"></i>Photos
+                    </h3>
+                    <div id="modal-photos-grid" class="grid grid-cols-3 gap-2"></div>
                 </div>
 
                 <div class="pt-4 border-t border-gray-200 text-xs text-gray-500">
@@ -2583,6 +2619,8 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             }
         }
 
+        let currentSavedVisitId = null;
+
         async function saveToBackend(data) {
             try {
                 const response = await fetch('/api/save-visit', {
@@ -2594,10 +2632,22 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                     const err = await response.json().catch(() => ({}));
                     throw new Error(err.error || `Save failed (${response.status})`);
                 }
-                console.log('Saved successfully');
-                alert('Visit saved successfully!');
-                // Reset form for next entry
-                resetLogVisitForm();
+                const result = await response.json();
+                currentSavedVisitId = result.visit_id;
+                console.log('Saved successfully, visit_id:', currentSavedVisitId);
+
+                // Show photo upload section
+                document.getElementById('visit-photos-section').classList.remove('hidden');
+                document.getElementById('photo-upload-area').classList.remove('hidden');
+
+                // Update button to show saved state
+                const saveBtn = document.getElementById('save-visit-button');
+                saveBtn.innerHTML = '<i class="fas fa-check mr-2"></i>Saved! Add Photos';
+                saveBtn.disabled = true;
+                saveBtn.classList.add('bg-green-600');
+                saveBtn.classList.remove('bg-walmart-blue', 'hover:bg-walmart-dark-blue');
+
+                alert('Visit saved! You can now add photos from your store tour.');
             } catch (e) {
                 console.error('Save error:', e);
                 showError('Failed to save: ' + e.message);
@@ -2609,6 +2659,7 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             base64ImageData = null;
             fileMimeType = null;
             currentParsedData = null;
+            currentSavedVisitId = null;
             // Hide preview and results
             document.getElementById('image-preview-container').classList.add('hidden');
             document.getElementById('image-preview').src = '';
@@ -2617,6 +2668,16 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             // Reset file inputs
             document.getElementById('image-upload').value = '';
             document.getElementById('camera-input').value = '';
+            // Reset photo section
+            document.getElementById('visit-photos-section').classList.add('hidden');
+            document.getElementById('photo-upload-area').classList.add('hidden');
+            document.getElementById('visit-photos-grid').innerHTML = '<p class="col-span-3 text-center text-gray-400 text-sm py-4">No photos yet</p>';
+            // Reset save button
+            const saveBtn = document.getElementById('save-visit-button');
+            saveBtn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Visit';
+            saveBtn.disabled = false;
+            saveBtn.classList.remove('bg-green-600');
+            saveBtn.classList.add('bg-walmart-blue', 'hover:bg-walmart-dark-blue');
             // Reset metrics to default values
             const metricIds = [
                 'metric-sales-comp-yest', 'metric-sales-comp-wtd', 'metric-sales-comp-mtd',
@@ -2629,6 +2690,116 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                 const el = document.getElementById(id);
                 if (el) el.textContent = '--';
             });
+        }
+
+        // --- Visit Photo Functions ---
+        async function uploadVisitPhoto(input) {
+            if (!currentSavedVisitId) {
+                alert('Please save the visit first before adding photos.');
+                return;
+            }
+            if (!input.files || !input.files[0]) return;
+            await uploadPhotoFile(input.files[0]);
+            input.value = '';
+        }
+
+        async function uploadVisitPhotos(input) {
+            if (!currentSavedVisitId) {
+                alert('Please save the visit first before adding photos.');
+                return;
+            }
+            if (!input.files || input.files.length === 0) return;
+            for (const file of input.files) {
+                await uploadPhotoFile(file);
+            }
+            input.value = '';
+        }
+
+        async function uploadPhotoFile(file) {
+            const progressEl = document.getElementById('photo-upload-progress');
+            progressEl.classList.remove('hidden');
+
+            try {
+                const formData = new FormData();
+                formData.append('photo', file);
+
+                const response = await fetch(`/api/visits/${currentSavedVisitId}/photos`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    throw new Error(err.error || 'Upload failed');
+                }
+
+                const photo = await response.json();
+                addPhotoToGrid(photo);
+
+            } catch (e) {
+                console.error('Photo upload error:', e);
+                alert('Failed to upload photo: ' + e.message);
+            } finally {
+                progressEl.classList.add('hidden');
+            }
+        }
+
+        function addPhotoToGrid(photo) {
+            const grid = document.getElementById('visit-photos-grid');
+            // Remove "No photos yet" message if present
+            const noPhotosMsg = grid.querySelector('p');
+            if (noPhotosMsg) noPhotosMsg.remove();
+
+            const photoDiv = document.createElement('div');
+            photoDiv.className = 'relative group';
+            photoDiv.innerHTML = `
+                <img src="${photo.gcs_url}" alt="${photo.filename}" class="w-full h-24 object-cover rounded-lg cursor-pointer" onclick="openPhotoViewer('${photo.gcs_url}')">
+                <button onclick="deleteVisitPhoto('${photo.id}')" class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+            photoDiv.id = `photo-${photo.id}`;
+            grid.appendChild(photoDiv);
+        }
+
+        async function deleteVisitPhoto(photoId) {
+            if (!confirm('Delete this photo?')) return;
+
+            try {
+                const response = await fetch(`/api/visits/${currentSavedVisitId}/photos/${photoId}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Delete failed');
+                }
+
+                document.getElementById(`photo-${photoId}`).remove();
+
+                // Show "No photos yet" if grid is empty
+                const grid = document.getElementById('visit-photos-grid');
+                if (grid.children.length === 0) {
+                    grid.innerHTML = '<p class="col-span-3 text-center text-gray-400 text-sm py-4">No photos yet</p>';
+                }
+
+            } catch (e) {
+                console.error('Delete error:', e);
+                alert('Failed to delete photo');
+            }
+        }
+
+        function openPhotoViewer(url) {
+            // Simple fullscreen photo viewer
+            const viewer = document.createElement('div');
+            viewer.className = 'fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4';
+            viewer.onclick = () => viewer.remove();
+            viewer.innerHTML = `
+                <img src="${url}" class="max-w-full max-h-full object-contain">
+                <button class="absolute top-4 right-4 text-white text-2xl" onclick="this.parentElement.remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+            document.body.appendChild(viewer);
         }
 
         function showDuplicateModal(records) {
@@ -2809,10 +2980,42 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                 : '<p class="col-span-full text-gray-400 italic text-sm">No metrics recorded</p>';
 
             if (v.created_at) document.getElementById('modal-created-at').textContent = new Date(v.created_at).toLocaleString();
+
+            // Load photos for this visit
+            loadVisitPhotos(v.id);
+        }
+
+        async function loadVisitPhotos(visitId) {
+            const photosSection = document.getElementById('modal-photos-section');
+            const photosGrid = document.getElementById('modal-photos-grid');
+
+            try {
+                const response = await fetch(`/api/visits/${visitId}/photos`);
+                if (!response.ok) throw new Error('Failed to load photos');
+
+                const photos = await response.json();
+
+                if (photos.length === 0) {
+                    photosSection.classList.add('hidden');
+                    return;
+                }
+
+                photosSection.classList.remove('hidden');
+                photosGrid.innerHTML = photos.map(p => `
+                    <img src="${p.gcs_url}" alt="${p.filename}"
+                         class="w-full h-24 object-cover rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
+                         onclick="openPhotoViewer('${p.gcs_url}')">
+                `).join('');
+
+            } catch (e) {
+                console.error('Error loading visit photos:', e);
+                photosSection.classList.add('hidden');
+            }
         }
 
         function closeVisitDetailModal() {
             document.getElementById('visit-detail-modal').classList.add('hidden');
+            document.getElementById('modal-photos-section').classList.add('hidden');
         }
 
         async function deleteNote(noteType, noteId) {
