@@ -392,11 +392,11 @@
 
                     <!-- Visit Photos Section -->
                     <div id="visit-photos-section" class="hidden bg-gray-50 p-4 rounded-xl">
-                        <h4 class="text-sm font-semibold text-gray-700 mb-3"><i class="fas fa-images mr-2"></i>Visit Photos</h4>
-                        <p class="text-xs text-gray-500 mb-3">Add photos from your store tour (save visit first)</p>
+                        <h4 class="text-sm font-semibold text-gray-700 mb-3"><i class="fas fa-images mr-2"></i>Tour Photos</h4>
+                        <p class="text-xs text-gray-500 mb-3">Add photos from your store tour</p>
 
                         <!-- Photo Upload Area -->
-                        <div id="photo-upload-area" class="hidden">
+                        <div id="photo-upload-area">
                             <div class="flex gap-2 mb-3">
                                 <button type="button" onclick="document.getElementById('visit-photo-camera').click()" class="flex-1 py-2 px-3 bg-walmart-blue text-white text-sm rounded-lg hover:bg-walmart-dark-blue">
                                     <i class="fas fa-camera mr-1"></i> Camera
@@ -404,8 +404,8 @@
                                 <button type="button" onclick="document.getElementById('visit-photo-gallery').click()" class="flex-1 py-2 px-3 border border-walmart-blue text-walmart-blue text-sm rounded-lg hover:bg-walmart-blue hover:text-white">
                                     <i class="fas fa-folder-open mr-1"></i> Gallery
                                 </button>
-                                <input id="visit-photo-camera" type="file" accept="image/*" capture="environment" class="hidden" onchange="uploadVisitPhoto(this)">
-                                <input id="visit-photo-gallery" type="file" accept="image/*" multiple class="hidden" onchange="uploadVisitPhotos(this)">
+                                <input id="visit-photo-camera" type="file" accept="image/*" capture="environment" class="hidden" onchange="addVisitPhoto(this)">
+                                <input id="visit-photo-gallery" type="file" accept="image/*" multiple class="hidden" onchange="addVisitPhotos(this)">
                             </div>
                             <div id="photo-upload-progress" class="hidden text-center py-2">
                                 <i class="fas fa-spinner fa-spin text-walmart-blue"></i>
@@ -2620,8 +2620,13 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
         }
 
         let currentSavedVisitId = null;
+        let pendingPhotos = []; // Photos to upload after visit is saved
 
         async function saveToBackend(data) {
+            const saveBtn = document.getElementById('save-visit-button');
+            saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
+            saveBtn.disabled = true;
+
             try {
                 const response = await fetch('/api/save-visit', {
                     method: 'POST',
@@ -2636,21 +2641,25 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                 currentSavedVisitId = result.visit_id;
                 console.log('Saved successfully, visit_id:', currentSavedVisitId);
 
-                // Show photo upload section
-                document.getElementById('visit-photos-section').classList.remove('hidden');
-                document.getElementById('photo-upload-area').classList.remove('hidden');
+                // Upload any pending photos
+                if (pendingPhotos.length > 0) {
+                    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Uploading Photos...';
+                    await uploadPendingPhotos(currentSavedVisitId);
+                }
 
                 // Update button to show saved state
-                const saveBtn = document.getElementById('save-visit-button');
-                saveBtn.innerHTML = '<i class="fas fa-check mr-2"></i>Saved! Add Photos';
-                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<i class="fas fa-check mr-2"></i>Saved!';
                 saveBtn.classList.add('bg-green-600');
                 saveBtn.classList.remove('bg-walmart-blue', 'hover:bg-walmart-dark-blue');
 
-                alert('Visit saved! You can now add photos from your store tour.');
+                const photoCount = document.getElementById('visit-photos-grid').querySelectorAll('div.relative').length;
+                alert(`Visit saved successfully!${photoCount > 0 ? ` ${photoCount} photo(s) uploaded.` : ''}`);
             } catch (e) {
                 console.error('Save error:', e);
                 showError('Failed to save: ' + e.message);
+                // Reset button on error
+                saveBtn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Visit';
+                saveBtn.disabled = false;
             }
         }
 
@@ -2660,6 +2669,7 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             fileMimeType = null;
             currentParsedData = null;
             currentSavedVisitId = null;
+            pendingPhotos = [];
             // Hide preview and results
             document.getElementById('image-preview-container').classList.add('hidden');
             document.getElementById('image-preview').src = '';
@@ -2670,7 +2680,6 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             document.getElementById('camera-input').value = '';
             // Reset photo section
             document.getElementById('visit-photos-section').classList.add('hidden');
-            document.getElementById('photo-upload-area').classList.add('hidden');
             document.getElementById('visit-photos-grid').innerHTML = '<p class="col-span-3 text-center text-gray-400 text-sm py-4">No photos yet</p>';
             // Reset save button
             const saveBtn = document.getElementById('save-visit-button');
@@ -2693,80 +2702,118 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
         }
 
         // --- Visit Photo Functions ---
-        async function uploadVisitPhoto(input) {
-            if (!currentSavedVisitId) {
-                alert('Please save the visit first before adding photos.');
-                return;
-            }
+        // Add photo from camera (single)
+        function addVisitPhoto(input) {
             if (!input.files || !input.files[0]) return;
-            await uploadPhotoFile(input.files[0]);
+            addPendingPhoto(input.files[0]);
             input.value = '';
         }
 
-        async function uploadVisitPhotos(input) {
-            if (!currentSavedVisitId) {
-                alert('Please save the visit first before adding photos.');
-                return;
-            }
+        // Add photos from gallery (multiple)
+        function addVisitPhotos(input) {
             if (!input.files || input.files.length === 0) return;
             for (const file of input.files) {
-                await uploadPhotoFile(file);
+                addPendingPhoto(file);
             }
             input.value = '';
         }
 
-        async function uploadPhotoFile(file) {
-            const progressEl = document.getElementById('photo-upload-progress');
-            progressEl.classList.remove('hidden');
+        // Add a photo to pending list and show preview
+        function addPendingPhoto(file) {
+            const photoId = 'pending-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+            pendingPhotos.push({ id: photoId, file: file });
 
-            try {
-                const formData = new FormData();
-                formData.append('photo', file);
-
-                const response = await fetch(`/api/visits/${currentSavedVisitId}/photos`, {
-                    method: 'POST',
-                    body: formData
-                });
-
-                if (!response.ok) {
-                    const err = await response.json().catch(() => ({}));
-                    throw new Error(err.error || 'Upload failed');
-                }
-
-                const photo = await response.json();
-                addPhotoToGrid(photo);
-
-            } catch (e) {
-                console.error('Photo upload error:', e);
-                alert('Failed to upload photo: ' + e.message);
-            } finally {
-                progressEl.classList.add('hidden');
-            }
-        }
-
-        function addPhotoToGrid(photo) {
             const grid = document.getElementById('visit-photos-grid');
             // Remove "No photos yet" message if present
             const noPhotosMsg = grid.querySelector('p');
             if (noPhotosMsg) noPhotosMsg.remove();
 
-            const photoDiv = document.createElement('div');
-            photoDiv.className = 'relative group';
-            photoDiv.innerHTML = `
-                <img src="${photo.gcs_url}" alt="${photo.filename}" class="w-full h-24 object-cover rounded-lg cursor-pointer" onclick="openPhotoViewer('${photo.gcs_url}')">
-                <button onclick="deleteVisitPhoto('${photo.id}')" class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
-                    <i class="fas fa-times"></i>
-                </button>
-            `;
-            photoDiv.id = `photo-${photo.id}`;
-            grid.appendChild(photoDiv);
+            // Create preview using FileReader
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const photoDiv = document.createElement('div');
+                photoDiv.className = 'relative group';
+                photoDiv.id = photoId;
+                photoDiv.innerHTML = `
+                    <img src="${e.target.result}" alt="${file.name}" class="w-full h-24 object-cover rounded-lg cursor-pointer" onclick="openPhotoViewer('${e.target.result}')">
+                    <button onclick="removePendingPhoto('${photoId}')" class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+                        <i class="fas fa-times"></i>
+                    </button>
+                    <div class="absolute bottom-1 left-1 bg-yellow-500 text-white text-xs px-1 rounded">Pending</div>
+                `;
+                grid.appendChild(photoDiv);
+            };
+            reader.readAsDataURL(file);
         }
 
-        async function deleteVisitPhoto(photoId) {
+        // Remove a pending photo before save
+        function removePendingPhoto(photoId) {
+            pendingPhotos = pendingPhotos.filter(p => p.id !== photoId);
+            const photoEl = document.getElementById(photoId);
+            if (photoEl) photoEl.remove();
+
+            // Show "No photos yet" if grid is empty
+            const grid = document.getElementById('visit-photos-grid');
+            if (grid.children.length === 0) {
+                grid.innerHTML = '<p class="col-span-3 text-center text-gray-400 text-sm py-4">No photos yet</p>';
+            }
+        }
+
+        // Upload all pending photos after visit is saved
+        async function uploadPendingPhotos(visitId) {
+            if (pendingPhotos.length === 0) return;
+
+            const progressEl = document.getElementById('photo-upload-progress');
+            progressEl.classList.remove('hidden');
+            progressEl.innerHTML = '<i class="fas fa-spinner fa-spin text-walmart-blue"></i><span class="text-sm text-gray-600 ml-2">Uploading photos (0/' + pendingPhotos.length + ')...</span>';
+
+            let uploaded = 0;
+            for (const photo of pendingPhotos) {
+                try {
+                    const formData = new FormData();
+                    formData.append('photo', photo.file);
+
+                    const response = await fetch(`/api/visits/${visitId}/photos`, {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (!response.ok) {
+                        console.error('Failed to upload photo:', photo.file.name);
+                    } else {
+                        const savedPhoto = await response.json();
+                        // Update the preview with the actual photo data
+                        const photoEl = document.getElementById(photo.id);
+                        if (photoEl) {
+                            const img = photoEl.querySelector('img');
+                            img.src = savedPhoto.gcs_url;
+                            img.onclick = () => openPhotoViewer(savedPhoto.gcs_url);
+                            // Remove pending badge
+                            const badge = photoEl.querySelector('.bg-yellow-500');
+                            if (badge) badge.remove();
+                            // Update delete button
+                            const deleteBtn = photoEl.querySelector('button');
+                            deleteBtn.onclick = () => deleteVisitPhoto(savedPhoto.id, visitId);
+                            photoEl.id = `photo-${savedPhoto.id}`;
+                        }
+                    }
+                    uploaded++;
+                    progressEl.innerHTML = '<i class="fas fa-spinner fa-spin text-walmart-blue"></i><span class="text-sm text-gray-600 ml-2">Uploading photos (' + uploaded + '/' + pendingPhotos.length + ')...</span>';
+                } catch (e) {
+                    console.error('Photo upload error:', e);
+                }
+            }
+
+            pendingPhotos = [];
+            progressEl.classList.add('hidden');
+        }
+
+        // Delete a saved photo
+        async function deleteVisitPhoto(photoId, visitId) {
             if (!confirm('Delete this photo?')) return;
 
             try {
-                const response = await fetch(`/api/visits/${currentSavedVisitId}/photos/${photoId}`, {
+                const response = await fetch(`/api/visits/${visitId || currentSavedVisitId}/photos/${photoId}`, {
                     method: 'DELETE'
                 });
 
@@ -2882,6 +2929,9 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             document.getElementById('metric-cases').textContent = formatMetric(metrics.cases);
 
             document.getElementById('results-container').classList.remove('hidden');
+
+            // Show photo upload section after analysis
+            document.getElementById('visit-photos-section').classList.remove('hidden');
         }
 
         function showError(msg) {
