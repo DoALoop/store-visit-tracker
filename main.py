@@ -3035,7 +3035,7 @@ def get_mentees():
     try:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         cursor.execute("""
-            SELECT id, name, store_nbr, position, cell_number, created_at
+            SELECT id, name, store_nbr, position, cell_number, notes, created_at
             FROM mentees
             ORDER BY name
         """)
@@ -3051,6 +3051,7 @@ def get_mentees():
                 "store_nbr": m['store_nbr'],
                 "position": m['position'],
                 "cell_number": m['cell_number'],
+                "notes": m['notes'],
                 "created_at": m['created_at'].isoformat() if m['created_at'] else None
             })
 
@@ -3076,16 +3077,17 @@ def add_mentee():
         store_nbr = data.get('store_nbr', '').strip()
         position = data.get('position', '').strip()
         cell_number = data.get('cell_number', '').strip()
+        notes = data.get('notes', '').strip()
 
         if not name:
             return jsonify({"error": "Name is required"}), 400
 
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         cursor.execute("""
-            INSERT INTO mentees (name, store_nbr, position, cell_number)
-            VALUES (%s, %s, %s, %s)
-            RETURNING id, name, store_nbr, position, cell_number, created_at
-        """, (name, store_nbr, position, cell_number))
+            INSERT INTO mentees (name, store_nbr, position, cell_number, notes)
+            VALUES (%s, %s, %s, %s, %s)
+            RETURNING id, name, store_nbr, position, cell_number, notes, created_at
+        """, (name, store_nbr, position, cell_number, notes))
 
         new_mentee = cursor.fetchone()
         conn.commit()
@@ -3099,6 +3101,7 @@ def add_mentee():
                 "store_nbr": new_mentee['store_nbr'],
                 "position": new_mentee['position'],
                 "cell_number": new_mentee['cell_number'],
+                "notes": new_mentee['notes'],
                 "created_at": new_mentee['created_at'].isoformat()
             }
         })
@@ -3124,6 +3127,7 @@ def update_mentee(mentee_id):
         store_nbr = data.get('store_nbr', '').strip()
         position = data.get('position', '').strip()
         cell_number = data.get('cell_number', '').strip()
+        notes = data.get('notes', '').strip()
 
         if not name:
             return jsonify({"error": "Name is required"}), 400
@@ -3131,9 +3135,9 @@ def update_mentee(mentee_id):
         cursor = conn.cursor()
         cursor.execute("""
             UPDATE mentees
-            SET name = %s, store_nbr = %s, position = %s, cell_number = %s, updated_at = CURRENT_TIMESTAMP
+            SET name = %s, store_nbr = %s, position = %s, cell_number = %s, notes = %s, updated_at = CURRENT_TIMESTAMP
             WHERE id = %s
-        """, (name, store_nbr, position, cell_number, mentee_id))
+        """, (name, store_nbr, position, cell_number, notes, mentee_id))
 
         if cursor.rowcount == 0:
             return jsonify({"error": "Mentee not found"}), 404

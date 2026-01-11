@@ -887,6 +887,10 @@
                         <label class="text-sm text-gray-600">Cell Number</label>
                         <input type="text" id="mentee-cell" class="w-full border border-gray-300 rounded-lg px-3 py-2 mt-1 focus:border-walmart-blue focus:ring-walmart-blue" placeholder="Cell Number">
                     </div>
+                    <div>
+                        <label class="text-sm text-gray-600">Notes</label>
+                        <textarea id="mentee-notes" rows="3" class="w-full border border-gray-300 rounded-lg px-3 py-2 mt-1 focus:border-walmart-blue focus:ring-walmart-blue" placeholder="Additional notes..."></textarea>
+                    </div>
                     <div class="flex gap-2 pt-2">
                         <button onclick="hideMenteeForm()" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
                         <button onclick="saveMentee()" class="flex-1 px-4 py-2 bg-walmart-blue text-white rounded-lg hover:bg-walmart-dark-blue">Save</button>
@@ -3759,13 +3763,16 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             emptyEl.classList.add('hidden');
 
             listEl.innerHTML = allMentees.map(m => `
-                <div class="grid grid-cols-12 gap-2 px-4 py-3 hover:bg-gray-50 items-center">
+                <div class="grid grid-cols-12 gap-2 px-4 py-3 hover:bg-gray-50 items-start">
                     <div class="col-span-4">
                         <div class="font-medium text-gray-900">${escapeHtml(m.name)}</div>
                         <div class="text-xs text-gray-500">${escapeHtml(m.cell_number || '')}</div>
                     </div>
                     <div class="col-span-2 text-gray-600 font-medium">#${escapeHtml(m.store_nbr || '')}</div>
-                    <div class="col-span-4 text-gray-600 text-sm">${escapeHtml(m.position || '')}</div>
+                    <div class="col-span-4">
+                        <div class="text-gray-600 text-sm">${escapeHtml(m.position || '')}</div>
+                        ${m.notes ? `<div class="text-xs text-gray-400 mt-1 italic line-clamp-2">${escapeHtml(m.notes)}</div>` : ''}
+                    </div>
                     <div class="col-span-2 flex justify-center gap-2">
                         <button onclick="editMentee(${m.id})" class="text-walmart-blue hover:text-walmart-dark-blue p-1">
                             <i class="fas fa-edit"></i>
@@ -3785,6 +3792,7 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             document.getElementById('mentee-store').value = '';
             document.getElementById('mentee-position').value = '';
             document.getElementById('mentee-cell').value = '';
+            document.getElementById('mentee-notes').value = '';
             document.getElementById('mentee-edit-id').value = '';
             document.getElementById('mentee-form').classList.remove('hidden');
             document.getElementById('mentee-name').focus();
@@ -3805,6 +3813,7 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             document.getElementById('mentee-store').value = mentee.store_nbr || '';
             document.getElementById('mentee-position').value = mentee.position || '';
             document.getElementById('mentee-cell').value = mentee.cell_number || '';
+            document.getElementById('mentee-notes').value = mentee.notes || '';
             document.getElementById('mentee-edit-id').value = id;
             document.getElementById('mentee-form').classList.remove('hidden');
             document.getElementById('mentee-name').focus();
@@ -3815,6 +3824,7 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             const store = document.getElementById('mentee-store').value.trim();
             const position = document.getElementById('mentee-position').value.trim();
             const cell = document.getElementById('mentee-cell').value.trim();
+            const notes = document.getElementById('mentee-notes').value.trim();
 
             if (!name) {
                 alert('Name is required');
@@ -3825,7 +3835,8 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                 name: name,
                 store_nbr: store,
                 position: position,
-                cell_number: cell
+                cell_number: cell,
+                notes: notes
             };
 
             try {
