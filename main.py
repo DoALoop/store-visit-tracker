@@ -1877,7 +1877,8 @@ def update_issue(issue_id):
             updates.append("status = %s")
             params.append(status)
             if status == 'completed':
-                updates.append("completed_at = CURRENT_TIMESTAMP")
+                updates.append("completed_at = %s")
+                params.append(datetime.now())
             else:
                 updates.append("completed_at = NULL")
 
@@ -1895,7 +1896,9 @@ def update_issue(issue_id):
             updates.append("description = %s")
             params.append(description.strip())
 
-        updates.append("updated_at = CURRENT_TIMESTAMP")
+        updates.append("updated_at = %s")
+        params.append(datetime.now())
+        
         params.append(issue_id)
 
         query = f"UPDATE issues SET {', '.join(updates)} WHERE id = %s"
