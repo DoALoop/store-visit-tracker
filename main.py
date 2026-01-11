@@ -1865,7 +1865,7 @@ def update_issue(issue_id):
         description = data.get('description')
         issue_type = data.get('type')
 
-        cursor = conn.cursor()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
 
         # Build dynamic update query
         updates = []
@@ -1901,16 +1901,30 @@ def update_issue(issue_id):
         
         params.append(issue_id)
 
-        query = f"UPDATE issues SET {', '.join(updates)} WHERE id = %s"
+        query = f"""
+            UPDATE issues 
+            SET {', '.join(updates)} 
+            WHERE id = %s
+            RETURNING id, type, title, description, status, created_at, updated_at, completed_at
+        """
         cursor.execute(query, params)
+        updated_issue = cursor.fetchone()
 
-        if cursor.rowcount == 0:
+        if not updated_issue:
             return jsonify({"error": "Issue not found"}), 404
 
         conn.commit()
         cursor.close()
 
-        return jsonify({"success": True, "message": "Issue updated"})
+        # Format datetimes
+        if updated_issue.get('created_at'):
+            updated_issue['created_at'] = updated_issue['created_at'].isoformat()
+        if updated_issue.get('updated_at'):
+            updated_issue['updated_at'] = updated_issue['updated_at'].isoformat()
+        if updated_issue.get('completed_at'):
+            updated_issue['completed_at'] = updated_issue['completed_at'].isoformat()
+
+        return jsonify(updated_issue)
 
     except Exception as e:
         conn.rollback()
