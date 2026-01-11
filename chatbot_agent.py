@@ -27,7 +27,7 @@ def get_db_connection():
     return conn
 
 
-def search_visits(store_nbr: str, limit: int = 10, rating: str = None) -> str:
+def search_visits(store_nbr: str, limit: int = 10, rating: Optional[str] = None) -> str:
     """
     Search for recent visits to a specific store with full details including notes.
 
@@ -398,7 +398,7 @@ def get_market_insights(days: int = 30) -> str:
         conn.close()
 
 
-def get_market_note_status(status_filter: str = None) -> str:
+def get_market_note_status(status_filter: Optional[str] = None) -> str:
     """
     Get market notes with their completion status and assignments.
 
@@ -574,7 +574,7 @@ def get_champions() -> str:
         conn.close()
 
 
-def get_issues(status_filter: str = None, type_filter: str = None) -> str:
+def get_issues(status_filter: Optional[str] = None, type_filter: Optional[str] = None) -> str:
     """
     Get issues and feedback items.
 

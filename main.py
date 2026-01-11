@@ -44,7 +44,7 @@ DB_USER = os.environ.get("DB_USER", "store_tracker")
 DB_PASSWORD = os.environ.get("DB_PASSWORD")
 TABLE_NAME = "store_visits"
 
-# Initialize PostgreSQL connection pool
+# Initialize PostgreSQL connection pool with keepalive settings for unstable networks
 try:
     db_pool = SimpleConnectionPool(
         1, 20,
@@ -52,7 +52,12 @@ try:
         port=DB_PORT,
         database=DB_NAME,
         user=DB_USER,
-        password=DB_PASSWORD
+        password=DB_PASSWORD,
+        connect_timeout=10,
+        keepalives=1,
+        keepalives_idle=30,
+        keepalives_interval=10,
+        keepalives_count=5
     )
     print("Successfully connected to PostgreSQL.")
 except Exception as e:
@@ -61,8 +66,22 @@ except Exception as e:
 
 # Helper functions for database connections
 def get_db_connection():
+    """Get a database connection with health check for network resilience"""
     if db_pool:
-        return db_pool.getconn()
+        conn = db_pool.getconn()
+        try:
+            # Validate connection is still alive
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1")
+            cursor.close()
+            return conn
+        except Exception:
+            # Connection is dead, close it and get a fresh one
+            try:
+                db_pool.putconn(conn, close=True)
+                return db_pool.getconn()
+            except Exception:
+                return None
     return None
 
 def release_db_connection(conn):
@@ -3094,7 +3113,8 @@ def upload_note_photo(note_id):
 
     try:
         # Generate unique filename
-        file_ext = photo_file.filename.rsplit('.', 1)[-1].lower() if '.' in photo_file.filename else 'jpg'
+        filename = photo_file.filename or 'upload.jpg'
+        file_ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else 'jpg'
         unique_filename = f"notes/{note_id}/{uuid.uuid4()}.{file_ext}"
 
         # Upload to GCS
@@ -3102,7 +3122,7 @@ def upload_note_photo(note_id):
         photo_file.seek(0)
         file_data = photo_file.read()
         file_size = len(file_data)
-        content_type = photo_file.content_type
+        content_type = photo_file.content_type or 'application/octet-stream'
 
         blob.upload_from_string(file_data, content_type=content_type)
         blob.make_public()
@@ -3481,6 +3501,12 @@ Instructions:
 - Be conversational but informative
 - If data is missing or doesn't answer the question, say so"""
 
+            if model is None:
+                return jsonify({
+                    "response": f"Here's what I found:\n\n{json.dumps(tool_data, indent=2)}",
+                    "source": "raw_data"
+                })
+
             try:
                 response = model.generate_content(prompt)
                 return jsonify({"response": response.text, "source": "gemini_fallback"})
@@ -3556,7 +3582,8 @@ def upload_visit_photo(visit_id):
 
     try:
         # Generate unique filename
-        file_ext = photo_file.filename.rsplit('.', 1)[-1].lower() if '.' in photo_file.filename else 'jpg'
+        filename = photo_file.filename or 'upload.jpg'
+        file_ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else 'jpg'
         unique_filename = f"visits/{visit_id}/{uuid.uuid4()}.{file_ext}"
 
         # Upload to GCS
