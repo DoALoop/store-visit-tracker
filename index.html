@@ -2526,26 +2526,25 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
 
             storesContainer.innerHTML = stores.map(store => {
                 const allComplete = store.note_1 && store.note_2 && store.note_3;
-                const disabledClass = isCurrentWeek ? '' : 'opacity-50 cursor-not-allowed';
-                const clickHandler = isCurrentWeek ? `onclick="toggleGoldStar('${store.store_nbr}', ` : 'onclick="return false;" disabled ';
+                // No longer restrict marking past weeks - allow all weeks to be marked
                 return `
                     <div class="grid grid-cols-12 gap-2 px-4 py-3 items-center ${allComplete ? 'bg-green-50' : ''}">
                         <div class="col-span-3 font-medium text-gray-900">#${store.store_nbr}</div>
                         <div class="col-span-3 text-center">
-                            <button ${isCurrentWeek ? `onclick="toggleGoldStar('${store.store_nbr}', 1, ${!store.note_1})"` : 'disabled'}
-                                class="w-8 h-8 rounded-full border-2 flex items-center justify-center mx-auto transition-colors ${disabledClass} ${store.note_1 ? 'bg-yellow-400 border-yellow-400' : 'border-gray-300' + (isCurrentWeek ? ' hover:border-yellow-400' : '')}">
+                            <button onclick="toggleGoldStar('${store.store_nbr}', 1, ${!store.note_1})"
+                                class="w-8 h-8 rounded-full border-2 flex items-center justify-center mx-auto transition-colors hover:border-yellow-400 ${store.note_1 ? 'bg-yellow-400 border-yellow-400' : 'border-gray-300'}">
                                 ${store.note_1 ? '<i class="fas fa-star text-white text-sm"></i>' : ''}
                             </button>
                         </div>
                         <div class="col-span-3 text-center">
-                            <button ${isCurrentWeek ? `onclick="toggleGoldStar('${store.store_nbr}', 2, ${!store.note_2})"` : 'disabled'}
-                                class="w-8 h-8 rounded-full border-2 flex items-center justify-center mx-auto transition-colors ${disabledClass} ${store.note_2 ? 'bg-yellow-400 border-yellow-400' : 'border-gray-300' + (isCurrentWeek ? ' hover:border-yellow-400' : '')}">
+                            <button onclick="toggleGoldStar('${store.store_nbr}', 2, ${!store.note_2})"
+                                class="w-8 h-8 rounded-full border-2 flex items-center justify-center mx-auto transition-colors hover:border-yellow-400 ${store.note_2 ? 'bg-yellow-400 border-yellow-400' : 'border-gray-300'}">
                                 ${store.note_2 ? '<i class="fas fa-star text-white text-sm"></i>' : ''}
                             </button>
                         </div>
                         <div class="col-span-3 text-center">
-                            <button ${isCurrentWeek ? `onclick="toggleGoldStar('${store.store_nbr}', 3, ${!store.note_3})"` : 'disabled'}
-                                class="w-8 h-8 rounded-full border-2 flex items-center justify-center mx-auto transition-colors ${disabledClass} ${store.note_3 ? 'bg-yellow-400 border-yellow-400' : 'border-gray-300' + (isCurrentWeek ? ' hover:border-yellow-400' : '')}">
+                            <button onclick="toggleGoldStar('${store.store_nbr}', 3, ${!store.note_3})"
+                                class="w-8 h-8 rounded-full border-2 flex items-center justify-center mx-auto transition-colors hover:border-yellow-400 ${store.note_3 ? 'bg-yellow-400 border-yellow-400' : 'border-gray-300'}">
                                 ${store.note_3 ? '<i class="fas fa-star text-white text-sm"></i>' : ''}
                             </button>
                         </div>
@@ -2624,10 +2623,23 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
 
         async function toggleGoldStar(storeNbr, noteNumber, completed) {
             try {
+                // Capture week_id from current goldStarData to prevent race conditions
+                const weekId = goldStarData?.week_id;
+                if (!weekId) {
+                    console.error('No week_id available in goldStarData:', goldStarData);
+                    alert('Error: Week data not loaded. Please refresh and try again.');
+                    return;
+                }
+
                 const response = await fetch('/api/gold-stars/toggle', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ store_nbr: storeNbr, note_number: noteNumber, completed: completed })
+                    body: JSON.stringify({
+                        store_nbr: storeNbr,
+                        note_number: noteNumber,
+                        completed: completed,
+                        week_id: weekId  // Pass week_id to allow marking any week
+                    })
                 });
 
                 if (!response.ok) throw new Error('Failed to update');
@@ -4828,13 +4840,15 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             notesCurrentTaskFilter = filter;
             try {
                 const params = new URLSearchParams();
-                if (filter === 'today') params.append('due_date', new Date().toISOString().split('T')[0]);
-                else if (filter === 'completed') params.append('is_completed', 'true');
-                else if (filter === 'upcoming') params.append('upcoming', 'true');
-                const response = await fetch(`/api/notes/tasks?${params}`);
+                if (filter === 'today') params.append('date', 'today');
+                else if (filter === 'completed') params.append('status', 'completed');
+                else if (filter === 'upcoming') params.append('date', 'upcoming');
+                
+                // Use standalone tasks API
+                const response = await fetch(`/api/tasks?${params}`);
                 if (!response.ok) throw new Error('Failed to load tasks');
                 const data = await response.json();
-                notesAllTasks = Array.isArray(data) ? data : (data.tasks || []);
+                notesAllTasks = Array.isArray(data) ? data : [];
                 renderNotesTasksList(notesAllTasks);
             } catch (error) {
                 console.error('Error loading tasks:', error);
@@ -4850,16 +4864,16 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             }
             container.innerHTML = tasks.map(task => `
                 <div class="bg-white rounded-lg shadow p-3 flex items-start space-x-3 cursor-pointer hover:shadow-md transition-shadow" onclick="openNotesTaskModal(${JSON.stringify(task).replace(/"/g, '&quot;')})">
-                    <input type="checkbox" ${task.is_completed ? 'checked' : ''} class="mt-1 cursor-pointer" onclick="event.stopPropagation(); toggleNotesTask('${task.id}')">
+                    <input type="checkbox" ${task.status === 'completed' ? 'checked' : ''} class="mt-1 cursor-pointer" onclick="event.stopPropagation(); toggleNotesTask(${task.id})">
                     <div class="flex-1 min-w-0">
-                        <p class="${task.is_completed ? 'line-through text-gray-400' : ''}">${notesEscapeHtml(task.content)}</p>
+                        <p class="${task.status === 'completed' ? 'line-through text-gray-400' : ''}">${notesEscapeHtml(task.content)}</p>
                         <div class="text-xs text-gray-400 mt-1 flex flex-wrap items-center gap-2">
                             <span class="px-2 py-0.5 rounded text-xs ${(task.status || 'new') === 'new' ? 'bg-blue-100 text-blue-700' : (task.status || 'new') === 'in_progress' ? 'bg-yellow-100 text-yellow-700' : (task.status || 'new') === 'stalled' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}">${(task.status || 'new') === 'in_progress' ? 'In Progress' : ((task.status || 'new').charAt(0).toUpperCase() + (task.status || 'new').slice(1))}</span>
                             ${task.priority > 0 ? `<span class="px-2 py-0.5 rounded text-xs ${task.priority === 3 ? 'bg-red-100 text-red-700' : task.priority === 2 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-700'}">${task.priority === 3 ? 'High' : task.priority === 2 ? 'Medium' : 'Low'}</span>` : ''}
                             ${task.assigned_to ? `<span class="text-walmart-blue"><i class="fas fa-user mr-1"></i>${notesEscapeHtml(task.assigned_to)}</span>` : ''}
                             ${task.due_date ? `<span class="text-gray-600"><i class="fas fa-calendar mr-1"></i>${task.due_date}</span>` : ''}
                             ${task.store_number ? `<span class="text-purple-600"><i class="fas fa-store mr-1"></i>${task.store_number}</span>` : ''}
-                            <span class="text-gray-400">${notesEscapeHtml(task.note_title || '')}</span>
+                            ${task.list_name && task.list_name !== 'Inbox' ? `<span class="text-gray-500"><i class="fas fa-list mr-1"></i>${notesEscapeHtml(task.list_name)}</span>` : ''}
                         </div>
                     </div>
                     <i class="fas fa-chevron-right text-gray-300 mt-1"></i>
@@ -4879,7 +4893,18 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
 
         async function toggleNotesTask(taskId) {
             try {
-                const response = await fetch(`/api/notes/tasks/${taskId}/toggle`, { method: 'POST' });
+                // Get current task to toggle status
+                const task = notesAllTasks.find(t => t.id === taskId);
+                if (!task) return;
+                
+                const newStatus = task.status === 'completed' ? 'new' : 'completed';
+                
+                const response = await fetch(`/api/tasks/${taskId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: newStatus })
+                });
+                
                 if (!response.ok) throw new Error('Failed to toggle task');
                 loadNotesTasks(notesCurrentTaskFilter);
             } catch (error) {
@@ -4890,13 +4915,17 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
         // --- Notes Task Modal ---
         function openNotesTaskModal(task) {
             notesCurrentTask = task;
-            document.getElementById('ntm-note-title').textContent = task.note_title || 'Unknown note';
+            // Hide note title section since these are standalone tasks
+            const noteTitleSection = document.getElementById('ntm-note-title');
+            if (noteTitleSection) {
+                noteTitleSection.parentElement.style.display = 'none';
+            }
             document.getElementById('ntm-task-text').textContent = task.content;
             document.getElementById('ntm-assigned-to').value = task.assigned_to || '';
             document.getElementById('ntm-due-date').value = task.due_date || '';
             populateStoreDropdown('ntm-store-number');
             document.getElementById('ntm-store-number').value = task.store_number || '';
-            updateNotesTaskStatusButtons(task.status || (task.is_completed ? 'completed' : 'new'));
+            updateNotesTaskStatusButtons(task.status || 'new');
             updateNotesTaskPriorityButtons(task.priority || 0);
             document.getElementById('notes-task-modal').classList.remove('hidden');
         }
@@ -4952,10 +4981,16 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             const dueDate = document.getElementById('ntm-due-date').value || null;
             const storeNumber = document.getElementById('ntm-store-number').value || null;
             try {
-                const response = await fetch(`/api/notes/tasks/${notesCurrentTask.id}/update`, {
-                    method: 'POST',
+                const response = await fetch(`/api/tasks/${notesCurrentTask.id}`, {
+                    method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ status: notesCurrentTask.status, is_completed: notesCurrentTask.status === 'completed', assigned_to: assignedTo || null, due_date: dueDate, priority: notesCurrentTask.priority, store_number: storeNumber })
+                    body: JSON.stringify({ 
+                        status: notesCurrentTask.status, 
+                        assigned_to: assignedTo || null, 
+                        due_date: dueDate, 
+                        priority: notesCurrentTask.priority, 
+                        store_number: storeNumber 
+                    })
                 });
                 if (!response.ok) throw new Error('Failed to save task');
                 closeNotesTaskModal();
@@ -5397,57 +5432,31 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Processing...';
 
             try {
-                // 1. Process with AI
-                const response = await fetch('/api/notes/process-natural-language', {
+                // Use new smart add tasks endpoint
+                const response = await fetch('/api/tasks/smart-add', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ content: content, store_number: store })
+                    body: JSON.stringify({ 
+                        content: content, 
+                        store_number: store,
+                        list_name: 'Inbox'
+                    })
                 });
 
                 if (!response.ok) throw new Error('AI processing failed');
                 const result = await response.json();
 
-                // 2. Create a new Note titled "Smart Note - [Timestamp]"
-                const noteTitle = `Smart Note - ${new Date().toLocaleString()}`;
-                const noteContent = content; 
-
-                // Create Note
-                const noteResponse = await fetch('/api/notes', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        title: noteTitle, 
-                        content: noteContent, 
-                        folder_path: '/Smart Notes',
-                        store_number: store || null
-                    })
-                });
-                
-                if (!noteResponse.ok) throw new Error('Failed to create note');
-                const newNote = await noteResponse.json();
-
-                // Add Tasks (Construct syntax and update note)
-                if (result.tasks && result.tasks.length > 0) {
-                    let taskLines = "\n\n## Extracted Tasks\n";
-                    result.tasks.forEach(t => {
-                        let line = `- [ ] ${t.content}`;
-                        if (t.assigned_to) line += ` @${t.assigned_to}`;
-                        if (t.priority) line += ` ${t.priority === 3 ? '🔺' : (t.priority === 2 ? '🔼' : '🔽')}`;
-                        if (t.due_date) line += ` 📅 ${t.due_date}`;
-                        taskLines += line + "\n";
-                    });
-                    
-                    await fetch(`/api/notes/${newNote.id}`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ content: noteContent + taskLines })
-                    });
-                }
-
                 closeSmartAddModal();
                 loadNotesTasks('all'); 
                 switchTab('notes');
                 switchNotesSubView('tasks'); 
+
+                // Show success message
+                if (result.count > 0) {
+                    alert(`✅ Created ${result.count} task${result.count > 1 ? 's' : ''} successfully!`);
+                } else {
+                    alert('No tasks were extracted from the input.');
+                }
 
             } catch (e) {
                 console.error(e);

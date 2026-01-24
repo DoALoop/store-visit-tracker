@@ -3,8 +3,8 @@ import uuid
 from datetime import datetime, timedelta, date
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from .env file (override any shell env vars)
+load_dotenv(override=True)
 
 import json
 import base64
@@ -1301,9 +1301,14 @@ def toggle_market_note():
 # --- Gold Star Notes API ---
 
 def get_current_week_start():
-    """Get the Saturday of the current week (weeks start on Saturday)"""
+    """Get the Saturday of the current week in Mountain Time (weeks start on Saturday)"""
     from datetime import datetime, timedelta
-    today = datetime.now().date()
+    from zoneinfo import ZoneInfo
+    
+    # Get current time in Mountain Time (Boise, Idaho)
+    mountain_tz = ZoneInfo('America/Boise')
+    today = datetime.now(mountain_tz).date()
+    
     # Calculate days since Saturday: Sat=0, Sun=1, Mon=2, etc.
     days_since_saturday = (today.weekday() + 2) % 7
     saturday = today - timedelta(days=days_since_saturday)
@@ -1481,7 +1486,7 @@ def save_gold_star_week():
 
 @app.route('/api/gold-stars/toggle', methods=['POST'])
 def toggle_gold_star_completion():
-    """Toggle a store's completion status for a gold star note"""
+    """Toggle a store's completion status for a gold star note (works for any week)"""
     conn = get_db_connection()
     if not conn:
         return jsonify({"error": "Database connection failed"}), 500
@@ -1491,23 +1496,31 @@ def toggle_gold_star_completion():
         store_nbr = data.get('store_nbr')
         note_number = data.get('note_number')
         completed = data.get('completed', False)
+        week_id = data.get('week_id')  # Accept week_id to allow marking past weeks
 
         if not store_nbr or not note_number:
             return jsonify({"error": "store_nbr and note_number are required"}), 400
 
         cursor = conn.cursor(cursor_factory=RealDictCursor)
-        week_start = get_current_week_start()
 
-        # Get current week ID
-        cursor.execute("""
-            SELECT id FROM gold_star_weeks WHERE week_start_date = %s
-        """, (week_start,))
-        week_row = cursor.fetchone()
-
-        if not week_row:
-            return jsonify({"error": "No gold star notes defined for this week"}), 404
-
-        week_id = week_row['id']
+        # If week_id not provided, use current week (backward compatibility)
+        # Use 'is None' instead of 'not week_id' to handle week_id=0 edge case
+        if week_id is None:
+            week_start = get_current_week_start()
+            cursor.execute("""
+                SELECT id FROM gold_star_weeks WHERE week_start_date = %s
+            """, (week_start,))
+            week_row = cursor.fetchone()
+            
+            if not week_row:
+                return jsonify({"error": "No gold star notes defined for this week"}), 404
+            
+            week_id = week_row['id']
+        else:
+            # Verify the provided week_id exists
+            cursor.execute("SELECT id FROM gold_star_weeks WHERE id = %s", (week_id,))
+            if not cursor.fetchone():
+                return jsonify({"error": "Invalid week_id"}), 404
 
         # Upsert completion status
         cursor.execute("""
@@ -2646,6 +2659,326 @@ def update_task_details(task_id):
         release_db_connection(conn)
 
 
+# ==================== STANDALONE TASKS API ====================
+
+def ensure_tasks_table():
+    """Ensure the tasks table exists"""
+    conn = get_db_connection()
+    if not conn:
+        return False
+    
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS tasks (
+                id SERIAL PRIMARY KEY,
+                content TEXT NOT NULL,
+                status VARCHAR(20) DEFAULT 'new' CHECK (status IN ('new', 'in_progress', 'stalled', 'completed')),
+                priority INTEGER DEFAULT 0 CHECK (priority BETWEEN 0 AND 3),
+                assigned_to VARCHAR(200),
+                due_date DATE,
+                store_number VARCHAR(10),
+                list_name VARCHAR(100) DEFAULT 'Inbox',
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                completed_at TIMESTAMP
+            );
+            
+            CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+            CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date) WHERE status != 'completed';
+            CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks(assigned_to) WHERE assigned_to IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS idx_tasks_store_number ON tasks(store_number) WHERE store_number IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS idx_tasks_list_name ON tasks(list_name);
+            CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(priority) WHERE priority > 0;
+        """)
+        conn.commit()
+        cursor.close()
+        return True
+    except Exception as e:
+        print(f"Error ensuring tasks table: {e}")
+        conn.rollback()
+        return False
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/tasks', methods=['GET'])
+def get_tasks():
+    """Get all standalone tasks with optional filters"""
+    ensure_tasks_table()
+    
+    status_filter = request.args.get('status')  # new, in_progress, stalled, completed
+    list_filter = request.args.get('list')
+    date_filter = request.args.get('date')  # today, upcoming, overdue
+    assigned_to = request.args.get('assigned_to')
+    store_number = request.args.get('store_number')
+    
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+    
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        query = "SELECT * FROM tasks WHERE 1=1"
+        params = []
+        
+        if status_filter:
+            query += " AND status = %s"
+            params.append(status_filter)
+        else:
+            # By default, don't show completed tasks
+            query += " AND status != 'completed'"
+        
+        if list_filter:
+            query += " AND list_name = %s"
+            params.append(list_filter)
+        
+        if assigned_to:
+            query += " AND assigned_to = %s"
+            params.append(assigned_to)
+        
+        if store_number:
+            query += " AND store_number = %s"
+            params.append(store_number)
+        
+        if date_filter == 'today':
+            query += " AND due_date = CURRENT_DATE"
+        elif date_filter == 'upcoming':
+            query += " AND due_date > CURRENT_DATE"
+        elif date_filter == 'overdue':
+            query += " AND due_date < CURRENT_DATE AND status != 'completed'"
+        
+        query += " ORDER BY priority DESC, due_date ASC NULLS LAST, created_at DESC"
+        
+        cursor.execute(query, params)
+        tasks = cursor.fetchall()
+        
+        # Convert dates to ISO strings
+        for task in tasks:
+            if task.get('due_date'):
+                task['due_date'] = task['due_date'].isoformat()
+            if task.get('created_at'):
+                task['created_at'] = task['created_at'].isoformat()
+            if task.get('updated_at'):
+                task['updated_at'] = task['updated_at'].isoformat()
+            if task.get('completed_at'):
+                task['completed_at'] = task['completed_at'].isoformat()
+        
+        cursor.close()
+        return jsonify(tasks)
+    
+    except Exception as e:
+        print(f"Error getting tasks: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/tasks', methods=['POST'])
+def create_task():
+    """Create a new standalone task"""
+    ensure_tasks_table()
+    
+    data = request.get_json()
+    content = data.get('content', '').strip()
+    
+    if not content:
+        return jsonify({"error": "Content is required"}), 400
+    
+    status = data.get('status', 'new')
+    priority = data.get('priority', 0)
+    assigned_to = data.get('assigned_to')
+    due_date = data.get('due_date')
+    store_number = data.get('store_number')
+    list_name = data.get('list_name', 'Inbox')
+    notes = data.get('notes')
+    
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+    
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cursor.execute("""
+            INSERT INTO tasks (content, status, priority, assigned_to, due_date, store_number, list_name, notes)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING *
+        """, (content, status, priority, assigned_to, due_date, store_number, list_name, notes))
+        
+        task = cursor.fetchone()
+        conn.commit()
+        
+        # Convert dates
+        if task.get('due_date'):
+            task['due_date'] = task['due_date'].isoformat()
+        if task.get('created_at'):
+            task['created_at'] = task['created_at'].isoformat()
+        if task.get('updated_at'):
+            task['updated_at'] = task['updated_at'].isoformat()
+        
+        cursor.close()
+        return jsonify(task), 201
+    
+    except Exception as e:
+        conn.rollback()
+        print(f"Error creating task: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/tasks/<int:task_id>', methods=['PUT'])
+def update_task(task_id):
+    """Update a standalone task"""
+    ensure_tasks_table()
+    
+    data = request.get_json()
+    
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+    
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # Check task exists
+        cursor.execute("SELECT * FROM tasks WHERE id = %s", (task_id,))
+        if not cursor.fetchone():
+            return jsonify({"error": "Task not found"}), 404
+        
+        # Build update query
+        updates = []
+        params = []
+        
+        if 'content' in data:
+            updates.append("content = %s")
+            params.append(data['content'])
+        if 'status' in data:
+            updates.append("status = %s")
+            params.append(data['status'])
+            # Auto-set completed_at
+            if data['status'] == 'completed':
+                updates.append("completed_at = CURRENT_TIMESTAMP")
+            elif data['status'] != 'completed':
+                updates.append("completed_at = NULL")
+        if 'priority' in data:
+            updates.append("priority = %s")
+            params.append(data['priority'])
+        if 'assigned_to' in data:
+            updates.append("assigned_to = %s")
+            params.append(data['assigned_to'])
+        if 'due_date' in data:
+            updates.append("due_date = %s")
+            params.append(data['due_date'])
+        if 'store_number' in data:
+            updates.append("store_number = %s")
+            params.append(data['store_number'])
+        if 'list_name' in data:
+            updates.append("list_name = %s")
+            params.append(data['list_name'])
+        if 'notes' in data:
+            updates.append("notes = %s")
+            params.append(data['notes'])
+        
+        if not updates:
+            return jsonify({"error": "No fields to update"}), 400
+        
+        updates.append("updated_at = CURRENT_TIMESTAMP")
+        params.append(task_id)
+        
+        query = f"UPDATE tasks SET {', '.join(updates)} WHERE id = %s RETURNING *"
+        cursor.execute(query, params)
+        
+        task = cursor.fetchone()
+        conn.commit()
+        
+        # Convert dates
+        if task.get('due_date'):
+            task['due_date'] = task['due_date'].isoformat()
+        if task.get('created_at'):
+            task['created_at'] = task['created_at'].isoformat()
+        if task.get('updated_at'):
+            task['updated_at'] = task['updated_at'].isoformat()
+        if task.get('completed_at'):
+            task['completed_at'] = task['completed_at'].isoformat()
+        
+        cursor.close()
+        return jsonify(task)
+    
+    except Exception as e:
+        conn.rollback()
+        print(f"Error updating task: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/tasks/<int:task_id>', methods=['DELETE'])
+def delete_task(task_id):
+    """Delete a standalone task"""
+    ensure_tasks_table()
+    
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+    
+    try:
+        cursor = conn.cursor()
+        
+        cursor.execute("DELETE FROM tasks WHERE id = %s", (task_id,))
+        
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Task not found"}), 404
+        
+        conn.commit()
+        cursor.close()
+        return jsonify({"success": True, "message": "Task deleted"})
+    
+    except Exception as e:
+        conn.rollback()
+        print(f"Error deleting task: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/tasks/lists', methods=['GET'])
+def get_task_lists():
+    """Get all unique list names with task counts"""
+    ensure_tasks_table()
+    
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+    
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cursor.execute("""
+            SELECT list_name, 
+                   COUNT(*) as total_count,
+                   COUNT(*) FILTER (WHERE status != 'completed') as active_count
+            FROM tasks
+            GROUP BY list_name
+            ORDER BY list_name
+        """)
+        
+        lists = cursor.fetchall()
+        cursor.close()
+        return jsonify(lists)
+    
+    except Exception as e:
+        print(f"Error getting task lists: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+# ==================== END STANDALONE TASKS API ====================
+
 @app.route('/api/notes/tags', methods=['GET'])
 def get_all_tags():
     """Get all tags with counts"""
@@ -3061,6 +3394,101 @@ def process_natural_language_note():
     except Exception as e:
         print(f"Error processing note with AI: {e}")
         return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/tasks/smart-add', methods=['POST'])
+def smart_add_tasks():
+    """Process natural language and create standalone tasks"""
+    if not model:
+        return jsonify({"error": "AI model not available"}), 503
+
+    ensure_tasks_table()
+    
+    data = request.get_json()
+    content = data.get('content', '').strip()
+    store_number = data.get('store_number')
+    list_name = data.get('list_name', 'Inbox')
+
+    if not content:
+        return jsonify({"error": "Content is required"}), 400
+
+    # Prompt for Gemini
+    prompt = f"""
+    Analyze the following text and extract actionable tasks.
+    
+    TEXT:
+    {content}
+    
+    For each task identified, extract:
+    1. content: The task description
+    2. assigned_to: Person responsible (if mentioned, e.g., "Assign to Bob")
+    3. due_date: Due date in YYYY-MM-DD format (convert "next friday", "tomorrow", etc. relative to today {date.today()})
+    4. priority: Priority level (0=none, 1=low, 2=medium, 3=high/urgent)
+    5. store_number: Store number if mentioned (e.g. "at store 1234"), otherwise use default: {store_number or 'null'}
+
+    Return a JSON object with a "tasks" array.
+    Example: {{ "tasks": [ {{ "content": "Fix shelf", "assigned_to": "Bob", "due_date": "2024-01-01", "priority": 2, "store_number": "1234" }} ] }}
+    """
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        # Process with AI
+        response = model.generate_content(prompt)
+        response_text = response.text.strip()
+        
+        # Clean up code blocks
+        if response_text.startswith('```'):
+            response_text = response_text.split('\n', 1)[1]
+            if response_text.endswith('```'):
+                response_text = response_text.rsplit('```', 1)[0]
+        
+        import json
+        parsed = json.loads(response_text)
+        
+        # Create tasks in database
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        created_tasks = []
+        
+        for task_data in parsed.get('tasks', []):
+            cursor.execute("""
+                INSERT INTO tasks (content, priority, assigned_to, due_date, store_number, list_name)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING *
+            """, (
+                task_data.get('content'),
+                task_data.get('priority', 0),
+                task_data.get('assigned_to'),
+                task_data.get('due_date'),
+                task_data.get('store_number') or store_number,
+                list_name
+            ))
+            
+            task = cursor.fetchone()
+            
+            # Convert dates
+            if task.get('due_date'):
+                task['due_date'] = task['due_date'].isoformat()
+            if task.get('created_at'):
+                task['created_at'] = task['created_at'].isoformat()
+            if task.get('updated_at'):
+                task['updated_at'] = task['updated_at'].isoformat()
+            
+            created_tasks.append(task)
+        
+        conn.commit()
+        cursor.close()
+        
+        return jsonify({"success": True, "tasks": created_tasks, "count": len(created_tasks)}), 201
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error in smart add: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
 
 
 @app.route('/api/notes/<note_id>/photos', methods=['GET'])
