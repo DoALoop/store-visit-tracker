@@ -4,9 +4,54 @@ Uses Google ADK with Gemini to answer questions about store visits.
 """
 
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from typing import Optional
 import json
+
+
+# --- Fiscal Week Helper Functions ---
+def get_fiscal_week_number(week_start_date):
+    """Calculate fiscal week number (Week 1 starts January 31st)"""
+    # Determine fiscal year - if before Jan 31, use previous year
+    year = week_start_date.year
+
+    fiscal_year_start = date(year, 1, 31)
+    if week_start_date < fiscal_year_start:
+        fiscal_year_start = date(year - 1, 1, 31)
+
+    # Find the first Saturday on or after Jan 31
+    days_to_saturday = (5 - fiscal_year_start.weekday()) % 7
+    first_saturday = fiscal_year_start + timedelta(days=days_to_saturday)
+
+    days_since_start = (week_start_date - first_saturday).days
+    week_number = (days_since_start // 7) + 1
+
+    return week_number
+
+
+def get_monday_from_fiscal_week(week_number, year=None):
+    """Convert a fiscal week number to the Monday of that week"""
+    if year is None:
+        year = date.today().year
+
+    fiscal_year_start = date(year, 1, 31)
+    today = date.today()
+
+    # Handle high week numbers before Jan 31 (previous fiscal year)
+    if today < fiscal_year_start and week_number > 40:
+        fiscal_year_start = date(year - 1, 1, 31)
+
+    # Calculate the Saturday that starts this fiscal week
+    days_to_saturday = (5 - fiscal_year_start.weekday()) % 7
+    first_saturday = fiscal_year_start + timedelta(days=days_to_saturday)
+
+    # Get the Saturday for the requested week
+    target_saturday = first_saturday + timedelta(weeks=week_number - 1)
+
+    # Return the Monday of that week (Saturday + 2 days)
+    target_monday = target_saturday + timedelta(days=2)
+
+    return target_monday
 
 # Database tools - these will be called by the ADK agent
 # They use the db_pool from main.py when integrated
@@ -488,19 +533,27 @@ def get_market_note_updates(note_text: str = None) -> str:
         conn.close()
 
 
-def get_gold_stars(week_date: str = None) -> str:
+def get_gold_stars(week_date: str = None, week_number: int = None) -> str:
     """
     Get gold star focus areas and store completions.
 
     Args:
         week_date: Optional week start date (YYYY-MM-DD), defaults to current week
+        week_number: Optional Walmart fiscal week number (e.g., 51 for week 51)
 
     Returns:
-        JSON string with gold star notes and which stores have completed them
+        JSON string with gold star notes, week number, and which stores have completed them
     """
     conn = get_db_connection()
     try:
         cursor = conn.cursor(cursor_factory=__import__('psycopg2.extras', fromlist=['RealDictCursor']).RealDictCursor)
+
+        # Convert week_number to week_date if provided
+        if week_number and not week_date:
+            week_monday = get_monday_from_fiscal_week(week_number)
+            # Convert Monday to Saturday (week start in Walmart calendar)
+            week_saturday = week_monday - timedelta(days=2)
+            week_date = week_saturday.isoformat()
 
         # Get the gold star week
         if week_date:
@@ -514,11 +567,19 @@ def get_gold_stars(week_date: str = None) -> str:
 
         week = cursor.fetchone()
         if not week:
-            return json.dumps({"error": "No gold star week found"})
+            return json.dumps({"error": f"No gold star data found for week {week_number}" if week_number else "No gold star week found"})
 
         week_id = week['id']
-        if week.get('week_start_date'):
-            week['week_start_date'] = week['week_start_date'].isoformat()
+
+        # Calculate the week number from the week_start_date
+        week_start = week.get('week_start_date')
+        calculated_week_number = None
+        if week_start:
+            if isinstance(week_start, str):
+                week_start = datetime.strptime(week_start, '%Y-%m-%d').date()
+            calculated_week_number = get_fiscal_week_number(week_start)
+            week['week_start_date'] = week_start.isoformat() if hasattr(week_start, 'isoformat') else str(week_start)
+
         if week.get('updated_at'):
             week['updated_at'] = week['updated_at'].isoformat()
 
@@ -539,6 +600,7 @@ def get_gold_stars(week_date: str = None) -> str:
 
         return json.dumps({
             "week": dict(week),
+            "week_number": calculated_week_number,
             "notes": [week.get('note_1'), week.get('note_2'), week.get('note_3')],
             "completions": [dict(c) for c in completions]
         }, default=str)

@@ -4187,8 +4187,12 @@ def format_jax_response(message_lower, data):
         week = data.get('week', {})
         notes = data.get('notes', [])
         completions = data.get('completions', [])
+        week_number = data.get('week_number')
 
-        response = f"**Gold Stars for Week of {week.get('week_start_date', 'Unknown')}**\n\n"
+        if week_number:
+            response = f"**Gold Stars for Week {week_number}** (Week of {week.get('week_start_date', 'Unknown')})\n\n"
+        else:
+            response = f"**Gold Stars for Week of {week.get('week_start_date', 'Unknown')}**\n\n"
 
         # Show the notes
         for i, note in enumerate(notes, 1):
@@ -4381,7 +4385,10 @@ def chat():
         elif 'champion' in message_lower or 'team' in message_lower or 'assigned' in message_lower or 'who is' in message_lower:
             tool_response = get_champions()
         elif 'gold star' in message_lower or 'goldstar' in message_lower:
-            tool_response = get_gold_stars()
+            # Extract week number if mentioned (e.g., "week 51", "wk 51", "w51")
+            week_num_match = re.search(r'(?:week|wk|w)\s*(\d{1,2})', message_lower)
+            gold_star_week_num = int(week_num_match.group(1)) if week_num_match else None
+            tool_response = get_gold_stars(week_number=gold_star_week_num)
         elif 'issue' in message_lower or 'feedback' in message_lower or 'bug' in message_lower:
             type_filter = 'feedback' if 'feedback' in message_lower else ('issue' if 'issue' in message_lower or 'bug' in message_lower else None)
             tool_response = get_issues(status_filter=status_filter, type_filter=type_filter)
