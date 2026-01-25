@@ -5,19 +5,40 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Market Manager Tool</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Everyday Sans Font Family */
+        @font-face {
+            font-family: 'Everyday Sans';
+            src: url('fonts/EverydaySans-Regular.otf') format('opentype');
+            font-weight: 400;
+            font-style: normal;
+        }
+        @font-face {
+            font-family: 'Everyday Sans';
+            src: url('fonts/EverydaySans-Medium.otf') format('opentype');
+            font-weight: 500;
+            font-style: normal;
+        }
+        @font-face {
+            font-family: 'Everyday Sans';
+            src: url('fonts/EverydaySans-Bold.otf') format('opentype');
+            font-weight: 700;
+            font-style: normal;
+        }
+    </style>
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
-                        'walmart-blue': '#0071CE',
-                        'walmart-dark-blue': '#004C91',
-                        'walmart-light-blue': '#78B9E7',
+                        'walmart-blue': '#0053E2',
+                        'walmart-dark-blue': '#0043B8',
+                        'walmart-light-blue': '#4D8AE8',
                         'walmart-yellow': '#FFC220',
                         'walmart-green': '#00A342',
                     },
                     fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
+                        sans: ['Everyday Sans', 'system-ui', 'sans-serif'],
                     },
                     padding: {
                         'safe': 'env(safe-area-inset-bottom)',
@@ -33,7 +54,7 @@
         .hidden-view { display: none !important; }
         /* Notes module styles */
         .note-content { min-height: 200px; }
-        .markdown-preview a { color: #0071ce; text-decoration: underline; }
+        .markdown-preview a { color: #0053E2; text-decoration: underline; }
         .markdown-preview h1 { font-size: 1.5rem; font-weight: bold; margin-top: 1rem; }
         .markdown-preview h2 { font-size: 1.25rem; font-weight: bold; margin-top: 0.75rem; }
         .markdown-preview h3 { font-size: 1.1rem; font-weight: bold; margin-top: 0.5rem; }
@@ -42,10 +63,10 @@
         .markdown-preview ol { list-style-type: decimal; }
         .markdown-preview code { background: #f3f4f6; padding: 0.125rem 0.25rem; border-radius: 0.25rem; font-family: monospace; }
         .markdown-preview pre { background: #f3f4f6; padding: 0.75rem; border-radius: 0.5rem; overflow-x: auto; }
-        .markdown-preview blockquote { border-left: 4px solid #0071ce; padding-left: 1rem; margin: 0.5rem 0; color: #6b7280; }
-        .wikilink { color: #0071ce; cursor: pointer; text-decoration: underline; }
+        .markdown-preview blockquote { border-left: 4px solid #0053E2; padding-left: 1rem; margin: 0.5rem 0; color: #6b7280; }
+        .wikilink { color: #0053E2; cursor: pointer; text-decoration: underline; }
         .wikilink.unresolved { color: #9ca3af; }
-        .tag { color: #0071ce; cursor: pointer; }
+        .tag { color: #0053E2; cursor: pointer; }
         .task-checkbox { cursor: pointer; }
     </style>
 </head>

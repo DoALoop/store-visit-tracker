@@ -188,6 +188,10 @@ except Exception as e:
 def index():
     return send_from_directory('.', 'index.html')
 
+@app.route('/fonts/<path:filename>')
+def serve_fonts(filename):
+    return send_from_directory('fonts', filename)
+
 # --- API Routes ---
 
 @app.route('/api/visits', methods=['GET'])
