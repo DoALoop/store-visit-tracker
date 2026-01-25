@@ -4416,10 +4416,16 @@ def chat():
                     tool_response = search_notes(keyword)
             # If no keyword match but has store number, search visits
             if not tool_response and numbers:
-                tool_response = search_visits(numbers[0], limit=5, rating=rating_filter)
+                # Check if user wants only the last/most recent visit (singular)
+                single_visit = bool(re.search(r'\b(last|most recent|latest)\s+visit\b', message_lower) and 'visits' not in message_lower)
+                visit_limit = 1 if single_visit else 5
+                tool_response = search_visits(numbers[0], limit=visit_limit, rating=rating_filter)
         elif numbers:
             # Has store number - search visits with optional rating filter
-            tool_response = search_visits(numbers[0], limit=5, rating=rating_filter)
+            # Check if user wants only the last/most recent visit (singular)
+            single_visit = bool(re.search(r'\b(last|most recent|latest)\s+visit\b', message_lower) and 'visits' not in message_lower)
+            visit_limit = 1 if single_visit else 5
+            tool_response = search_visits(numbers[0], limit=visit_limit, rating=rating_filter)
         else:
             tool_response = get_summary_stats()
 
