@@ -4179,6 +4179,126 @@ def update_enabler_status(enabler_id):
         release_db_connection(conn)
 
 
+def format_jax_response(message_lower, data):
+    """Format data into readable text when Gemini is unavailable"""
+
+    # Handle gold stars
+    if isinstance(data, dict) and 'week' in data and 'completions' in data:
+        week = data.get('week', {})
+        notes = data.get('notes', [])
+        completions = data.get('completions', [])
+
+        response = f"**Gold Stars for Week of {week.get('week_start_date', 'Unknown')}**\n\n"
+
+        # Show the notes
+        for i, note in enumerate(notes, 1):
+            if note:
+                response += f"{i}. {note}\n"
+            else:
+                response += f"{i}. (Not set)\n"
+
+        if completions:
+            response += "\n**Store Completions:**\n"
+            # Group by store
+            stores = {}
+            for c in completions:
+                store = c.get('store_nbr', 'Unknown')
+                if store not in stores:
+                    stores[store] = []
+                status = "completed" if c.get('completed') else "not completed"
+                stores[store].append(f"Note {c.get('note_number')}: {status}")
+
+            for store, items in sorted(stores.items()):
+                response += f"- Store {store}: {', '.join(items)}\n"
+        else:
+            response += "\nNo completion records yet."
+
+        return response
+
+    # Handle mentees
+    if isinstance(data, list) and len(data) > 0 and 'position' in data[0]:
+        response = "**Mentee Circle:**\n\n"
+        for m in data:
+            response += f"- **{m.get('name', 'Unknown')}** - Store #{m.get('store_nbr', '?')}\n"
+            if m.get('position'):
+                response += f"  Position: {m.get('position')}\n"
+            if m.get('cell_number'):
+                response += f"  Cell: {m.get('cell_number')}\n"
+        return response
+
+    # Handle enablers
+    if isinstance(data, list) and len(data) > 0 and 'status' in data[0] and 'title' in data[0]:
+        response = "**Enablers:**\n\n"
+        for e in data:
+            status_label = {'idea': 'Idea', 'slide_made': 'Slide Made', 'presented': 'Presented'}.get(e.get('status'), e.get('status'))
+            response += f"- **{e.get('title')}** [{status_label}]\n"
+            if e.get('description'):
+                response += f"  {e.get('description')[:100]}...\n" if len(e.get('description', '')) > 100 else f"  {e.get('description')}\n"
+            if e.get('completed_count') is not None:
+                response += f"  Stores completed: {e.get('completed_count')}\n"
+        return response
+
+    # Handle tasks
+    if isinstance(data, list) and len(data) > 0 and 'content' in data[0] and 'priority' in data[0]:
+        response = "**Tasks:**\n\n"
+        for t in data:
+            status = t.get('status', 'new').replace('_', ' ').title()
+            priority_labels = {0: '', 1: '[Low]', 2: '[Medium]', 3: '[High]'}
+            priority = priority_labels.get(t.get('priority', 0), '')
+            response += f"- {priority} {t.get('content')} - {status}\n"
+            if t.get('assigned_to'):
+                response += f"  Assigned to: {t.get('assigned_to')}\n"
+            if t.get('due_date'):
+                response += f"  Due: {t.get('due_date')}\n"
+        return response
+
+    # Handle champions
+    if isinstance(data, list) and len(data) > 0 and 'responsibility' in data[0]:
+        response = "**Champions:**\n\n"
+        for c in data:
+            response += f"- **{c.get('name')}**: {c.get('responsibility')}\n"
+        return response
+
+    # Handle issues
+    if isinstance(data, list) and len(data) > 0 and 'type' in data[0] and 'title' in data[0]:
+        response = "**Issues/Feedback:**\n\n"
+        for i in data:
+            status = i.get('status', 'new').replace('_', ' ').title()
+            type_label = i.get('type', 'issue').title()
+            response += f"- [{type_label}] **{i.get('title')}** - {status}\n"
+            if i.get('description'):
+                response += f"  {i.get('description')[:80]}...\n" if len(i.get('description', '')) > 80 else f"  {i.get('description')}\n"
+        return response
+
+    # Handle visits
+    if isinstance(data, list) and len(data) > 0 and 'storeNbr' in data[0]:
+        response = f"**Store Visits:**\n\n"
+        for v in data:
+            response += f"**Store #{v.get('storeNbr')}** - {v.get('calendar_date')} - {v.get('rating', 'No rating')}\n"
+            if v.get('sales_comp_wtd'):
+                response += f"  Sales Comp WTD: {v.get('sales_comp_wtd')}%\n"
+            if v.get('top_3'):
+                response += "  Top 3:\n"
+                for note in v.get('top_3', []):
+                    response += f"    - {note}\n"
+        return response
+
+    # Handle summary stats
+    if isinstance(data, dict) and 'total_visits' in data:
+        response = "**Summary:**\n\n"
+        response += f"- Total Visits: {data.get('total_visits', 0)}\n"
+        response += f"- Unique Stores: {data.get('unique_stores', 0)}\n"
+        response += f"- Green: {data.get('green_count', 0)}\n"
+        response += f"- Yellow: {data.get('yellow_count', 0)}\n"
+        response += f"- Red: {data.get('red_count', 0)}\n"
+        response += f"- Recent (30 days): {data.get('recent_visits_30d', 0)}\n"
+        return response
+
+    # Default fallback
+    import json
+    return f"Here's what I found:\n\n{json.dumps(data, indent=2)}"
+
+
 # --- Chatbot API ---
 @app.route('/api/chat', methods=['POST'])
 def chat():
@@ -4328,19 +4448,23 @@ Instructions:
 - If data is missing or doesn't answer the question, say so"""
 
             if model is None:
+                # Format data nicely without Gemini
+                formatted = format_jax_response(message_lower, tool_data)
                 return jsonify({
-                    "response": f"Here's what I found:\n\n{json.dumps(tool_data, indent=2)}",
-                    "source": "raw_data"
+                    "response": formatted,
+                    "source": "formatted_fallback"
                 })
 
             try:
                 response = model.generate_content(prompt)
-                return jsonify({"response": response.text, "source": "gemini_fallback"})
+                return jsonify({"response": response.text, "source": "gemini"})
             except Exception as e:
                 print(f"Gemini error: {e}")
+                # Format data nicely without Gemini
+                formatted = format_jax_response(message_lower, tool_data)
                 return jsonify({
-                    "response": f"Here's what I found:\n\n{json.dumps(tool_data, indent=2)}",
-                    "source": "raw_data"
+                    "response": formatted,
+                    "source": "formatted_fallback"
                 })
 
         return jsonify({"error": "Could not process your question"}), 400
