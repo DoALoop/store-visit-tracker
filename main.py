@@ -3813,6 +3813,294 @@ def delete_mentee(mentee_id):
         release_db_connection(conn)
 
 
+# --- Enablers API ---
+
+@app.route('/api/enablers', methods=['GET'])
+def get_enablers():
+    """Get all enablers with optional filters"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Get filter parameters
+        status_filter = request.args.get('status')
+        week_filter = request.args.get('week')
+
+        # Build query with optional filters
+        query = """
+            SELECT id, title, description, source, status, week_date, created_at, updated_at
+            FROM enablers
+            WHERE 1=1
+        """
+        params = []
+
+        if status_filter:
+            query += " AND status = %s"
+            params.append(status_filter)
+
+        if week_filter:
+            query += " AND week_date = %s"
+            params.append(week_filter)
+
+        query += " ORDER BY COALESCE(week_date, '9999-12-31') DESC, created_at DESC"
+
+        cursor.execute(query, params)
+        enablers = cursor.fetchall()
+
+        # Get completion counts for each enabler
+        result = []
+        for e in enablers:
+            # Get completions for this enabler
+            cursor.execute("""
+                SELECT store_nbr, completed, completed_at
+                FROM enabler_completions
+                WHERE enabler_id = %s
+            """, (e['id'],))
+            completions = cursor.fetchall()
+
+            completion_dict = {}
+            completed_count = 0
+            for c in completions:
+                completion_dict[c['store_nbr']] = {
+                    'completed': c['completed'],
+                    'completed_at': c['completed_at'].isoformat() if c['completed_at'] else None
+                }
+                if c['completed']:
+                    completed_count += 1
+
+            result.append({
+                "id": e['id'],
+                "title": e['title'],
+                "description": e['description'],
+                "source": e['source'],
+                "status": e['status'],
+                "week_date": e['week_date'].isoformat() if e['week_date'] else None,
+                "created_at": e['created_at'].isoformat() if e['created_at'] else None,
+                "updated_at": e['updated_at'].isoformat() if e['updated_at'] else None,
+                "completions": completion_dict,
+                "completed_count": completed_count
+            })
+
+        cursor.close()
+        return jsonify(result)
+
+    except Exception as e:
+        print(f"Error fetching enablers: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/enablers', methods=['POST'])
+def create_enabler():
+    """Create a new enabler"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        data = request.get_json()
+        title = data.get('title', '').strip()
+        description = data.get('description', '').strip()
+        source = data.get('source', '').strip()
+        status = data.get('status', 'idea')
+        week_date = data.get('week_date')
+
+        if not title:
+            return jsonify({"error": "Title is required"}), 400
+
+        if status not in ('idea', 'slide_made', 'presented'):
+            return jsonify({"error": "Invalid status"}), 400
+
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("""
+            INSERT INTO enablers (title, description, source, status, week_date)
+            VALUES (%s, %s, %s, %s, %s)
+            RETURNING id, title, description, source, status, week_date, created_at, updated_at
+        """, (title, description or None, source or None, status, week_date or None))
+
+        new_enabler = cursor.fetchone()
+        conn.commit()
+        cursor.close()
+
+        return jsonify({
+            "success": True,
+            "enabler": {
+                "id": new_enabler['id'],
+                "title": new_enabler['title'],
+                "description": new_enabler['description'],
+                "source": new_enabler['source'],
+                "status": new_enabler['status'],
+                "week_date": new_enabler['week_date'].isoformat() if new_enabler['week_date'] else None,
+                "created_at": new_enabler['created_at'].isoformat(),
+                "updated_at": new_enabler['updated_at'].isoformat(),
+                "completions": {},
+                "completed_count": 0
+            }
+        })
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error creating enabler: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/enablers/<int:enabler_id>', methods=['PUT'])
+def update_enabler(enabler_id):
+    """Update an enabler"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        data = request.get_json()
+        title = data.get('title', '').strip()
+        description = data.get('description', '').strip()
+        source = data.get('source', '').strip()
+        status = data.get('status', 'idea')
+        week_date = data.get('week_date')
+
+        if not title:
+            return jsonify({"error": "Title is required"}), 400
+
+        if status not in ('idea', 'slide_made', 'presented'):
+            return jsonify({"error": "Invalid status"}), 400
+
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE enablers
+            SET title = %s, description = %s, source = %s, status = %s, week_date = %s, updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+        """, (title, description or None, source or None, status, week_date or None, enabler_id))
+
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Enabler not found"}), 404
+
+        conn.commit()
+        cursor.close()
+
+        return jsonify({"success": True, "message": "Enabler updated"})
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error updating enabler: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/enablers/<int:enabler_id>', methods=['DELETE'])
+def delete_enabler(enabler_id):
+    """Delete an enabler (completions cascade)"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM enablers WHERE id = %s", (enabler_id,))
+
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Enabler not found"}), 404
+
+        conn.commit()
+        cursor.close()
+
+        return jsonify({"success": True, "message": "Enabler deleted"})
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error deleting enabler: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/enablers/<int:enabler_id>/toggle', methods=['POST'])
+def toggle_enabler_completion(enabler_id):
+    """Toggle store completion for an enabler"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        data = request.get_json()
+        store_nbr = data.get('store_nbr', '').strip()
+        completed = data.get('completed', False)
+
+        if not store_nbr:
+            return jsonify({"error": "store_nbr is required"}), 400
+
+        cursor = conn.cursor()
+
+        # Use upsert pattern
+        cursor.execute("""
+            INSERT INTO enabler_completions (enabler_id, store_nbr, completed, completed_at)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (enabler_id, store_nbr)
+            DO UPDATE SET completed = %s, completed_at = %s
+        """, (
+            enabler_id, store_nbr, completed,
+            datetime.now() if completed else None,
+            completed,
+            datetime.now() if completed else None
+        ))
+
+        conn.commit()
+        cursor.close()
+
+        return jsonify({"success": True, "message": "Completion toggled"})
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error toggling enabler completion: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/enablers/<int:enabler_id>/status', methods=['PUT'])
+def update_enabler_status(enabler_id):
+    """Quick status update for an enabler"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        data = request.get_json()
+        status = data.get('status', '').strip()
+
+        if status not in ('idea', 'slide_made', 'presented'):
+            return jsonify({"error": "Invalid status"}), 400
+
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE enablers
+            SET status = %s, updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+        """, (status, enabler_id))
+
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Enabler not found"}), 404
+
+        conn.commit()
+        cursor.close()
+
+        return jsonify({"success": True, "message": "Status updated"})
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error updating enabler status: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
 # --- Chatbot API ---
 @app.route('/api/chat', methods=['POST'])
 def chat():
