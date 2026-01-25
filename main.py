@@ -4195,7 +4195,7 @@ def chat():
             search_visits, get_visit_details, analyze_trends,
             compare_stores, search_notes, get_summary_stats, get_market_insights,
             get_market_note_status, get_market_note_updates, get_gold_stars,
-            get_champions, get_issues
+            get_champions, get_issues, get_mentees, get_enablers, get_tasks, get_user_notes
         )
 
         # ADK agent is optional - use Gemini fallback for now
@@ -4230,7 +4230,35 @@ def chat():
             status_filter = 'new' if 'market' in message_lower else 'open'
 
         # Route to appropriate tool based on message content
-        if 'champion' in message_lower or 'team' in message_lower or 'assigned' in message_lower or 'who is' in message_lower:
+        if 'mentee' in message_lower or 'circle' in message_lower:
+            store_filter = numbers[0] if numbers else None
+            tool_response = get_mentees(store_nbr=store_filter)
+        elif 'enabler' in message_lower or ('tip' in message_lower and 'trick' in message_lower):
+            enabler_status = None
+            if 'idea' in message_lower:
+                enabler_status = 'idea'
+            elif 'slide' in message_lower:
+                enabler_status = 'slide_made'
+            elif 'presented' in message_lower:
+                enabler_status = 'presented'
+            tool_response = get_enablers(status_filter=enabler_status)
+        elif 'task' in message_lower or 'todo' in message_lower or 'to-do' in message_lower:
+            task_status = status_filter
+            if 'stalled' in message_lower:
+                task_status = 'stalled'
+            assigned = None
+            # Try to extract assignee name
+            assign_match = re.search(r'assigned to (\w+)', message_lower)
+            if assign_match:
+                assigned = assign_match.group(1)
+            store_filter = numbers[0] if numbers else None
+            tool_response = get_tasks(status_filter=task_status, assigned_to=assigned, store_number=store_filter)
+        elif 'note' in message_lower and ('my' in message_lower or 'user' in message_lower or 'personal' in message_lower or 'search note' in message_lower):
+            # User notes (not market notes)
+            search_match = re.search(r'(?:about|for|with)\s+["\']?([^"\']+)["\']?', message_lower)
+            search_term = search_match.group(1).strip() if search_match else None
+            tool_response = get_user_notes(search_query=search_term)
+        elif 'champion' in message_lower or 'team' in message_lower or 'assigned' in message_lower or 'who is' in message_lower:
             tool_response = get_champions()
         elif 'gold star' in message_lower or 'goldstar' in message_lower:
             tool_response = get_gold_stars()
@@ -4290,6 +4318,10 @@ Instructions:
 - Champions = team members and their assigned responsibilities
 - Issues/Feedback = tracked problems or suggestions with status (open, in_progress, resolved, closed)
 - Market note status = tracks if market notes are new, in_progress, on_hold, or completed, and who they're assigned to
+- Mentees = associates in the mentee circle with store, position, and contact info
+- Enablers = tips/tricks/ways of working with status: idea (not yet created), slide_made (PowerPoint done), presented (shared with stores)
+- Tasks = standalone tasks with status (new, in_progress, stalled, completed), priority (0-3), assignee, due date, and store number
+- User Notes = personal notes with titles, content, folders, and embedded tasks
 - When showing notes or items, list them as a numbered or bulleted list
 - Include specific numbers, dates, names, and statuses when relevant
 - Be conversational but informative

@@ -621,6 +621,216 @@ def get_issues(status_filter: Optional[str] = None, type_filter: Optional[str] =
         conn.close()
 
 
+def get_mentees(store_nbr: Optional[str] = None) -> str:
+    """
+    Get mentee circle members.
+
+    Args:
+        store_nbr: Optional filter by store number
+
+    Returns:
+        JSON string with mentee names, stores, positions, and contact info
+    """
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor(cursor_factory=__import__('psycopg2.extras', fromlist=['RealDictCursor']).RealDictCursor)
+
+        query = """
+            SELECT id, name, store_nbr, position, cell_number, notes, created_at
+            FROM mentees
+            WHERE 1=1
+        """
+        params = []
+
+        if store_nbr:
+            query += " AND store_nbr = %s"
+            params.append(store_nbr)
+
+        query += " ORDER BY name"
+
+        cursor.execute(query, params)
+        mentees = cursor.fetchall()
+
+        for m in mentees:
+            if m.get('created_at'):
+                m['created_at'] = m['created_at'].isoformat()
+
+        cursor.close()
+        return json.dumps(mentees, default=str)
+    finally:
+        conn.close()
+
+
+def get_enablers(status_filter: Optional[str] = None, week_number: Optional[int] = None) -> str:
+    """
+    Get enablers (tips/tricks/ways of working).
+
+    Args:
+        status_filter: Optional filter by status (idea, slide_made, presented)
+        week_number: Optional filter by Walmart week number
+
+    Returns:
+        JSON string with enablers, their status, and store completion counts
+    """
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor(cursor_factory=__import__('psycopg2.extras', fromlist=['RealDictCursor']).RealDictCursor)
+
+        query = """
+            SELECT e.id, e.title, e.description, e.source, e.status, e.week_date,
+                   e.created_at, e.updated_at,
+                   COUNT(ec.id) FILTER (WHERE ec.completed = true) as completed_count,
+                   COUNT(ec.id) as total_tracked
+            FROM enablers e
+            LEFT JOIN enabler_completions ec ON e.id = ec.enabler_id
+            WHERE 1=1
+        """
+        params = []
+
+        if status_filter:
+            query += " AND LOWER(e.status) = LOWER(%s)"
+            params.append(status_filter)
+
+        query += """
+            GROUP BY e.id, e.title, e.description, e.source, e.status, e.week_date, e.created_at, e.updated_at
+            ORDER BY e.week_date DESC NULLS LAST, e.created_at DESC
+        """
+
+        cursor.execute(query, params)
+        enablers = cursor.fetchall()
+
+        for e in enablers:
+            if e.get('created_at'):
+                e['created_at'] = e['created_at'].isoformat()
+            if e.get('updated_at'):
+                e['updated_at'] = e['updated_at'].isoformat()
+            if e.get('week_date'):
+                e['week_date'] = e['week_date'].isoformat()
+
+        cursor.close()
+        return json.dumps(enablers, default=str)
+    finally:
+        conn.close()
+
+
+def get_tasks(status_filter: Optional[str] = None, assigned_to: Optional[str] = None,
+              store_number: Optional[str] = None) -> str:
+    """
+    Get standalone tasks.
+
+    Args:
+        status_filter: Optional filter by status (new, in_progress, stalled, completed)
+        assigned_to: Optional filter by assignee name
+        store_number: Optional filter by store number
+
+    Returns:
+        JSON string with tasks including status, priority, assignments, and due dates
+    """
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor(cursor_factory=__import__('psycopg2.extras', fromlist=['RealDictCursor']).RealDictCursor)
+
+        query = """
+            SELECT id, content, status, priority, assigned_to, due_date,
+                   store_number, list_name, notes, created_at, updated_at, completed_at
+            FROM tasks
+            WHERE 1=1
+        """
+        params = []
+
+        if status_filter:
+            query += " AND LOWER(status) = LOWER(%s)"
+            params.append(status_filter)
+
+        if assigned_to:
+            query += " AND LOWER(assigned_to) LIKE LOWER(%s)"
+            params.append(f'%{assigned_to}%')
+
+        if store_number:
+            query += " AND store_number = %s"
+            params.append(store_number)
+
+        query += " ORDER BY priority DESC, due_date ASC NULLS LAST, created_at DESC LIMIT 50"
+
+        cursor.execute(query, params)
+        tasks = cursor.fetchall()
+
+        for t in tasks:
+            if t.get('created_at'):
+                t['created_at'] = t['created_at'].isoformat()
+            if t.get('updated_at'):
+                t['updated_at'] = t['updated_at'].isoformat()
+            if t.get('completed_at'):
+                t['completed_at'] = t['completed_at'].isoformat()
+            if t.get('due_date'):
+                t['due_date'] = t['due_date'].isoformat()
+
+        cursor.close()
+        return json.dumps(tasks, default=str)
+    finally:
+        conn.close()
+
+
+def get_user_notes(search_query: Optional[str] = None, folder_path: Optional[str] = None) -> str:
+    """
+    Get user notes from the notes module.
+
+    Args:
+        search_query: Optional search query for note content
+        folder_path: Optional filter by folder path
+
+    Returns:
+        JSON string with notes including title, content preview, tags, and task counts
+    """
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor(cursor_factory=__import__('psycopg2.extras', fromlist=['RealDictCursor']).RealDictCursor)
+
+        query = """
+            SELECT n.id, n.title,
+                   LEFT(n.content, 200) as content_preview,
+                   n.folder_path, n.is_pinned, n.is_daily_note, n.daily_date,
+                   n.store_number, n.created_at, n.updated_at,
+                   COUNT(DISTINCT nt.id) as task_count,
+                   COUNT(DISTINCT nt.id) FILTER (WHERE nt.completed = true) as completed_task_count
+            FROM notes n
+            LEFT JOIN note_tasks nt ON n.id = nt.note_id
+            WHERE n.deleted_at IS NULL
+        """
+        params = []
+
+        if search_query:
+            query += " AND (LOWER(n.title) LIKE LOWER(%s) OR LOWER(n.content) LIKE LOWER(%s))"
+            params.extend([f'%{search_query}%', f'%{search_query}%'])
+
+        if folder_path:
+            query += " AND n.folder_path = %s"
+            params.append(folder_path)
+
+        query += """
+            GROUP BY n.id, n.title, n.content, n.folder_path, n.is_pinned,
+                     n.is_daily_note, n.daily_date, n.store_number, n.created_at, n.updated_at
+            ORDER BY n.is_pinned DESC, n.updated_at DESC
+            LIMIT 30
+        """
+
+        cursor.execute(query, params)
+        notes = cursor.fetchall()
+
+        for note in notes:
+            if note.get('created_at'):
+                note['created_at'] = note['created_at'].isoformat()
+            if note.get('updated_at'):
+                note['updated_at'] = note['updated_at'].isoformat()
+            if note.get('daily_date'):
+                note['daily_date'] = note['daily_date'].isoformat()
+
+        cursor.close()
+        return json.dumps(notes, default=str)
+    finally:
+        conn.close()
+
+
 # ADK Agent definition
 def create_agent():
     """Create and return the ADK agent with all tools"""
