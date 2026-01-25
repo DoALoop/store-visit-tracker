@@ -1677,7 +1677,7 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
 
     <!-- Bottom Navigation Bar -->
     <nav class="fixed bottom-0 w-full bg-white border-t border-gray-200 pb-safe z-40">
-        <div class="grid grid-cols-4 h-16">
+        <div class="grid grid-cols-5 h-16">
             <button onclick="switchTab('home')" class="nav-btn w-full h-full flex flex-col items-center justify-center space-y-1 text-walmart-blue focus:outline-none" data-target="view-home">
                 <i class="fas fa-home text-xl"></i>
                 <span class="text-xs font-medium">Home</span>
@@ -1686,6 +1686,14 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                 <i class="fas fa-camera text-xl"></i>
                 <span class="text-xs font-medium">Log Visit</span>
             </button>
+            <!-- Jax AI Button - Raised Center Button -->
+            <div class="flex items-center justify-center">
+                <button onclick="toggleJax()" class="w-14 h-14 -mt-6 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg flex items-center justify-center focus:outline-none transition-all">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                    </svg>
+                </button>
+            </div>
             <button onclick="switchTab('visits')" class="nav-btn w-full h-full flex flex-col items-center justify-center space-y-1 text-gray-500 hover:text-walmart-blue focus:outline-none" data-target="view-visits">
                 <i class="fas fa-clipboard-list text-xl"></i>
                 <span class="text-xs font-medium">Tracker</span>
@@ -4994,21 +5002,14 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
         function toggleJax() {
             jaxOpen = !jaxOpen;
             const panel = document.getElementById('jax-panel');
-            const btn = document.getElementById('jax-toggle-btn');
 
             if (jaxOpen) {
                 panel.classList.remove('hidden');
                 panel.classList.add('flex');
-                btn.innerHTML = `<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                </svg>`;
                 document.getElementById('jax-input').focus();
             } else {
                 panel.classList.add('hidden');
                 panel.classList.remove('flex');
-                btn.innerHTML = `<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
-                </svg>`;
             }
         }
 
@@ -5859,14 +5860,8 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
         loadDashboard();
     </script>
 
-    <!-- Jax Chat Button and Panel -->
-    <div id="jax-toggle-btn" onclick="toggleJax()" class="fixed bottom-20 right-4 w-14 h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg flex items-center justify-center cursor-pointer z-50 transition-all">
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
-        </svg>
-    </div>
-
-    <div id="jax-panel" class="hidden fixed bottom-36 right-4 w-80 sm:w-96 h-[450px] bg-white rounded-lg shadow-2xl flex-col z-50 border border-gray-200">
+    <!-- Jax Chat Panel -->
+    <div id="jax-panel" class="hidden fixed bottom-20 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] sm:w-96 h-[450px] bg-white rounded-lg shadow-2xl flex-col z-50 border border-gray-200">
         <!-- Jax Header -->
         <div class="bg-blue-600 text-white px-4 py-3 rounded-t-lg flex items-center justify-between">
             <div class="flex items-center">
