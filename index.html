@@ -974,8 +974,11 @@
                         </div>
                     </div>
                     <div>
-                        <label class="text-sm text-gray-600">Week (Monday of the week)</label>
-                        <input type="date" id="enabler-week" class="w-full border border-gray-300 rounded-lg px-3 py-2 mt-1 focus:border-walmart-blue focus:ring-walmart-blue">
+                        <label class="text-sm text-gray-600">Walmart Week Number</label>
+                        <div class="flex items-center gap-2 mt-1">
+                            <input type="number" id="enabler-week" min="1" max="53" class="w-24 border border-gray-300 rounded-lg px-3 py-2 focus:border-walmart-blue focus:ring-walmart-blue" placeholder="Week #">
+                            <span id="enabler-current-week-hint" class="text-sm text-gray-500"></span>
+                        </div>
                     </div>
                     <div class="flex gap-2 pt-2">
                         <button onclick="hideEnablerForm()" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
@@ -4011,6 +4014,7 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
         let editingEnablerId = null;
         let enablerViewFilter = 'all';
         let enablerStatusFilter = 'all';
+        let currentEnablerWeekInfo = null;
 
         async function loadEnablers() {
             const containerEl = document.getElementById('enablers-container');
@@ -4018,9 +4022,23 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             containerEl.innerHTML = '<div class="p-8 text-center"><svg class="animate-spin h-8 w-8 text-walmart-blue mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></div>';
 
             try {
-                const response = await fetch('/api/enablers');
-                if (!response.ok) throw new Error('Failed to load enablers');
-                allEnablers = await response.json();
+                // Fetch current week info and enablers in parallel
+                const [weekResponse, enablersResponse] = await Promise.all([
+                    fetch('/api/enablers/current-week'),
+                    fetch('/api/enablers')
+                ]);
+
+                if (weekResponse.ok) {
+                    currentEnablerWeekInfo = await weekResponse.json();
+                    // Update the hint in the form
+                    const hintEl = document.getElementById('enabler-current-week-hint');
+                    if (hintEl && currentEnablerWeekInfo) {
+                        hintEl.textContent = `(Current: Week ${currentEnablerWeekInfo.week_number})`;
+                    }
+                }
+
+                if (!enablersResponse.ok) throw new Error('Failed to load enablers');
+                allEnablers = await enablersResponse.json();
 
                 renderEnablers();
             } catch (e) {
@@ -4098,19 +4116,17 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             const emptyEl = document.getElementById('enablers-empty');
             const stores = getEnablerStores();
 
-            // Get current week's Monday
-            const today = new Date();
-            const thisMonday = getMondayOfWeek(today);
-            const thisMondayStr = thisMonday.toISOString().split('T')[0];
+            // Get current week number
+            const currentWeekNum = currentEnablerWeekInfo ? currentEnablerWeekInfo.week_number : null;
 
             // Apply filters
             let filtered = allEnablers;
 
             // View filter
             if (enablerViewFilter === 'week') {
-                filtered = filtered.filter(e => e.week_date === thisMondayStr);
+                filtered = filtered.filter(e => e.week_number === currentWeekNum);
             } else if (enablerViewFilter === 'planned') {
-                filtered = filtered.filter(e => e.week_date && e.week_date > thisMondayStr);
+                filtered = filtered.filter(e => e.week_number && e.week_number > currentWeekNum);
             }
 
             // Status filter
@@ -4127,36 +4143,37 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             containerEl.classList.remove('hidden');
             emptyEl.classList.add('hidden');
 
-            // Group by week
+            // Group by week number
             const grouped = {};
             const noWeek = [];
 
             filtered.forEach(e => {
-                if (e.week_date) {
-                    if (!grouped[e.week_date]) grouped[e.week_date] = [];
-                    grouped[e.week_date].push(e);
+                if (e.week_number) {
+                    if (!grouped[e.week_number]) grouped[e.week_number] = { enablers: [], week_date: e.week_date };
+                    grouped[e.week_number].enablers.push(e);
                 } else {
                     noWeek.push(e);
                 }
             });
 
-            // Sort weeks descending
-            const sortedWeeks = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+            // Sort weeks descending by week number
+            const sortedWeeks = Object.keys(grouped).sort((a, b) => parseInt(b) - parseInt(a));
 
             let html = '';
 
             // Render grouped by week
-            sortedWeeks.forEach(weekDate => {
-                const weekEnablers = grouped[weekDate];
-                const isCurrentWeek = weekDate === thisMondayStr;
+            sortedWeeks.forEach(weekNum => {
+                const weekData = grouped[weekNum];
+                const isCurrentWeek = parseInt(weekNum) === currentWeekNum;
 
                 html += `
                     <div class="mb-6">
                         <div class="flex items-center gap-2 mb-3">
-                            <h3 class="font-semibold text-gray-700">${getWeekDateRange(weekDate)}</h3>
-                            ${isCurrentWeek ? '<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-walmart-blue text-white">This Week</span>' : ''}
+                            <h3 class="font-semibold text-gray-700">Week ${weekNum}</h3>
+                            <span class="text-sm text-gray-400">${getWeekDateRange(weekData.week_date)}</span>
+                            ${isCurrentWeek ? '<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-walmart-blue text-white">Current</span>' : ''}
                         </div>
-                        ${weekEnablers.map(e => renderEnablerCard(e, stores)).join('')}
+                        ${weekData.enablers.map(e => renderEnablerCard(e, stores)).join('')}
                     </div>
                 `;
             });
@@ -4339,7 +4356,7 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             document.getElementById('enabler-description').value = enabler.description || '';
             document.getElementById('enabler-source').value = enabler.source || '';
             document.getElementById('enabler-status').value = enabler.status || 'idea';
-            document.getElementById('enabler-week').value = enabler.week_date || '';
+            document.getElementById('enabler-week').value = enabler.week_number || '';
             document.getElementById('enabler-edit-id').value = id;
             document.getElementById('enabler-form').classList.remove('hidden');
             document.getElementById('enabler-title').focus();
@@ -4350,7 +4367,7 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             const description = document.getElementById('enabler-description').value.trim();
             const source = document.getElementById('enabler-source').value.trim();
             const status = document.getElementById('enabler-status').value;
-            const weekDate = document.getElementById('enabler-week').value;
+            const weekNumber = document.getElementById('enabler-week').value;
 
             if (!title) {
                 alert('Title is required');
@@ -4362,7 +4379,7 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                 description: description,
                 source: source,
                 status: status,
-                week_date: weekDate || null
+                week_number: weekNumber ? parseInt(weekNumber) : null
             };
 
             try {

@@ -1334,6 +1334,58 @@ def get_fiscal_week_number(week_start_date):
 
     return week_number
 
+
+def get_monday_from_fiscal_week(week_number, year=None):
+    """Convert a fiscal week number to the Monday of that week"""
+    from datetime import date, timedelta
+
+    if year is None:
+        year = date.today().year
+
+    # Fiscal year starts January 31st
+    fiscal_year_start = date(year, 1, 31)
+
+    # If we're currently before Jan 31, we might be referencing the previous fiscal year
+    today = date.today()
+    if today < fiscal_year_start and week_number > 40:
+        # High week number before Jan 31 means previous fiscal year
+        fiscal_year_start = date(year - 1, 1, 31)
+
+    # Calculate the Saturday that starts this fiscal week
+    # Week 1 starts on the Saturday on or after Jan 31
+    days_to_saturday = (5 - fiscal_year_start.weekday()) % 7  # Saturday = 5
+    first_saturday = fiscal_year_start + timedelta(days=days_to_saturday)
+
+    # Add weeks to get to the target week's Saturday
+    target_saturday = first_saturday + timedelta(weeks=week_number - 1)
+
+    # Return the Monday of that week (Saturday + 2 days)
+    target_monday = target_saturday + timedelta(days=2)
+
+    return target_monday
+
+
+def get_current_fiscal_week_info():
+    """Get current fiscal week number and date range"""
+    from datetime import date, timedelta
+
+    today = date.today()
+    # Get the Saturday of current week
+    days_since_saturday = (today.weekday() + 2) % 7
+    current_saturday = today - timedelta(days=days_since_saturday)
+
+    week_number = get_fiscal_week_number(current_saturday)
+    week_monday = current_saturday + timedelta(days=2)
+    week_sunday = current_saturday + timedelta(days=8)
+
+    return {
+        "week_number": week_number,
+        "week_start": current_saturday.isoformat(),
+        "week_monday": week_monday.isoformat(),
+        "week_end": week_sunday.isoformat()
+    }
+
+
 # Market to store mapping
 MARKET_STORES = {
     '399': ['1951', '2508', '2617', '2780', '2781', '2861', '2862', '3093', '3739', '5841'],
@@ -3871,6 +3923,10 @@ def get_enablers():
                 if c['completed']:
                     completed_count += 1
 
+            week_num = None
+            if e['week_date']:
+                week_num = get_fiscal_week_number(e['week_date'])
+
             result.append({
                 "id": e['id'],
                 "title": e['title'],
@@ -3878,6 +3934,7 @@ def get_enablers():
                 "source": e['source'],
                 "status": e['status'],
                 "week_date": e['week_date'].isoformat() if e['week_date'] else None,
+                "week_number": week_num,
                 "created_at": e['created_at'].isoformat() if e['created_at'] else None,
                 "updated_at": e['updated_at'].isoformat() if e['updated_at'] else None,
                 "completions": completion_dict,
@@ -3894,6 +3951,12 @@ def get_enablers():
         release_db_connection(conn)
 
 
+@app.route('/api/enablers/current-week', methods=['GET'])
+def get_enablers_current_week():
+    """Get current fiscal week info for enablers"""
+    return jsonify(get_current_fiscal_week_info())
+
+
 @app.route('/api/enablers', methods=['POST'])
 def create_enabler():
     """Create a new enabler"""
@@ -3908,6 +3971,11 @@ def create_enabler():
         source = data.get('source', '').strip()
         status = data.get('status', 'idea')
         week_date = data.get('week_date')
+        week_number = data.get('week_number')
+
+        # If week_number provided, convert to week_date
+        if week_number and not week_date:
+            week_date = get_monday_from_fiscal_week(int(week_number)).isoformat()
 
         if not title:
             return jsonify({"error": "Title is required"}), 400
@@ -3926,6 +3994,10 @@ def create_enabler():
         conn.commit()
         cursor.close()
 
+        week_num = None
+        if new_enabler['week_date']:
+            week_num = get_fiscal_week_number(new_enabler['week_date'])
+
         return jsonify({
             "success": True,
             "enabler": {
@@ -3935,6 +4007,7 @@ def create_enabler():
                 "source": new_enabler['source'],
                 "status": new_enabler['status'],
                 "week_date": new_enabler['week_date'].isoformat() if new_enabler['week_date'] else None,
+                "week_number": week_num,
                 "created_at": new_enabler['created_at'].isoformat(),
                 "updated_at": new_enabler['updated_at'].isoformat(),
                 "completions": {},
@@ -3964,6 +4037,11 @@ def update_enabler(enabler_id):
         source = data.get('source', '').strip()
         status = data.get('status', 'idea')
         week_date = data.get('week_date')
+        week_number = data.get('week_number')
+
+        # If week_number provided, convert to week_date
+        if week_number and not week_date:
+            week_date = get_monday_from_fiscal_week(int(week_number)).isoformat()
 
         if not title:
             return jsonify({"error": "Title is required"}), 400
