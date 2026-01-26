@@ -1511,8 +1511,8 @@ def save_gold_star_week():
         note_2 = data.get('note_2', '').strip()
         note_3 = data.get('note_3', '').strip()
 
-        if not all([note_1, note_2, note_3]):
-            return jsonify({"error": "All three notes are required"}), 400
+        if not any([note_1, note_2, note_3]):
+            return jsonify({"error": "At least one note is required"}), 400
 
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         week_start = get_current_week_start()
