@@ -781,7 +781,7 @@
                     </div>
                     <div class="flex gap-2 pt-2">
                         <button onclick="cancelGoldStarEdit()" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
-                        <button onclick="saveGoldStarNotes()" class="flex-1 px-4 py-2 bg-walmart-blue text-white rounded-lg hover:bg-walmart-dark-blue">Save Notes</button>
+                        <button onclick="saveGoldStarNotes()" class="flex-1 px-4 py-2 bg-walmart-blue text-white rounded-lg hover:bg-walmart-dark-blue">Save</button>
                     </div>
                 </div>
 
@@ -2710,8 +2710,8 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             const note2 = document.getElementById('edit-note-2').value.trim();
             const note3 = document.getElementById('edit-note-3').value.trim();
 
-            if (!note1 || !note2 || !note3) {
-                alert('Please fill in all three gold star notes');
+            if (!note1 && !note2 && !note3) {
+                alert('Please enter at least one gold star note');
                 return;
             }
 
