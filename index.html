@@ -322,10 +322,49 @@
                                 </div>
                             </div>
 
-                            <!-- Optional Notes -->
+                            <!-- Store Notes -->
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Notes (Optional)</label>
-                                <textarea id="manual-visit-notes" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-walmart-blue focus:border-walmart-blue" placeholder="Any additional notes..."></textarea>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">
+                                    <i class="fas fa-sticky-note text-walmart-blue mr-1"></i>Store Notes
+                                </label>
+                                <textarea id="manual-visit-notes" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-walmart-blue focus:border-walmart-blue" placeholder="General store observations..."></textarea>
+                            </div>
+
+                            <!-- Market Notes -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">
+                                    <i class="fas fa-globe text-walmart-blue mr-1"></i>Market Notes
+                                </label>
+                                <textarea id="manual-market-notes" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-walmart-blue focus:border-walmart-blue" placeholder="Market-level observations..."></textarea>
+                            </div>
+
+                            <!-- What's Working Well -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">
+                                    <i class="fas fa-check-circle text-green-600 mr-1"></i>What's Working Well
+                                </label>
+                                <textarea id="manual-good-notes" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-walmart-blue focus:border-walmart-blue" placeholder="Positive observations..."></textarea>
+                            </div>
+
+                            <!-- Top 3 Opportunities -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">
+                                    <i class="fas fa-lightbulb text-yellow-600 mr-1"></i>Top 3 Opportunities
+                                </label>
+                                <div class="space-y-2">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-sm font-medium text-gray-500 w-5">1.</span>
+                                        <input type="text" id="manual-priority-1" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-walmart-blue focus:border-walmart-blue" placeholder="Opportunity 1...">
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-sm font-medium text-gray-500 w-5">2.</span>
+                                        <input type="text" id="manual-priority-2" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-walmart-blue focus:border-walmart-blue" placeholder="Opportunity 2...">
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-sm font-medium text-gray-500 w-5">3.</span>
+                                        <input type="text" id="manual-priority-3" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-walmart-blue focus:border-walmart-blue" placeholder="Opportunity 3...">
+                                    </div>
+                                </div>
                             </div>
 
                             <!-- Save Button -->
@@ -1464,40 +1503,80 @@
                         <p class="text-xs font-semibold text-gray-500 uppercase">Store</p>
                         <p id="modal-store-nbr" class="text-2xl font-bold text-gray-900">-</p>
                     </div>
-                    <div>
+                    <div class="group">
                         <p class="text-xs font-semibold text-gray-500 uppercase">Date</p>
-                        <p id="modal-date" class="text-lg font-semibold text-gray-900">-</p>
+                        <div id="modal-date-display" class="flex items-center gap-2">
+                            <p id="modal-date" class="text-lg font-semibold text-gray-900">-</p>
+                            <button onclick="startEditVisitDate()" class="text-walmart-blue hover:text-walmart-dark-blue opacity-0 group-hover:opacity-100 transition-opacity" title="Edit date">
+                                <i class="fas fa-edit text-xs"></i>
+                            </button>
+                        </div>
+                        <div id="modal-date-edit" class="hidden">
+                            <input type="date" id="modal-date-input" class="w-full px-2 py-1 border border-gray-300 rounded-lg text-sm focus:ring-walmart-blue focus:border-walmart-blue">
+                            <div class="flex gap-1 mt-1">
+                                <button onclick="saveVisitDate()" class="text-green-600 hover:text-green-800 p-1" title="Save"><i class="fas fa-check"></i></button>
+                                <button onclick="cancelEditVisitDate()" class="text-gray-400 hover:text-gray-600 p-1" title="Cancel"><i class="fas fa-times"></i></button>
+                            </div>
+                        </div>
                     </div>
-                    <div>
+                    <div class="group">
                         <p class="text-xs font-semibold text-gray-500 uppercase">Rating</p>
-                        <div id="modal-rating" class="inline-block px-3 py-1 rounded-full text-xs font-bold bg-gray-100">-</div>
+                        <div id="modal-rating-display" class="flex items-center gap-2">
+                            <div id="modal-rating" class="inline-block px-3 py-1 rounded-full text-xs font-bold bg-gray-100">-</div>
+                            <button onclick="startEditVisitRating()" class="text-walmart-blue hover:text-walmart-dark-blue opacity-0 group-hover:opacity-100 transition-opacity" title="Edit rating">
+                                <i class="fas fa-edit text-xs"></i>
+                            </button>
+                        </div>
+                        <div id="modal-rating-edit" class="hidden">
+                            <select id="modal-rating-select" class="w-full px-2 py-1 border border-gray-300 rounded-lg text-sm focus:ring-walmart-blue focus:border-walmart-blue">
+                                <option value="Green">Green</option>
+                                <option value="Yellow">Yellow</option>
+                                <option value="Red">Red</option>
+                            </select>
+                            <div class="flex gap-1 mt-1">
+                                <button onclick="saveVisitRating()" class="text-green-600 hover:text-green-800 p-1" title="Save"><i class="fas fa-check"></i></button>
+                                <button onclick="cancelEditVisitRating()" class="text-gray-400 hover:text-gray-600 p-1" title="Cancel"><i class="fas fa-times"></i></button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 <div>
-                    <h3 class="text-sm font-semibold text-gray-700 uppercase mb-2 flex items-center">
-                        <i class="fas fa-sticky-note text-walmart-blue mr-2"></i>Store Notes
+                    <h3 class="text-sm font-semibold text-gray-700 uppercase mb-2 flex items-center justify-between">
+                        <span><i class="fas fa-sticky-note text-walmart-blue mr-2"></i>Store Notes</span>
+                        <button onclick="startAddNote('store')" class="text-walmart-blue hover:text-walmart-dark-blue" title="Add note">
+                            <i class="fas fa-plus text-xs"></i>
+                        </button>
                     </h3>
-                    <div id="modal-store-notes" class="bg-gray-50 rounded-lg p-4 text-sm text-gray-700">-</div>
+                    <div id="modal-store-notes" class="bg-blue-50 rounded-lg p-4 text-sm text-gray-700">-</div>
                 </div>
 
                 <div>
-                    <h3 class="text-sm font-semibold text-gray-700 uppercase mb-2 flex items-center">
-                        <i class="fas fa-globe text-walmart-blue mr-2"></i>Market Notes
+                    <h3 class="text-sm font-semibold text-gray-700 uppercase mb-2 flex items-center justify-between">
+                        <span><i class="fas fa-globe text-walmart-blue mr-2"></i>Market Notes</span>
+                        <button onclick="startAddNote('market')" class="text-walmart-blue hover:text-walmart-dark-blue" title="Add note">
+                            <i class="fas fa-plus text-xs"></i>
+                        </button>
                     </h3>
-                    <div id="modal-mkt-notes" class="bg-gray-50 rounded-lg p-4 text-sm text-gray-700">-</div>
+                    <div id="modal-mkt-notes" class="bg-blue-50 rounded-lg p-4 text-sm text-gray-700">-</div>
                 </div>
 
                 <div>
-                    <h3 class="text-sm font-semibold text-gray-700 uppercase mb-2 flex items-center">
-                        <i class="fas fa-check-circle text-green-600 mr-2"></i>What's Working Well
+                    <h3 class="text-sm font-semibold text-gray-700 uppercase mb-2 flex items-center justify-between">
+                        <span><i class="fas fa-check-circle text-green-600 mr-2"></i>What's Working Well</span>
+                        <button onclick="startAddNote('good')" class="text-walmart-blue hover:text-walmart-dark-blue" title="Add note">
+                            <i class="fas fa-plus text-xs"></i>
+                        </button>
                     </h3>
                     <div id="modal-good" class="bg-green-50 rounded-lg p-4 text-sm text-gray-700">-</div>
                 </div>
 
                 <div>
-                    <h3 class="text-sm font-semibold text-gray-700 uppercase mb-2 flex items-center">
-                        <i class="fas fa-lightbulb text-yellow-600 mr-2"></i>Top 3 Opportunities
+                    <h3 class="text-sm font-semibold text-gray-700 uppercase mb-2 flex items-center justify-between">
+                        <span><i class="fas fa-lightbulb text-yellow-600 mr-2"></i>Top 3 Opportunities</span>
+                        <button onclick="startAddNote('improvement')" class="text-walmart-blue hover:text-walmart-dark-blue" title="Add note">
+                            <i class="fas fa-plus text-xs"></i>
+                        </button>
                     </h3>
                     <div id="modal-top3" class="bg-yellow-50 rounded-lg p-4 text-sm text-gray-700">-</div>
                 </div>
@@ -1715,9 +1794,9 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                     </svg>
                 </button>
             </div>
-            <button onclick="switchTab('visits')" class="nav-btn w-full h-full flex flex-col items-center justify-center space-y-1 text-gray-500 hover:text-walmart-blue focus:outline-none" data-target="view-visits">
-                <i class="fas fa-clipboard-list text-xl"></i>
-                <span class="text-xs font-medium">Tracker</span>
+            <button onclick="switchTab('gold-stars')" class="nav-btn w-full h-full flex flex-col items-center justify-center space-y-1 text-gray-500 hover:text-walmart-blue focus:outline-none" data-target="view-gold-stars">
+                <i class="fas fa-star text-xl"></i>
+                <span class="text-xs font-medium">Gold Stars</span>
             </button>
             <button onclick="switchTab('notes')" class="nav-btn w-full h-full flex flex-col items-center justify-center space-y-1 text-gray-500 hover:text-walmart-blue focus:outline-none" data-target="view-notes">
                 <i class="fas fa-sticky-note text-xl"></i>
@@ -3192,6 +3271,11 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             document.getElementById('manual-visit-store').value = '';
             document.getElementById('manual-visit-rating').value = '';
             document.getElementById('manual-visit-notes').value = '';
+            document.getElementById('manual-market-notes').value = '';
+            document.getElementById('manual-good-notes').value = '';
+            document.getElementById('manual-priority-1').value = '';
+            document.getElementById('manual-priority-2').value = '';
+            document.getElementById('manual-priority-3').value = '';
             manualVisitPhotos = [];
             document.getElementById('manual-photos-grid').innerHTML = '<p class="col-span-3 text-center text-gray-400 text-sm py-2">No photos added</p>';
 
@@ -3262,7 +3346,15 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             const date = document.getElementById('manual-visit-date').value;
             const store = document.getElementById('manual-visit-store').value;
             const rating = document.getElementById('manual-visit-rating').value;
-            const notes = document.getElementById('manual-visit-notes').value.trim();
+            const storeNotes = document.getElementById('manual-visit-notes').value.trim();
+            const marketNotes = document.getElementById('manual-market-notes').value.trim();
+            const goodNotes = document.getElementById('manual-good-notes').value.trim();
+
+            // Collect top 3 opportunities
+            const priority1 = document.getElementById('manual-priority-1').value.trim();
+            const priority2 = document.getElementById('manual-priority-2').value.trim();
+            const priority3 = document.getElementById('manual-priority-3').value.trim();
+            const priorities = [priority1, priority2, priority3].filter(p => p);
 
             if (!date) {
                 alert('Please select a visit date.');
@@ -3287,11 +3379,10 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                     storeNbr: store,
                     calendar_date: date,
                     rating: rating,
-                    store_notes: notes ? [notes] : [],
-                    market_notes: [],
-                    positive_notes: [],
-                    wins: [],
-                    opportunities: [],
+                    store_notes: storeNotes ? [storeNotes] : [],
+                    mkt_notes: marketNotes ? [marketNotes] : [],
+                    good: goodNotes ? [goodNotes] : [],
+                    top_3: priorities,
                     metrics: {}
                 };
 
@@ -3440,6 +3531,12 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             const modal = document.getElementById('visit-detail-modal');
             modal.classList.remove('hidden');
             document.getElementById('modal-store-notes').innerHTML = '<div class="text-center"><svg class="animate-spin h-6 w-6 text-walmart-blue mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></div>';
+
+            // Reset edit states
+            document.getElementById('modal-date-display').classList.remove('hidden');
+            document.getElementById('modal-date-edit').classList.add('hidden');
+            document.getElementById('modal-rating-display').classList.remove('hidden');
+            document.getElementById('modal-rating-edit').classList.add('hidden');
 
             try {
                 const response = await fetch(`/api/visit/${id}`);
@@ -3741,6 +3838,218 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             } catch (e) {
                 console.error('Error deleting visit:', e);
                 alert('Error deleting visit: ' + e.message);
+            }
+        }
+
+        // --- Visit Edit Functions ---
+        function startEditVisitDate() {
+            if (!currentVisitDetail) return;
+            document.getElementById('modal-date-display').classList.add('hidden');
+            document.getElementById('modal-date-edit').classList.remove('hidden');
+            const dateInput = document.getElementById('modal-date-input');
+            dateInput.value = currentVisitDetail.calendar_date || '';
+            dateInput.focus();
+        }
+
+        function cancelEditVisitDate() {
+            document.getElementById('modal-date-display').classList.remove('hidden');
+            document.getElementById('modal-date-edit').classList.add('hidden');
+        }
+
+        async function saveVisitDate() {
+            if (!currentVisitDetail) return;
+            const newDate = document.getElementById('modal-date-input').value;
+            if (!newDate) {
+                alert('Please select a date');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/visits/${currentVisitDetail.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ calendar_date: newDate })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || 'Failed to update date');
+                }
+
+                // Update local state and refresh display
+                currentVisitDetail.calendar_date = newDate;
+                document.getElementById('modal-date').textContent = new Date(newDate).toLocaleDateString();
+                cancelEditVisitDate();
+                loadVisits();
+
+            } catch (e) {
+                console.error('Error updating date:', e);
+                alert('Error updating date: ' + e.message);
+            }
+        }
+
+        function startEditVisitRating() {
+            if (!currentVisitDetail) return;
+            document.getElementById('modal-rating-display').classList.add('hidden');
+            document.getElementById('modal-rating-edit').classList.remove('hidden');
+            const ratingSelect = document.getElementById('modal-rating-select');
+            ratingSelect.value = currentVisitDetail.rating || 'Green';
+            ratingSelect.focus();
+        }
+
+        function cancelEditVisitRating() {
+            document.getElementById('modal-rating-display').classList.remove('hidden');
+            document.getElementById('modal-rating-edit').classList.add('hidden');
+        }
+
+        async function saveVisitRating() {
+            if (!currentVisitDetail) return;
+            const newRating = document.getElementById('modal-rating-select').value;
+
+            try {
+                const response = await fetch(`/api/visits/${currentVisitDetail.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ rating: newRating })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || 'Failed to update rating');
+                }
+
+                // Update local state and refresh display
+                currentVisitDetail.rating = newRating;
+                const ratingEl = document.getElementById('modal-rating');
+                let ratingClass = 'bg-gray-100 text-gray-800';
+                if (newRating === 'Green') ratingClass = 'bg-green-100 text-green-800';
+                else if (newRating === 'Yellow') ratingClass = 'bg-yellow-100 text-yellow-800';
+                else if (newRating === 'Red') ratingClass = 'bg-red-100 text-red-800';
+                ratingEl.className = `inline-block px-3 py-1 rounded-full text-xs font-bold ${ratingClass}`;
+                ratingEl.textContent = newRating;
+                cancelEditVisitRating();
+                loadVisits();
+
+            } catch (e) {
+                console.error('Error updating rating:', e);
+                alert('Error updating rating: ' + e.message);
+            }
+        }
+
+        // --- Add Note Functions ---
+        function startAddNote(noteType) {
+            if (!currentVisitDetail) return;
+
+            // Get the container element for this note type
+            const containerMap = {
+                'store': 'modal-store-notes',
+                'market': 'modal-mkt-notes',
+                'good': 'modal-good',
+                'improvement': 'modal-top3'
+            };
+
+            const containerId = containerMap[noteType];
+            if (!containerId) return;
+
+            const container = document.getElementById(containerId);
+
+            // Check if there's already an add form
+            if (container.querySelector('.add-note-form')) return;
+
+            // Create the add note form
+            const form = document.createElement('div');
+            form.className = 'add-note-form mt-3 pt-3 border-t border-gray-200';
+            form.innerHTML = `
+                <input type="text" class="w-full px-3 py-2 border border-walmart-blue rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-walmart-blue" placeholder="Enter new note..." autofocus>
+                <div class="flex gap-2 mt-2">
+                    <button onclick="saveNewNote('${noteType}')" class="flex-1 px-3 py-1 bg-walmart-blue text-white text-sm rounded-lg hover:bg-walmart-dark-blue">
+                        <i class="fas fa-check mr-1"></i>Add
+                    </button>
+                    <button onclick="cancelAddNote('${noteType}')" class="px-3 py-1 border border-gray-300 text-gray-600 text-sm rounded-lg hover:bg-gray-100">
+                        Cancel
+                    </button>
+                </div>
+            `;
+            container.appendChild(form);
+
+            // Focus the input
+            const input = form.querySelector('input');
+            input.focus();
+
+            // Handle enter key
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    saveNewNote(noteType);
+                } else if (e.key === 'Escape') {
+                    cancelAddNote(noteType);
+                }
+            });
+        }
+
+        function cancelAddNote(noteType) {
+            const containerMap = {
+                'store': 'modal-store-notes',
+                'market': 'modal-mkt-notes',
+                'good': 'modal-good',
+                'improvement': 'modal-top3'
+            };
+
+            const containerId = containerMap[noteType];
+            if (!containerId) return;
+
+            const container = document.getElementById(containerId);
+            const form = container.querySelector('.add-note-form');
+            if (form) form.remove();
+        }
+
+        async function saveNewNote(noteType) {
+            if (!currentVisitDetail) return;
+
+            const containerMap = {
+                'store': 'modal-store-notes',
+                'market': 'modal-mkt-notes',
+                'good': 'modal-good',
+                'improvement': 'modal-top3'
+            };
+
+            const containerId = containerMap[noteType];
+            if (!containerId) return;
+
+            const container = document.getElementById(containerId);
+            const input = container.querySelector('.add-note-form input');
+            if (!input) return;
+
+            const text = input.value.trim();
+            if (!text) {
+                alert('Please enter note text');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/visits/${currentVisitDetail.id}/notes`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ note_type: noteType, text: text })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || 'Failed to add note');
+                }
+
+                // Refresh the visit detail to show the new note
+                const visitResponse = await fetch(`/api/visit/${currentVisitDetail.id}`);
+                if (visitResponse.ok) {
+                    const v = await visitResponse.json();
+                    displayVisitDetail(v);
+                }
+
+                loadVisits();
+
+            } catch (e) {
+                console.error('Error adding note:', e);
+                alert('Error adding note: ' + e.message);
             }
         }
 

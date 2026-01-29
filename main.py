@@ -853,6 +853,111 @@ def edit_note(note_type, note_id):
         release_db_connection(conn)
 
 
+@app.route('/api/visits/<int:visit_id>', methods=['PUT'])
+def update_visit(visit_id):
+    """Update visit details (date, rating, store number)"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        data = request.json
+        cursor = conn.cursor()
+
+        # Build dynamic update query based on provided fields
+        updates = []
+        values = []
+
+        if 'calendar_date' in data:
+            updates.append("calendar_date = %s")
+            values.append(data['calendar_date'])
+
+        if 'rating' in data:
+            updates.append("rating = %s")
+            values.append(data['rating'])
+
+        if 'storeNbr' in data:
+            updates.append("\"storeNbr\" = %s")
+            values.append(data['storeNbr'])
+
+        if not updates:
+            return jsonify({"error": "No fields to update"}), 400
+
+        values.append(visit_id)
+        query = f"UPDATE store_visits SET {', '.join(updates)} WHERE id = %s"
+        cursor.execute(query, values)
+
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Visit not found"}), 404
+
+        conn.commit()
+        cursor.close()
+
+        return jsonify({"success": True, "message": "Visit updated"})
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error updating visit: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/visits/<int:visit_id>/notes', methods=['POST'])
+def add_note_to_visit(visit_id):
+    """Add a new note to an existing visit"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        data = request.json
+        note_type = data.get('note_type')
+        text = data.get('text', '').strip()
+
+        if not note_type:
+            return jsonify({"error": "note_type is required"}), 400
+        if not text:
+            return jsonify({"error": "text is required"}), 400
+
+        # Map note types to table names
+        table_map = {
+            'store': 'store_visit_notes',
+            'market': 'store_market_notes',
+            'good': 'store_good_notes',
+            'improvement': 'store_improvement_notes'
+        }
+
+        if note_type not in table_map:
+            return jsonify({"error": f"Invalid note_type. Must be one of: {', '.join(table_map.keys())}"}), 400
+
+        table_name = table_map[note_type]
+        cursor = conn.cursor()
+
+        # Get the next sequence number for this visit
+        cursor.execute(f"SELECT COALESCE(MAX(sequence), 0) + 1 FROM {table_name} WHERE visit_id = %s", (visit_id,))
+        next_sequence = cursor.fetchone()[0]
+
+        # Insert the new note
+        cursor.execute(
+            f"INSERT INTO {table_name} (visit_id, note_text, sequence) VALUES (%s, %s, %s) RETURNING id",
+            (visit_id, text, next_sequence)
+        )
+        new_note_id = cursor.fetchone()[0]
+
+        conn.commit()
+        cursor.close()
+
+        return jsonify({"success": True, "message": "Note added", "id": new_note_id})
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error adding note: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
 @app.route('/api/visits/<int:visit_id>', methods=['DELETE'])
 def delete_visit(visit_id):
     """Delete an entire visit and all its associated notes"""
