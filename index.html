@@ -1937,16 +1937,35 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                 // Filter by current market
                 const visits = allVisitsData.filter(v => isStoreInCurrentMarket(v.storeNbr));
 
-                let red = 0, yellow = 0, green = 0;
-                const stores = new Set();
+                // Compute effective rating per store (use prior rated visit if last is unrated)
+                const storeEffectiveRatings = {};
+                const storeVisitsMap = {};
 
+                // Group visits by store
                 visits.forEach(v => {
-                    if (!stores.has(v.storeNbr)) {
-                        stores.add(v.storeNbr);
-                        if (v.rating === 'Red') red++;
-                        else if (v.rating === 'Yellow') yellow++;
-                        else if (v.rating === 'Green') green++;
+                    if (!storeVisitsMap[v.storeNbr]) storeVisitsMap[v.storeNbr] = [];
+                    storeVisitsMap[v.storeNbr].push(v);
+                });
+
+                // Get effective rating for each store
+                Object.keys(storeVisitsMap).forEach(storeNbr => {
+                    const storeVisits = storeVisitsMap[storeNbr]
+                        .sort((a, b) => new Date(b.calendar_date) - new Date(a.calendar_date));
+
+                    // Find first valid rating in last 3 visits
+                    for (const visit of storeVisits.slice(0, 3)) {
+                        if (['Green', 'Yellow', 'Red'].includes(visit.rating)) {
+                            storeEffectiveRatings[storeNbr] = visit.rating;
+                            break;
+                        }
                     }
+                });
+
+                let red = 0, yellow = 0, green = 0;
+                Object.values(storeEffectiveRatings).forEach(rating => {
+                    if (rating === 'Red') red++;
+                    else if (rating === 'Yellow') yellow++;
+                    else if (rating === 'Green') green++;
                 });
 
                 document.getElementById('red-stores-count').textContent = red;
@@ -1996,6 +2015,21 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             }
         }
 
+        // Get effective rating for a store (uses prior rated visit if last visit is unrated)
+        function getEffectiveRating(storeNbr) {
+            const storeVisits = allVisits
+                .filter(v => v.storeNbr === storeNbr)
+                .sort((a, b) => new Date(b.calendar_date) - new Date(a.calendar_date));
+
+            // Check up to last 3 visits for a valid rating
+            for (const visit of storeVisits.slice(0, 3)) {
+                if (['Green', 'Yellow', 'Red'].includes(visit.rating)) {
+                    return visit.rating;
+                }
+            }
+            return 'Unknown';
+        }
+
         function renderStoreSummary() {
             const summaryGrid = document.getElementById('store-summary-grid');
 
@@ -2022,26 +2056,29 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
 
             summaryGrid.innerHTML = sortedStores.map(storeNbr => {
                 const v = lastVisitByStore[storeNbr];
+                const effectiveRating = getEffectiveRating(storeNbr);
+
                 let ratingClass = 'bg-gray-100 border-gray-300';
                 let ratingTextClass = 'text-gray-600';
-                if (v.rating === 'Green') {
+                if (effectiveRating === 'Green') {
                     ratingClass = 'bg-green-50 border-green-400';
                     ratingTextClass = 'text-green-700';
-                } else if (v.rating === 'Yellow') {
+                } else if (effectiveRating === 'Yellow') {
                     ratingClass = 'bg-yellow-50 border-yellow-400';
                     ratingTextClass = 'text-yellow-700';
-                } else if (v.rating === 'Red') {
+                } else if (effectiveRating === 'Red') {
                     ratingClass = 'bg-red-50 border-red-400';
                     ratingTextClass = 'text-red-700';
                 }
 
                 const date = v.calendar_date ? new Date(v.calendar_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'N/A';
+                const displayRating = v.rating || 'N/A';
 
                 return `
                     <div class="bg-white rounded-lg border-l-4 ${ratingClass} p-3 cursor-pointer hover:shadow-md transition-shadow" onclick="filterVisits('${storeNbr}')">
                         <div class="flex justify-between items-center">
                             <span class="font-bold text-gray-900">#${storeNbr}</span>
-                            <span class="text-xs font-semibold ${ratingTextClass}">${v.rating || 'N/A'}</span>
+                            <span class="text-xs font-semibold ${ratingTextClass}">${displayRating}</span>
                         </div>
                         <p class="text-xs text-gray-500 mt-1">${date}</p>
                     </div>
@@ -2086,9 +2123,22 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                 visits = visits.filter(v => v.storeNbr === currentFilter);
             }
 
-            // Apply rating filter
+            // Apply rating filter (filters stores by effective rating, then shows all visits for those stores)
             if (currentRatingFilter) {
-                visits = visits.filter(v => v.rating === currentRatingFilter);
+                const storesWithRating = new Set();
+                const seenStores = new Set();
+
+                // Find stores whose effective rating matches the filter
+                visits.forEach(v => {
+                    if (!seenStores.has(v.storeNbr)) {
+                        seenStores.add(v.storeNbr);
+                        if (getEffectiveRating(v.storeNbr) === currentRatingFilter) {
+                            storesWithRating.add(v.storeNbr);
+                        }
+                    }
+                });
+
+                visits = visits.filter(v => storesWithRating.has(v.storeNbr));
             }
 
             // Update rating filter badge visibility and styling
@@ -5489,7 +5539,6 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             document.getElementById('notes-view-all-notes').classList.add('hidden');
             document.getElementById('notes-view-market').classList.add('hidden');
             document.getElementById('notes-view-tasks').classList.add('hidden');
-            document.getElementById('notes-view-daily').classList.add('hidden');
             document.getElementById('notes-view-graph').classList.add('hidden');
 
             if (view === 'all') {
@@ -5501,9 +5550,6 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             } else if (view === 'tasks') {
                 document.getElementById('notes-view-tasks').classList.remove('hidden');
                 loadNotesTasks();
-            } else if (view === 'daily') {
-                document.getElementById('notes-view-daily').classList.remove('hidden');
-                loadDailyNote();
             } else if (view === 'graph') {
                 document.getElementById('notes-view-graph').classList.remove('hidden');
                 loadGraph();
