@@ -714,7 +714,19 @@
 
                     <!-- Note Text -->
                     <div class="bg-gray-50 rounded-lg p-4">
-                        <p id="mkt-note-text" class="text-gray-800"></p>
+                        <div id="mkt-note-text-display" class="flex justify-between items-start gap-2">
+                            <p id="mkt-note-text" class="text-gray-800 flex-1"></p>
+                            <button onclick="startEditNoteText()" class="text-gray-400 hover:text-walmart-blue p-1 flex-shrink-0" title="Edit note">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                        </div>
+                        <div id="mkt-note-text-edit" class="hidden">
+                            <textarea id="mkt-note-text-input" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-walmart-blue focus:border-transparent text-gray-800 mb-2"></textarea>
+                            <div class="flex justify-end gap-2">
+                                <button onclick="cancelEditNoteText()" class="px-3 py-1 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
+                                <button onclick="saveNoteText()" class="px-3 py-1 text-sm bg-walmart-blue text-white rounded-lg hover:bg-walmart-dark-blue">Save</button>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Status -->
@@ -2488,6 +2500,62 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
         function closeMarketNoteModal() {
             document.getElementById('market-note-modal').classList.add('hidden');
             currentMarketNote = null;
+            // Reset edit mode
+            cancelEditNoteText();
+        }
+
+        function startEditNoteText() {
+            document.getElementById('mkt-note-text-display').classList.add('hidden');
+            document.getElementById('mkt-note-text-edit').classList.remove('hidden');
+            document.getElementById('mkt-note-text-input').value = currentMarketNote.note_text;
+            document.getElementById('mkt-note-text-input').focus();
+        }
+
+        function cancelEditNoteText() {
+            document.getElementById('mkt-note-text-display').classList.remove('hidden');
+            document.getElementById('mkt-note-text-edit').classList.add('hidden');
+        }
+
+        async function saveNoteText() {
+            const newText = document.getElementById('mkt-note-text-input').value.trim();
+            if (!newText) {
+                alert('Note text cannot be empty');
+                return;
+            }
+
+            if (newText === currentMarketNote.note_text) {
+                cancelEditNoteText();
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/market-notes/rename', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        visit_id: currentMarketNote.visit_id,
+                        old_text: currentMarketNote.note_text,
+                        new_text: newText
+                    })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || 'Failed to rename note');
+                }
+
+                // Update local state
+                currentMarketNote.note_text = newText;
+                document.getElementById('mkt-note-text').textContent = newText;
+
+                // Re-render the list
+                await loadMarketNotes();
+
+                cancelEditNoteText();
+            } catch (e) {
+                console.error('Error renaming note:', e);
+                alert('Error: ' + e.message);
+            }
         }
 
         function renderMarketNoteUpdates() {

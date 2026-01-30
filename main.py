@@ -1262,6 +1262,62 @@ def update_market_note():
         release_db_connection(conn)
 
 
+@app.route('/api/market-notes/rename', methods=['POST'])
+def rename_market_note():
+    """Rename/edit a market note's text"""
+    if not db_pool:
+        return jsonify({"error": "Database not connected"}), 500
+
+    data = request.get_json()
+
+    # Validate required fields
+    if not all(key in data for key in ['visit_id', 'old_text', 'new_text']):
+        return jsonify({"error": "Missing required fields: visit_id, old_text, new_text"}), 400
+
+    visit_id = data['visit_id']
+    old_text = data['old_text']
+    new_text = data['new_text'].strip()
+
+    if not new_text:
+        return jsonify({"error": "New text cannot be empty"}), 400
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor()
+
+        # Update the note text in store_market_notes
+        cursor.execute("""
+            UPDATE store_market_notes
+            SET note_text = %s
+            WHERE visit_id = %s AND note_text = %s
+        """, (new_text, visit_id, old_text))
+
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Note not found"}), 404
+
+        # Also update the reference in market_note_completions if it exists
+        cursor.execute("""
+            UPDATE market_note_completions
+            SET note_text = %s
+            WHERE visit_id = %s AND note_text = %s
+        """, (new_text, visit_id, old_text))
+
+        conn.commit()
+        cursor.close()
+
+        return jsonify({"success": True, "message": "Note renamed successfully", "new_text": new_text})
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error renaming market note: {e}")
+        return jsonify({"error": str(e), "success": False}), 500
+    finally:
+        release_db_connection(conn)
+
+
 @app.route('/api/market-notes/add-update', methods=['POST'])
 def add_market_note_update():
     """Add an update/comment to a market note"""
