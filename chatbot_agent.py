@@ -445,7 +445,7 @@ def get_market_insights(days: int = 30) -> str:
 
 def get_market_note_status(status_filter: Optional[str] = None) -> str:
     """
-    Get market notes with their completion status and assignments.
+    Get ALL market notes with their completion status and assignments.
 
     Args:
         status_filter: Optional filter by status (new, in_progress, on_hold, completed)
@@ -457,21 +457,34 @@ def get_market_note_status(status_filter: Optional[str] = None) -> str:
     try:
         cursor = conn.cursor(cursor_factory=__import__('psycopg2.extras', fromlist=['RealDictCursor']).RealDictCursor)
 
+        # Query ALL market notes from store_market_notes, LEFT JOIN with completions
+        # This ensures we get notes even if they haven't been tracked in completions table
         query = """
             SELECT
-                mnc.id, mnc.visit_id, mnc.note_text, mnc.status, mnc.assigned_to,
-                mnc.completed, mnc.completed_at,
+                smn.id, smn.visit_id, smn.note_text,
+                COALESCE(mnc.status, 'new') as status,
+                mnc.assigned_to,
+                COALESCE(mnc.completed, false) as completed,
+                mnc.completed_at,
                 v."storeNbr", v.calendar_date
-            FROM market_note_completions mnc
-            JOIN store_visits v ON mnc.visit_id = v.id
+            FROM store_market_notes smn
+            JOIN store_visits v ON smn.visit_id = v.id
+            LEFT JOIN market_note_completions mnc
+                ON smn.visit_id = mnc.visit_id AND smn.note_text = mnc.note_text
         """
         params = []
 
-        if status_filter:
-            query += " WHERE LOWER(mnc.status) = LOWER(%s)"
+        # For outstanding/incomplete, exclude completed notes
+        if status_filter and status_filter.lower() == 'completed':
+            query += " WHERE COALESCE(mnc.status, 'new') = 'completed'"
+        elif status_filter:
+            query += " WHERE COALESCE(mnc.status, 'new') = %s"
             params.append(status_filter)
+        else:
+            # Default: show non-completed notes (outstanding)
+            query += " WHERE COALESCE(mnc.status, 'new') != 'completed'"
 
-        query += " ORDER BY v.calendar_date DESC, mnc.id DESC LIMIT 50"
+        query += " ORDER BY v.calendar_date DESC, smn.id DESC LIMIT 100"
 
         cursor.execute(query, params)
         notes = cursor.fetchall()
