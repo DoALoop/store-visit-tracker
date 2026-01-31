@@ -1726,12 +1726,13 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                 <button onclick="closeNotesTaskModal()" class="p-1"><i class="fas fa-times text-xl"></i></button>
             </header>
             <div class="p-4 space-y-4">
-                <div class="text-sm text-gray-500">
+                <div id="ntm-note-title-section" class="text-sm text-gray-500">
                     <span>From: </span>
                     <span id="ntm-note-title" class="font-medium text-walmart-blue cursor-pointer hover:underline" onclick="openNoteFromTask()"></span>
                 </div>
-                <div class="bg-gray-50 rounded-lg p-3">
-                    <p id="ntm-task-text" class="text-gray-800"></p>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Task</label>
+                    <textarea id="ntm-task-text" rows="2" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-walmart-blue resize-none" placeholder="Task description..."></textarea>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
@@ -1764,6 +1765,10 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                     <select id="ntm-store-number" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-walmart-blue">
                         <option value="">None (General)</option>
                     </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+                    <textarea id="ntm-notes" rows="3" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-walmart-blue resize-none" placeholder="Add notes, context, or details..."></textarea>
                 </div>
                 <button onclick="saveNotesTaskDetails()" class="w-full bg-walmart-blue text-white py-3 rounded-lg font-medium hover:bg-walmart-dark-blue">Save Changes</button>
             </div>
@@ -5968,6 +5973,7 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                             ${task.due_date ? `<span class="text-gray-600"><i class="fas fa-calendar mr-1"></i>${task.due_date}</span>` : ''}
                             ${task.store_number ? `<span class="text-purple-600"><i class="fas fa-store mr-1"></i>${task.store_number}</span>` : ''}
                             ${task.list_name && task.list_name !== 'Inbox' ? `<span class="text-gray-500"><i class="fas fa-list mr-1"></i>${notesEscapeHtml(task.list_name)}</span>` : ''}
+                            ${task.notes ? `<span class="text-amber-600" title="Has notes"><i class="fas fa-sticky-note"></i></span>` : ''}
                         </div>
                     </div>
                     <i class="fas fa-chevron-right text-gray-300 mt-1"></i>
@@ -6010,13 +6016,14 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
         function openNotesTaskModal(task) {
             notesCurrentTask = task;
             // Hide note title section since these are standalone tasks
-            const noteTitleSection = document.getElementById('ntm-note-title');
+            const noteTitleSection = document.getElementById('ntm-note-title-section');
             if (noteTitleSection) {
-                noteTitleSection.parentElement.style.display = 'none';
+                noteTitleSection.style.display = task.note_id ? 'block' : 'none';
             }
-            document.getElementById('ntm-task-text').textContent = task.content;
+            document.getElementById('ntm-task-text').value = task.content || '';
             document.getElementById('ntm-assigned-to').value = task.assigned_to || '';
             document.getElementById('ntm-due-date').value = task.due_date || '';
+            document.getElementById('ntm-notes').value = task.notes || '';
             populateStoreDropdown('ntm-store-number');
             document.getElementById('ntm-store-number').value = task.store_number || '';
             updateNotesTaskStatusButtons(task.status || 'new');
@@ -6071,19 +6078,29 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
 
         async function saveNotesTaskDetails() {
             if (!notesCurrentTask) return;
+            const content = document.getElementById('ntm-task-text').value.trim();
             const assignedTo = document.getElementById('ntm-assigned-to').value.trim();
             const dueDate = document.getElementById('ntm-due-date').value || null;
             const storeNumber = document.getElementById('ntm-store-number').value || null;
+            const notes = document.getElementById('ntm-notes').value.trim();
+
+            if (!content) {
+                alert('Task content cannot be empty');
+                return;
+            }
+
             try {
                 const response = await fetch(`/api/tasks/${notesCurrentTask.id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        status: notesCurrentTask.status, 
-                        assigned_to: assignedTo || null, 
-                        due_date: dueDate, 
-                        priority: notesCurrentTask.priority, 
-                        store_number: storeNumber 
+                    body: JSON.stringify({
+                        content: content,
+                        status: notesCurrentTask.status,
+                        assigned_to: assignedTo || null,
+                        due_date: dueDate,
+                        priority: notesCurrentTask.priority,
+                        store_number: storeNumber,
+                        notes: notes || null
                     })
                 });
                 if (!response.ok) throw new Error('Failed to save task');
