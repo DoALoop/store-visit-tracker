@@ -1318,6 +1318,53 @@ def rename_market_note():
         release_db_connection(conn)
 
 
+@app.route('/api/market-notes/assign-store', methods=['POST'])
+def assign_store_to_market_note():
+    """Assign a store number to market notes from a visit with missing/invalid store"""
+    if not db_pool:
+        return jsonify({"error": "Database not connected"}), 500
+
+    data = request.get_json()
+
+    if not all(key in data for key in ['visit_id', 'store_nbr']):
+        return jsonify({"error": "Missing required fields: visit_id, store_nbr"}), 400
+
+    visit_id = data['visit_id']
+    store_nbr = data['store_nbr'].strip()
+
+    if not store_nbr or store_nbr.lower() == 'none':
+        return jsonify({"error": "Invalid store number"}), 400
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor()
+
+        # Update the visit's store number
+        cursor.execute("""
+            UPDATE store_visits
+            SET "storeNbr" = %s
+            WHERE id = %s
+        """, (store_nbr, visit_id))
+
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Visit not found"}), 404
+
+        conn.commit()
+        cursor.close()
+
+        return jsonify({"success": True, "message": f"Store {store_nbr} assigned to visit {visit_id}"})
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error assigning store to market note: {e}")
+        return jsonify({"error": str(e), "success": False}), 500
+    finally:
+        release_db_connection(conn)
+
+
 @app.route('/api/market-notes/add-update', methods=['POST'])
 def add_market_note_update():
     """Add an update/comment to a market note"""

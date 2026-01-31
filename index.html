@@ -181,6 +181,11 @@
                     </div>
                     <p id="market-notes-count" class="text-3xl font-bold text-walmart-blue mb-1">-</p>
                     <p class="text-xs text-gray-500">Outstanding items</p>
+                    <div id="uncategorized-badge" class="hidden mt-1">
+                        <span class="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
+                            <i class="fas fa-exclamation-triangle mr-1"></i><span id="uncategorized-count">0</span> uncategorized
+                        </span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -655,6 +660,19 @@
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-xl font-bold text-gray-900">Market Notes</h2>
                 <span id="market-notes-progress" class="text-sm text-gray-500"></span>
+            </div>
+
+            <!-- Status Filter Tabs -->
+            <div class="flex gap-2 mb-4">
+                <button onclick="setMarketNotesStatusFilter('outstanding')" id="market-status-outstanding" class="market-status-btn flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-walmart-blue text-white">
+                    Outstanding
+                </button>
+                <button onclick="setMarketNotesStatusFilter('all')" id="market-status-all" class="market-status-btn flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-gray-200 text-gray-700 hover:bg-gray-300">
+                    All
+                </button>
+                <button onclick="setMarketNotesStatusFilter('completed')" id="market-status-completed" class="market-status-btn flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-gray-200 text-gray-700 hover:bg-gray-300">
+                    Completed
+                </button>
             </div>
 
             <!-- Filter by Store -->
@@ -1992,6 +2010,19 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                     const filteredNotes = marketNotes.filter(n => isStoreInCurrentMarket(n.store_nbr));
                     const incompleteCount = filteredNotes.filter(n => !n.completed).length;
                     document.getElementById('market-notes-count').textContent = incompleteCount;
+
+                    // Count uncategorized notes (no store or invalid store)
+                    const uncategorizedNotes = marketNotes.filter(n =>
+                        !n.completed && (!n.store_nbr || n.store_nbr === 'None' || n.store_nbr === 'null' || n.store_nbr.trim() === '')
+                    );
+                    const uncategorizedBadge = document.getElementById('uncategorized-badge');
+                    const uncategorizedCountEl = document.getElementById('uncategorized-count');
+                    if (uncategorizedNotes.length > 0) {
+                        uncategorizedBadge.classList.remove('hidden');
+                        uncategorizedCountEl.textContent = uncategorizedNotes.length;
+                    } else {
+                        uncategorizedBadge.classList.add('hidden');
+                    }
                 }
             } catch (e) {
                 console.error(e);
@@ -2260,6 +2291,7 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
         // --- Market Notes ---
         let allMarketNotes = [];
         let marketNotesStoreFilter = null;
+        let marketNotesStatusFilter = 'outstanding'; // 'outstanding', 'all', 'completed'
         let completedSectionExpanded = false;
         let currentMarketNote = null;
 
@@ -2279,11 +2311,12 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                 if (!response.ok) throw new Error('Failed to load market notes');
                 const allNotesData = await response.json();
 
-                // Filter by current market
-                allMarketNotes = allNotesData.filter(n => isStoreInCurrentMarket(n.store_nbr));
+                // Filter by current market, but always include uncategorized notes
+                const isUncategorized = (n) => !n.store_nbr || n.store_nbr === 'None' || n.store_nbr === 'null' || n.store_nbr.trim() === '';
+                allMarketNotes = allNotesData.filter(n => isStoreInCurrentMarket(n.store_nbr) || isUncategorized(n));
 
-                // Populate store filter dropdown with only stores in current market
-                const stores = [...new Set(allMarketNotes.map(n => n.store_nbr))].sort();
+                // Populate store filter dropdown with only stores in current market (exclude uncategorized)
+                const stores = [...new Set(allMarketNotes.filter(n => !isUncategorized(n)).map(n => n.store_nbr))].sort();
                 const dropdown = document.getElementById('market-store-filter-dropdown');
                 dropdown.innerHTML = `<div class="p-2 hover:bg-gray-100 cursor-pointer" onclick="filterMarketNotesByStore(null)">All Stores</div>` +
                     stores.map(s => `<div class="p-2 hover:bg-gray-100 cursor-pointer" onclick="filterMarketNotesByStore('${s}')">Store ${s}</div>`).join('');
@@ -2298,6 +2331,21 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             marketNotesStoreFilter = storeNbr;
             document.getElementById('market-store-filter-text').textContent = storeNbr ? `Store ${storeNbr}` : 'All Stores';
             document.getElementById('market-store-filter-dropdown').classList.add('hidden');
+            renderMarketNotes();
+        }
+
+        function setMarketNotesStatusFilter(status) {
+            marketNotesStatusFilter = status;
+            // Update button styles
+            document.querySelectorAll('.market-status-btn').forEach(btn => {
+                btn.classList.remove('bg-walmart-blue', 'text-white');
+                btn.classList.add('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
+            });
+            const activeBtn = document.getElementById('market-status-' + status);
+            if (activeBtn) {
+                activeBtn.classList.remove('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
+                activeBtn.classList.add('bg-walmart-blue', 'text-white');
+            }
             renderMarketNotes();
         }
 
@@ -2323,32 +2371,99 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                 filteredNotes = filteredNotes.filter(n => n.store_nbr === marketNotesStoreFilter);
             }
 
-            // Separate by status
+            // Apply status filter
+            let displayNotes = filteredNotes;
+            if (marketNotesStatusFilter === 'outstanding') {
+                displayNotes = filteredNotes.filter(n => n.status !== 'completed');
+            } else if (marketNotesStatusFilter === 'completed') {
+                displayNotes = filteredNotes.filter(n => n.status === 'completed');
+            }
+            // 'all' shows everything
+
+            // For progress counter, always count from all notes
             const incompleteNotes = filteredNotes.filter(n => n.status !== 'completed');
             const completedNotes = filteredNotes.filter(n => n.status === 'completed');
 
             // Update progress
             document.getElementById('market-notes-progress').textContent = `${completedNotes.length}/${filteredNotes.length} completed`;
 
+            // Hide old completed section when using status filter tabs
+            document.getElementById('completed-section').classList.add('hidden');
+
             const listEl = document.getElementById('market-notes-list');
 
-            // Render incomplete notes
-            if (incompleteNotes.length === 0) {
+            // Render notes based on current filter
+            const emptyMessage = marketNotesStatusFilter === 'completed'
+                ? { icon: 'fa-inbox', color: 'text-gray-400', title: 'No completed notes', subtitle: 'Completed notes will appear here' }
+                : { icon: 'fa-check-circle', color: 'text-green-500', title: 'All caught up!', subtitle: 'No outstanding market notes' };
+
+            if (displayNotes.length === 0) {
                 listEl.innerHTML = `
                     <div class="text-center py-12 bg-white rounded-xl">
-                        <i class="fas fa-check-circle text-5xl text-green-500 mb-4"></i>
-                        <p class="text-gray-600 font-medium">All caught up!</p>
-                        <p class="text-gray-400 text-sm mt-1">No outstanding market notes</p>
+                        <i class="fas ${emptyMessage.icon} text-5xl ${emptyMessage.color} mb-4"></i>
+                        <p class="text-gray-600 font-medium">${emptyMessage.title}</p>
+                        <p class="text-gray-400 text-sm mt-1">${emptyMessage.subtitle}</p>
                     </div>`;
             } else {
-                // Group by store
+                // Separate uncategorized notes (null, 'None', empty store_nbr)
+                const uncategorizedNotes = displayNotes.filter(n =>
+                    !n.store_nbr || n.store_nbr === 'None' || n.store_nbr === 'null' || n.store_nbr.trim() === ''
+                );
+                const categorizedNotes = displayNotes.filter(n =>
+                    n.store_nbr && n.store_nbr !== 'None' && n.store_nbr !== 'null' && n.store_nbr.trim() !== ''
+                );
+
+                // Group categorized by store
                 const groupedByStore = {};
-                incompleteNotes.forEach(n => {
+                categorizedNotes.forEach(n => {
                     if (!groupedByStore[n.store_nbr]) groupedByStore[n.store_nbr] = [];
                     groupedByStore[n.store_nbr].push(n);
                 });
 
-                listEl.innerHTML = Object.keys(groupedByStore).sort().map(storeNbr => `
+                let html = '';
+
+                // Render uncategorized section first if there are any
+                if (uncategorizedNotes.length > 0) {
+                    // Group uncategorized by visit_id for assignment
+                    const byVisit = {};
+                    uncategorizedNotes.forEach(n => {
+                        if (!byVisit[n.visit_id]) byVisit[n.visit_id] = [];
+                        byVisit[n.visit_id].push(n);
+                    });
+
+                    html += `
+                    <div class="bg-white rounded-xl shadow-sm overflow-hidden border-2 border-orange-300 mb-4">
+                        <div class="bg-orange-500 px-4 py-2 flex justify-between items-center">
+                            <span class="text-white font-semibold"><i class="fas fa-exclamation-triangle mr-2"></i>Uncategorized</span>
+                            <span class="text-white text-sm opacity-80">${uncategorizedNotes.length} notes need store assignment</span>
+                        </div>
+                        <div class="p-3 bg-orange-50 text-sm text-orange-800">
+                            <i class="fas fa-info-circle mr-1"></i> These notes are from visits without a store number. Assign a store to organize them.
+                        </div>
+                        ${Object.keys(byVisit).map(visitId => `
+                            <div class="border-t border-orange-200 p-3">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <span class="text-sm text-gray-500">Visit #${visitId} (${byVisit[visitId][0].calendar_date || 'No date'})</span>
+                                    <select onchange="assignStoreToVisit(${visitId}, this.value)" class="text-sm border border-gray-300 rounded px-2 py-1">
+                                        <option value="">Assign store...</option>
+                                        ${getMarketStores().map(s => `<option value="${s}">${s}</option>`).join('')}
+                                    </select>
+                                </div>
+                                <ul class="space-y-1">
+                                    ${byVisit[visitId].map(note => `
+                                        <li class="text-sm text-gray-700 pl-2 border-l-2 border-orange-300 cursor-pointer hover:bg-orange-50 py-1"
+                                            onclick="openMarketNoteModal(${allMarketNotes.indexOf(note)})">
+                                            ${escapeHtml(note.note_text)}
+                                        </li>
+                                    `).join('')}
+                                </ul>
+                            </div>
+                        `).join('')}
+                    </div>`;
+                }
+
+                // Render categorized stores
+                html += Object.keys(groupedByStore).sort().map(storeNbr => `
                     <div class="bg-white rounded-xl shadow-sm overflow-hidden">
                         <div class="bg-walmart-blue px-4 py-2 flex justify-between items-center">
                             <span class="text-white font-semibold">Store #${storeNbr}</span>
@@ -2393,6 +2508,8 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                         </div>
                     </div>
                 `).join('');
+
+                listEl.innerHTML = html;
             }
 
             // Render completed section
@@ -2514,6 +2631,33 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
         function cancelEditNoteText() {
             document.getElementById('mkt-note-text-display').classList.remove('hidden');
             document.getElementById('mkt-note-text-edit').classList.add('hidden');
+        }
+
+        async function assignStoreToVisit(visitId, storeNbr) {
+            if (!storeNbr) return;
+
+            try {
+                const response = await fetch('/api/market-notes/assign-store', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        visit_id: visitId,
+                        store_nbr: storeNbr
+                    })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || 'Failed to assign store');
+                }
+
+                // Reload market notes to reflect the change
+                await loadMarketNotes();
+                await loadDashboard();
+            } catch (e) {
+                console.error('Error assigning store:', e);
+                alert('Error: ' + e.message);
+            }
         }
 
         async function saveNoteText() {
