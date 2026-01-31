@@ -664,11 +664,11 @@
 
             <!-- Status Filter Tabs -->
             <div class="flex gap-2 mb-4">
-                <button onclick="setMarketNotesStatusFilter('outstanding')" id="market-status-outstanding" class="market-status-btn flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-walmart-blue text-white">
-                    Outstanding
-                </button>
                 <button onclick="setMarketNotesStatusFilter('all')" id="market-status-all" class="market-status-btn flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-gray-200 text-gray-700 hover:bg-gray-300">
                     All
+                </button>
+                <button onclick="setMarketNotesStatusFilter('pending')" id="market-status-pending" class="market-status-btn flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-walmart-blue text-white">
+                    Pending
                 </button>
                 <button onclick="setMarketNotesStatusFilter('completed')" id="market-status-completed" class="market-status-btn flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-gray-200 text-gray-700 hover:bg-gray-300">
                     Completed
@@ -2291,7 +2291,7 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
         // --- Market Notes ---
         let allMarketNotes = [];
         let marketNotesStoreFilter = null;
-        let marketNotesStatusFilter = 'outstanding'; // 'outstanding', 'all', 'completed'
+        let marketNotesStatusFilter = 'pending'; // 'pending', 'all', 'completed'
         let completedSectionExpanded = false;
         let currentMarketNote = null;
 
@@ -2378,7 +2378,7 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
 
             // Apply status filter
             let displayNotes = filteredNotes;
-            if (marketNotesStatusFilter === 'outstanding') {
+            if (marketNotesStatusFilter === 'pending') {
                 displayNotes = filteredNotes.filter(n => n.status !== 'completed');
             } else if (marketNotesStatusFilter === 'completed') {
                 displayNotes = filteredNotes.filter(n => n.status === 'completed');
