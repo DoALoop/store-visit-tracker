@@ -4542,8 +4542,8 @@ def chat():
                 assigned = assign_match.group(1)
             store_filter = numbers[0] if numbers else None
             tool_response = get_tasks(status_filter=task_status, assigned_to=assigned, store_number=store_filter)
-        elif 'note' in message_lower and ('my' in message_lower or 'user' in message_lower or 'personal' in message_lower or 'search note' in message_lower):
-            # User notes (not market notes)
+        elif 'note' in message_lower and ('my' in message_lower or 'user' in message_lower or 'personal' in message_lower or 'search note' in message_lower) and 'market' not in message_lower:
+            # User notes (not market notes) - explicitly exclude market notes
             search_match = re.search(r'(?:about|for|with)\s+["\']?([^"\']+)["\']?', message_lower)
             search_term = search_match.group(1).strip() if search_match else None
             tool_response = get_user_notes(search_query=search_term)
@@ -4557,7 +4557,8 @@ def chat():
         elif 'issue' in message_lower or 'feedback' in message_lower or 'bug' in message_lower:
             type_filter = 'feedback' if 'feedback' in message_lower else ('issue' if 'issue' in message_lower or 'bug' in message_lower else None)
             tool_response = get_issues(status_filter=status_filter, type_filter=type_filter)
-        elif 'market' in message_lower and ('status' in message_lower or 'progress' in message_lower or 'assigned' in message_lower or 'completion' in message_lower):
+        elif 'market' in message_lower and ('status' in message_lower or 'progress' in message_lower or 'assigned' in message_lower or 'completion' in message_lower or 'outstanding' in message_lower or 'open' in message_lower or 'incomplete' in message_lower):
+            # For "outstanding" queries, don't filter by completed status - get all non-completed
             tool_response = get_market_note_status(status_filter=status_filter)
         elif 'market' in message_lower and 'update' in message_lower:
             tool_response = get_market_note_updates()

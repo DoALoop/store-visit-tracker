@@ -854,7 +854,7 @@ def get_user_notes(search_query: Optional[str] = None, folder_path: Optional[str
                    n.folder_path, n.is_pinned, n.is_daily_note, n.daily_date,
                    n.store_number, n.created_at, n.updated_at,
                    COUNT(DISTINCT nt.id) as task_count,
-                   COUNT(DISTINCT nt.id) FILTER (WHERE nt.completed = true) as completed_task_count
+                   COUNT(DISTINCT nt.id) FILTER (WHERE nt.is_completed = true) as completed_task_count
             FROM notes n
             LEFT JOIN note_tasks nt ON n.id = nt.note_id
             WHERE n.deleted_at IS NULL
