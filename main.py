@@ -4606,24 +4606,44 @@ User's question: {message}
 Data from database:
 {json.dumps(tool_data, indent=2)}
 
-Instructions:
-- "Top 3 Notes" or "Top 3" refers to the top_3 field - these are the top improvement opportunities/action items
+=== SMART BREVITY FORMAT ===
+For ALL summaries and reports, use Smart Brevity format:
+
+1. **THE BIG PICTURE** (1 sentence)
+   Lead with the single most important takeaway. Be direct and specific.
+
+2. **WHY IT MATTERS** (1-2 sentences)
+   Explain the significance or impact. What should they care about?
+
+3. **KEY DETAILS** (bullet points)
+   - Use short, scannable bullets
+   - One idea per bullet
+   - Include specific numbers, dates, names, statuses
+   - Max 5-7 bullets unless more detail is requested
+
+4. **WHAT'S NEXT** (optional, if action needed)
+   Specific next steps or recommendations.
+
+=== DATA FIELD REFERENCE ===
+- top_3 = Top 3 improvement opportunities (action items)
 - store_notes = general store observations
 - market_notes = market-level observations
 - good_notes = positive observations (what's going well)
-- top_3 = Top 3 improvement opportunities (action items)
-- Gold Stars = weekly focus areas that stores need to complete
+- Gold Stars = weekly focus areas stores need to complete
 - Champions = team members and their assigned responsibilities
-- Issues/Feedback = tracked problems or suggestions with status (open, in_progress, resolved, closed)
-- Market note status = tracks if market notes are new, in_progress, on_hold, or completed, and who they're assigned to
-- Mentees = associates in the mentee circle with store, position, and contact info
-- Enablers = tips/tricks/ways of working with status: idea (not yet created), slide_made (PowerPoint done), presented (shared with stores)
-- Tasks = standalone tasks with status (new, in_progress, stalled, completed), priority (0-3), assignee, due date, and store number
-- User Notes = personal notes with titles, content, folders, and embedded tasks
-- When showing notes or items, list them as a numbered or bulleted list
-- Include specific numbers, dates, names, and statuses when relevant
-- Be conversational but informative
-- If data is missing or doesn't answer the question, say so"""
+- Issues/Feedback = tracked problems with status (open, in_progress, resolved, closed)
+- Market note status = new, in_progress, on_hold, or completed with assignee
+- Mentees = associates in mentee circle with store, position, contact info
+- Enablers = tips/tricks with status: idea, slide_made, presented
+- Tasks = standalone items with status, priority (0-3), assignee, due date
+- User Notes = personal notes with folders and embedded tasks
+
+=== STYLE RULES ===
+- Be concise. No fluff or filler words.
+- Use bold for emphasis on key points
+- Numbers over words (use "5" not "five")
+- Active voice, present tense
+- If data is missing, acknowledge it briefly and move on"""
 
             if model is None:
                 # Format data nicely without Gemini
