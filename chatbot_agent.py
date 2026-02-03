@@ -759,9 +759,13 @@ def get_contacts(search_term: Optional[str] = None, department: Optional[str] = 
         params = []
 
         if search_term:
-            query += " AND (LOWER(name) LIKE LOWER(%s) OR LOWER(title) LIKE LOWER(%s) OR LOWER(department) LIKE LOWER(%s))"
+            query += """ AND (LOWER(name) LIKE LOWER(%s)
+                         OR LOWER(title) LIKE LOWER(%s)
+                         OR LOWER(department) LIKE LOWER(%s)
+                         OR LOWER(reports_to) LIKE LOWER(%s)
+                         OR LOWER(notes) LIKE LOWER(%s))"""
             search_pattern = f"%{search_term}%"
-            params.extend([search_pattern, search_pattern, search_pattern])
+            params.extend([search_pattern, search_pattern, search_pattern, search_pattern, search_pattern])
 
         if department:
             query += " AND LOWER(department) LIKE LOWER(%s)"

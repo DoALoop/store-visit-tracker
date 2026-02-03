@@ -4765,13 +4765,34 @@ def chat():
             status_filter = 'new' if 'market' in message_lower else 'open'
 
         # Route to appropriate tool based on message content
-        if 'contact' in message_lower or 'who do i call' in message_lower or 'phone number' in message_lower or 'reach out' in message_lower:
-            # Extract search terms for contacts
-            search_match = re.search(r'(?:about|for|with|named?)\s+["\']?([^"\'?]+)["\']?', message_lower)
-            search_term = search_match.group(1).strip() if search_match else None
-            dept_match = re.search(r'(?:in|from|handles?|oversees?)\s+["\']?([^"\'?]+)["\']?', message_lower)
-            dept_filter = dept_match.group(1).strip() if dept_match else None
-            tool_response = get_contacts(search_term=search_term, department=dept_filter)
+        # Check for contacts queries - "who has X", "who handles X", "who is over X", etc.
+        contacts_patterns = [
+            r'who\s+(?:has|handles?|oversees?|owns?|manages?|works?\s+on|is\s+over|is\s+responsible\s+for|covers?)\s+(.+?)(?:\?|$)',
+            r'(?:contact|person)\s+for\s+(.+?)(?:\?|$)',
+            r'who\s+do\s+i\s+(?:call|contact|reach)\s+(?:for|about)\s+(.+?)(?:\?|$)',
+            r'who\s+(?:can\s+help\s+with|knows\s+about)\s+(.+?)(?:\?|$)',
+        ]
+
+        contacts_match = None
+        for pattern in contacts_patterns:
+            contacts_match = re.search(pattern, message_lower)
+            if contacts_match:
+                break
+
+        if contacts_match or 'contact' in message_lower or 'who do i call' in message_lower or 'phone number' in message_lower or 'reach out' in message_lower:
+            # Extract search term from pattern match or fallback patterns
+            search_term = None
+            if contacts_match:
+                search_term = contacts_match.group(1).strip().rstrip('?.,!')
+            else:
+                # Fallback extraction
+                search_match = re.search(r'(?:about|for|with|named?)\s+["\']?([^"\'?]+)["\']?', message_lower)
+                search_term = search_match.group(1).strip() if search_match else None
+                dept_match = re.search(r'(?:in|from|handles?|oversees?)\s+["\']?([^"\'?]+)["\']?', message_lower)
+                if dept_match:
+                    search_term = dept_match.group(1).strip()
+
+            tool_response = get_contacts(search_term=search_term)
         elif 'mentee' in message_lower or 'circle' in message_lower:
             store_filter = numbers[0] if numbers else None
             tool_response = get_mentees(store_nbr=store_filter)
