@@ -24,22 +24,19 @@ try:
     # without using the Model Garden API which is complex.
     # Instead, let's try a broader list of known recent candidates including experimental ones.
     candidates = [
+        # Gemini 2.0 models (production)
+        "gemini-2.0-flash-001",
+        "gemini-2.0-flash",
+        # Gemini 2.5 preview models
+        "gemini-2.5-flash-preview-05-20",
+        "gemini-2.5-flash",
+        # Gemini 1.5 models (legacy)
         "gemini-1.5-flash-001",
         "gemini-1.5-flash-002",
         "gemini-1.5-flash",
         "gemini-1.5-pro-001",
         "gemini-1.5-pro-002",
         "gemini-1.5-pro",
-        "gemini-1.0-pro",
-        "gemini-1.0-pro-001",
-        "gemini-1.0-pro-002",
-        "gemini-flash-experimental",
-        "gemini-pro-experimental",
-        # Maybe user meant 2.0?
-        "gemini-2.0-flash-exp",
-        "gemini-2.5-flash", 
-        "gemini-exp-1114",
-        "gemini-exp-1121"
     ]
 
     print("\nTesting specific model candidates:")

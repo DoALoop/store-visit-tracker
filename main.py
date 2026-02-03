@@ -4083,6 +4083,198 @@ def delete_mentee(mentee_id):
         release_db_connection(conn)
 
 
+# --- Contacts API ---
+
+def ensure_contacts_table():
+    """Ensure contacts table exists"""
+    conn = get_db_connection()
+    if not conn:
+        return
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS contacts (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(200) NOT NULL,
+                title VARCHAR(200),
+                department VARCHAR(200),
+                reports_to VARCHAR(200),
+                phone VARCHAR(50),
+                email VARCHAR(200),
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
+        cursor.close()
+    except Exception as e:
+        print(f"Error ensuring contacts table: {e}")
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/contacts', methods=['GET'])
+def get_contacts():
+    """Get all contacts"""
+    ensure_contacts_table()
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("""
+            SELECT id, name, title, department, reports_to, phone, email, notes,
+                   created_at, updated_at
+            FROM contacts
+            ORDER BY name ASC
+        """)
+        contacts = cursor.fetchall()
+        cursor.close()
+
+        # Convert timestamps
+        for c in contacts:
+            if c.get('created_at'):
+                c['created_at'] = c['created_at'].isoformat()
+            if c.get('updated_at'):
+                c['updated_at'] = c['updated_at'].isoformat()
+
+        return jsonify(contacts)
+
+    except Exception as e:
+        print(f"Error fetching contacts: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/contacts', methods=['POST'])
+def create_contact():
+    """Create a new contact"""
+    ensure_contacts_table()
+    data = request.get_json()
+    if not data or not data.get('name'):
+        return jsonify({"error": "Name is required"}), 400
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("""
+            INSERT INTO contacts (name, title, department, reports_to, phone, email, notes)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING *
+        """, (
+            data.get('name'),
+            data.get('title'),
+            data.get('department'),
+            data.get('reports_to'),
+            data.get('phone'),
+            data.get('email'),
+            data.get('notes')
+        ))
+        contact = cursor.fetchone()
+        conn.commit()
+        cursor.close()
+
+        if contact.get('created_at'):
+            contact['created_at'] = contact['created_at'].isoformat()
+        if contact.get('updated_at'):
+            contact['updated_at'] = contact['updated_at'].isoformat()
+
+        return jsonify(contact), 201
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error creating contact: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/contacts/<int:contact_id>', methods=['PUT'])
+def update_contact(contact_id):
+    """Update a contact"""
+    ensure_contacts_table()
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Build update query dynamically
+        updates = []
+        params = []
+        for field in ['name', 'title', 'department', 'reports_to', 'phone', 'email', 'notes']:
+            if field in data:
+                updates.append(f"{field} = %s")
+                params.append(data[field])
+
+        if not updates:
+            return jsonify({"error": "No fields to update"}), 400
+
+        params.append(contact_id)
+        query = f"UPDATE contacts SET {', '.join(updates)}, updated_at = CURRENT_TIMESTAMP WHERE id = %s RETURNING *"
+        cursor.execute(query, params)
+
+        contact = cursor.fetchone()
+        if not contact:
+            return jsonify({"error": "Contact not found"}), 404
+
+        conn.commit()
+        cursor.close()
+
+        if contact.get('created_at'):
+            contact['created_at'] = contact['created_at'].isoformat()
+        if contact.get('updated_at'):
+            contact['updated_at'] = contact['updated_at'].isoformat()
+
+        return jsonify(contact)
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error updating contact: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/contacts/<int:contact_id>', methods=['DELETE'])
+def delete_contact(contact_id):
+    """Delete a contact"""
+    ensure_contacts_table()
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM contacts WHERE id = %s", (contact_id,))
+
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Contact not found"}), 404
+
+        conn.commit()
+        cursor.close()
+
+        return jsonify({"success": True, "message": "Contact deleted"})
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error deleting contact: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
 # --- Enablers API ---
 
 @app.route('/api/enablers', methods=['GET'])
@@ -4537,7 +4729,8 @@ def chat():
             search_visits, get_visit_details, analyze_trends,
             compare_stores, search_notes, get_summary_stats, get_market_insights,
             get_market_note_status, get_market_note_updates, get_gold_stars,
-            get_champions, get_issues, get_mentees, get_enablers, get_tasks, get_user_notes
+            get_champions, get_issues, get_mentees, get_enablers, get_tasks, get_user_notes,
+            get_contacts
         )
 
         # ADK agent is optional - use Gemini fallback for now
@@ -4572,7 +4765,14 @@ def chat():
             status_filter = 'new' if 'market' in message_lower else 'open'
 
         # Route to appropriate tool based on message content
-        if 'mentee' in message_lower or 'circle' in message_lower:
+        if 'contact' in message_lower or 'who do i call' in message_lower or 'phone number' in message_lower or 'reach out' in message_lower:
+            # Extract search terms for contacts
+            search_match = re.search(r'(?:about|for|with|named?)\s+["\']?([^"\'?]+)["\']?', message_lower)
+            search_term = search_match.group(1).strip() if search_match else None
+            dept_match = re.search(r'(?:in|from|handles?|oversees?)\s+["\']?([^"\'?]+)["\']?', message_lower)
+            dept_filter = dept_match.group(1).strip() if dept_match else None
+            tool_response = get_contacts(search_term=search_term, department=dept_filter)
+        elif 'mentee' in message_lower or 'circle' in message_lower:
             store_filter = numbers[0] if numbers else None
             tool_response = get_mentees(store_nbr=store_filter)
         elif 'enabler' in message_lower or ('tip' in message_lower and 'trick' in message_lower):
@@ -4688,6 +4888,7 @@ For ALL summaries and reports, use Smart Brevity format:
 - Issues/Feedback = tracked problems with status (open, in_progress, resolved, closed)
 - Market note status = new, in_progress, on_hold, or completed with assignee
 - Mentees = associates in mentee circle with store, position, contact info
+- Contacts = people of interest with name, title, department/what they oversee, who they report to, phone, email
 - Enablers = tips/tricks with status: idea, slide_made, presented
 - Tasks = standalone items with status, priority (0-3), assignee, due date
 - User Notes = personal notes with folders and embedded tasks

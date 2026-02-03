@@ -736,6 +736,54 @@ def get_mentees(store_nbr: Optional[str] = None) -> str:
         conn.close()
 
 
+def get_contacts(search_term: Optional[str] = None, department: Optional[str] = None) -> str:
+    """
+    Get contacts list - people of interest to reach out to.
+
+    Args:
+        search_term: Optional search term to filter by name, title, or department
+        department: Optional filter by department/what they oversee
+
+    Returns:
+        JSON string with contact names, titles, departments, who they report to, and contact info
+    """
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor(cursor_factory=__import__('psycopg2.extras', fromlist=['RealDictCursor']).RealDictCursor)
+
+        query = """
+            SELECT id, name, title, department, reports_to, phone, email, notes, created_at
+            FROM contacts
+            WHERE 1=1
+        """
+        params = []
+
+        if search_term:
+            query += " AND (LOWER(name) LIKE LOWER(%s) OR LOWER(title) LIKE LOWER(%s) OR LOWER(department) LIKE LOWER(%s))"
+            search_pattern = f"%{search_term}%"
+            params.extend([search_pattern, search_pattern, search_pattern])
+
+        if department:
+            query += " AND LOWER(department) LIKE LOWER(%s)"
+            params.append(f"%{department}%")
+
+        query += " ORDER BY name"
+
+        cursor.execute(query, params)
+        contacts = cursor.fetchall()
+
+        for c in contacts:
+            if c.get('created_at'):
+                c['created_at'] = c['created_at'].isoformat()
+
+        cursor.close()
+        return json.dumps(contacts, default=str)
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+    finally:
+        conn.close()
+
+
 def get_enablers(status_filter: Optional[str] = None, week_number: Optional[int] = None) -> str:
     """
     Get enablers (tips/tricks/ways of working).
