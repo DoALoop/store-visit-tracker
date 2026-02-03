@@ -724,10 +724,14 @@
                 </div>
 
                 <div class="p-4 space-y-4">
-                    <!-- Store & Date -->
-                    <div class="flex justify-between items-center">
-                        <span id="mkt-note-store" class="text-lg font-bold text-walmart-blue"></span>
-                        <span id="mkt-note-date" class="text-sm text-gray-500"></span>
+                    <!-- Store -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Store</label>
+                        <select id="mkt-note-store-select" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-walmart-blue focus:border-transparent"
+                                onchange="saveMarketNoteStore()">
+                            <option value="">Select Store...</option>
+                        </select>
+                        <p id="mkt-note-date" class="text-xs text-gray-400 mt-1"></p>
                     </div>
 
                     <!-- Note Text -->
@@ -772,6 +776,14 @@
                         <input type="text" id="mkt-note-assigned" placeholder="Enter name..."
                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-walmart-blue focus:border-transparent"
                                onchange="saveMarketNoteAssignment()">
+                    </div>
+
+                    <!-- Due Date -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Due Date</label>
+                        <input type="date" id="mkt-note-due-date"
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-walmart-blue focus:border-transparent"
+                               onchange="saveMarketNoteDueDate()">
                     </div>
 
                     <!-- Updates Section -->
@@ -2601,11 +2613,17 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             currentMarketNote = note;
             currentMarketNote._index = noteIndex;
 
-            // Populate modal
-            document.getElementById('mkt-note-store').textContent = `Store #${note.store_nbr}`;
-            document.getElementById('mkt-note-date').textContent = note.calendar_date || 'No date';
+            // Populate store dropdown
+            const storeSelect = document.getElementById('mkt-note-store-select');
+            const stores = [...new Set(allVisits.filter(v => isStoreInCurrentMarket(v.storeNbr)).map(v => v.storeNbr))].sort();
+            storeSelect.innerHTML = '<option value="">Select Store...</option>' +
+                stores.map(s => `<option value="${s}" ${s === note.store_nbr ? 'selected' : ''}>Store #${s}</option>`).join('');
+
+            // Populate other fields
+            document.getElementById('mkt-note-date').textContent = note.calendar_date ? `Visit date: ${note.calendar_date}` : '';
             document.getElementById('mkt-note-text').textContent = note.note_text;
             document.getElementById('mkt-note-assigned').value = note.assigned_to || '';
+            document.getElementById('mkt-note-due-date').value = note.due_date || '';
 
             // Update status buttons
             document.querySelectorAll('.mkt-status-btn').forEach(btn => {
@@ -2823,6 +2841,62 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             } catch (e) {
                 console.error('Error updating assignment:', e);
                 alert('Failed to update assignment');
+            }
+        }
+
+        async function saveMarketNoteDueDate() {
+            if (!currentMarketNote) return;
+
+            const dueDate = document.getElementById('mkt-note-due-date').value || null;
+
+            try {
+                const response = await fetch('/api/market-notes/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        visit_id: currentMarketNote.visit_id,
+                        note_text: currentMarketNote.note_text,
+                        due_date: dueDate
+                    })
+                });
+
+                if (!response.ok) throw new Error('Failed to update');
+
+                currentMarketNote.due_date = dueDate;
+                renderMarketNotes();
+
+            } catch (e) {
+                console.error('Error updating due date:', e);
+                alert('Failed to update due date');
+            }
+        }
+
+        async function saveMarketNoteStore() {
+            if (!currentMarketNote) return;
+
+            const newStoreNbr = document.getElementById('mkt-note-store-select').value;
+            if (!newStoreNbr) return;
+
+            try {
+                const response = await fetch('/api/market-notes/assign-store', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        visit_id: currentMarketNote.visit_id,
+                        store_nbr: newStoreNbr
+                    })
+                });
+
+                if (!response.ok) throw new Error('Failed to update');
+
+                currentMarketNote.store_nbr = newStoreNbr;
+                // Reload to refresh the list
+                await loadMarketNotes();
+                closeMarketNoteModal();
+
+            } catch (e) {
+                console.error('Error updating store:', e);
+                alert('Failed to update store');
             }
         }
 
