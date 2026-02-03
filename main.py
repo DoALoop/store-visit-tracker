@@ -441,6 +441,12 @@ Extract and return as JSON:
 5. "mkt_notes": Array of market/competitor notes
    - Look for: "Market", "Mkt", "Me", "M:", or competitor mentions
    - "Me" often means "Market" in this context
+   - IMPORTANT: A single market note may span multiple lines due to limited writing space
+   - Treat text that flows continuously (same topic/thought) as ONE note, even across lines
+   - Only start a new note when there's a clear new bullet point, dash, or distinct new topic
+   - Example: "Garden market meeting\nscheduled for Tuesday" = ONE note: "Garden market meeting scheduled for Tuesday"
+   - Example: "- Floral vendor issue" then "- SP Falls electrical" = TWO separate notes
+   - Look for visual separators (dashes, bullets, line breaks with new topics) to identify distinct notes
 
 6. "good": Array of positive observations
    - Look for content under sections labeled "Good", "What's Good", "+", etc.
