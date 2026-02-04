@@ -4155,11 +4155,11 @@ def create_contact():
     ensure_contacts_table()
     data = request.get_json()
     if not data or not data.get('name'):
-        return jsonify({"error": "Name is required"}), 400
+        return jsonify({"success": False, "contact": None, "error": "Name is required"}), 400
 
     conn = get_db_connection()
     if not conn:
-        return jsonify({"error": "Database connection failed"}), 500
+        return jsonify({"success": False, "contact": None, "error": "Database connection failed"}), 500
 
     try:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
@@ -4185,12 +4185,12 @@ def create_contact():
         if contact.get('updated_at'):
             contact['updated_at'] = contact['updated_at'].isoformat()
 
-        return jsonify(contact), 201
+        return jsonify({"success": True, "contact": dict(contact)}), 201
 
     except Exception as e:
         conn.rollback()
         print(f"Error creating contact: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"success": False, "contact": None, "error": str(e)}), 500
     finally:
         release_db_connection(conn)
 
@@ -4237,7 +4237,7 @@ def update_contact(contact_id):
         if contact.get('updated_at'):
             contact['updated_at'] = contact['updated_at'].isoformat()
 
-        return jsonify(contact)
+        return jsonify({"success": True, "message": "Contact updated successfully"})
 
     except Exception as e:
         conn.rollback()
@@ -4881,8 +4881,16 @@ User's question: {message}
 Data from database:
 {json.dumps(tool_data, indent=2)}
 
-=== SMART BREVITY FORMAT ===
-For ALL summaries and reports, use Smart Brevity format:
+=== RESPONSE FORMAT ===
+Choose the appropriate format based on the question type:
+
+**FOR SIMPLE LOOKUPS** (who is X, what's the phone number, find contact, etc.):
+- Give a direct, conversational answer
+- Just provide the requested info naturally
+- No special formatting needed
+
+**FOR SUMMARIES/INSIGHTS** (summarize, analyze, what's the status, give me insights, overview, how are things going, etc.):
+Use Smart Brevity format:
 
 1. **THE BIG PICTURE** (1 sentence)
    Lead with the single most important takeaway. Be direct and specific.
