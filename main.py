@@ -60,6 +60,9 @@ try:
         keepalives_count=5
     )
     print("Successfully connected to PostgreSQL.")
+    # Set db_pool for JaxAI tools
+    from tools.db import set_db_pool
+    set_db_pool(db_pool)
 except Exception as e:
     print(f"Error connecting to PostgreSQL: {e}")
     db_pool = None
@@ -4716,7 +4719,7 @@ def format_jax_response(message_lower, data):
 # --- Chatbot API ---
 @app.route('/api/chat', methods=['POST'])
 def chat():
-    """Handle chat messages via ADK agent"""
+    """Handle chat messages via JaxAI orchestrator"""
     try:
         data = request.get_json()
         message = data.get('message', '').strip()
@@ -4724,236 +4727,11 @@ def chat():
         if not message:
             return jsonify({"error": "Message is required"}), 400
 
-        # Import chatbot tools
-        from chatbot_agent import (
-            search_visits, get_visit_details, analyze_trends,
-            compare_stores, search_notes, get_summary_stats, get_market_insights,
-            get_market_note_status, get_market_note_updates, get_gold_stars,
-            get_champions, get_issues, get_mentees, get_enablers, get_tasks, get_user_notes,
-            get_contacts
-        )
+        # Use the new JaxAI orchestrator
+        from jax_agent import process_chat_message
+        result = process_chat_message(message, db_pool=db_pool)
 
-        # ADK agent is optional - use Gemini fallback for now
-        # (ADK integration can be added later when API stabilizes)
-
-        # Fallback: Use Gemini directly with tool results
-        # Parse the message and call appropriate tool
-        message_lower = message.lower()
-        import re
-
-        tool_response = None
-
-        # Extract store numbers and rating from message
-        numbers = re.findall(r'\b\d{4,5}\b', message)
-        rating_filter = None
-        if 'green' in message_lower:
-            rating_filter = 'Green'
-        elif 'yellow' in message_lower:
-            rating_filter = 'Yellow'
-        elif 'red' in message_lower:
-            rating_filter = 'Red'
-
-        # Extract status filter for market notes/issues
-        status_filter = None
-        if 'in progress' in message_lower or 'in_progress' in message_lower:
-            status_filter = 'in_progress'
-        elif 'on hold' in message_lower or 'on_hold' in message_lower:
-            status_filter = 'on_hold'
-        elif 'completed' in message_lower or 'done' in message_lower:
-            status_filter = 'completed'
-        elif 'new' in message_lower or 'open' in message_lower:
-            status_filter = 'new' if 'market' in message_lower else 'open'
-
-        # Route to appropriate tool based on message content
-        # Check for contacts queries - "who has X", "who handles X", "who is X", etc.
-        contacts_patterns = [
-            r'who\s+(?:has|handles?|oversees?|owns?|manages?|works?\s+on|is\s+over|is\s+responsible\s+for|covers?)\s+(.+?)(?:\?|$)',
-            r'(?:contact|person)\s+for\s+(.+?)(?:\?|$)',
-            r'who\s+do\s+i\s+(?:call|contact|reach)\s+(?:for|about)\s+(.+?)(?:\?|$)',
-            r'who\s+(?:can\s+help\s+with|knows\s+about)\s+(.+?)(?:\?|$)',
-            r'who\s+is\s+([a-zA-Z\s]+?)(?:\?|$)',  # "who is John Smith"
-        ]
-
-        contacts_match = None
-        for pattern in contacts_patterns:
-            contacts_match = re.search(pattern, message_lower)
-            if contacts_match:
-                break
-
-        # Detect if user wants to list/show all contacts
-        list_contacts = any(kw in message_lower for kw in ['list contact', 'show contact', 'all contact', 'my contact', 'contacts list'])
-
-        if contacts_match or list_contacts or 'contact' in message_lower or 'who do i call' in message_lower or 'phone number' in message_lower or 'reach out' in message_lower:
-            # Extract search term from pattern match or fallback patterns
-            search_term = None
-            if contacts_match:
-                search_term = contacts_match.group(1).strip().rstrip('?.,!')
-            else:
-                # Fallback extraction
-                search_match = re.search(r'(?:about|for|with|named?)\s+["\']?([^"\'?]+)["\']?', message_lower)
-                search_term = search_match.group(1).strip() if search_match else None
-                dept_match = re.search(r'(?:in|from|handles?|oversees?)\s+["\']?([^"\'?]+)["\']?', message_lower)
-                if dept_match:
-                    search_term = dept_match.group(1).strip()
-
-            tool_response = get_contacts(search_term=search_term)
-        elif 'mentee' in message_lower or 'circle' in message_lower:
-            store_filter = numbers[0] if numbers else None
-            tool_response = get_mentees(store_nbr=store_filter)
-        elif 'enabler' in message_lower or ('tip' in message_lower and 'trick' in message_lower):
-            enabler_status = None
-            if 'idea' in message_lower:
-                enabler_status = 'idea'
-            elif 'slide' in message_lower:
-                enabler_status = 'slide_made'
-            elif 'presented' in message_lower:
-                enabler_status = 'presented'
-            tool_response = get_enablers(status_filter=enabler_status)
-        elif 'task' in message_lower or 'todo' in message_lower or 'to-do' in message_lower:
-            task_status = status_filter
-            if 'stalled' in message_lower:
-                task_status = 'stalled'
-            assigned = None
-            # Try to extract assignee name
-            assign_match = re.search(r'assigned to (\w+)', message_lower)
-            if assign_match:
-                assigned = assign_match.group(1)
-            store_filter = numbers[0] if numbers else None
-            tool_response = get_tasks(status_filter=task_status, assigned_to=assigned, store_number=store_filter)
-        elif 'note' in message_lower and ('my' in message_lower or 'user' in message_lower or 'personal' in message_lower or 'search note' in message_lower) and 'market' not in message_lower:
-            # User notes (not market notes) - explicitly exclude market notes
-            search_match = re.search(r'(?:about|for|with)\s+["\']?([^"\']+)["\']?', message_lower)
-            search_term = search_match.group(1).strip() if search_match else None
-            tool_response = get_user_notes(search_query=search_term)
-        elif 'champion' in message_lower or ('team' in message_lower and 'contact' not in message_lower):
-            tool_response = get_champions()
-        elif 'gold star' in message_lower or 'goldstar' in message_lower:
-            # Extract week number if mentioned (e.g., "week 51", "wk 51", "w51")
-            week_num_match = re.search(r'(?:week|wk|w)\s*(\d{1,2})', message_lower)
-            gold_star_week_num = int(week_num_match.group(1)) if week_num_match else None
-            tool_response = get_gold_stars(week_number=gold_star_week_num)
-        elif 'issue' in message_lower or 'feedback' in message_lower or 'bug' in message_lower:
-            type_filter = 'feedback' if 'feedback' in message_lower else ('issue' if 'issue' in message_lower or 'bug' in message_lower else None)
-            tool_response = get_issues(status_filter=status_filter, type_filter=type_filter)
-        elif 'market' in message_lower and ('status' in message_lower or 'progress' in message_lower or 'assigned' in message_lower or 'completion' in message_lower or 'outstanding' in message_lower or 'open' in message_lower or 'incomplete' in message_lower):
-            # For "outstanding" queries, don't filter by completed status - get all non-completed
-            tool_response = get_market_note_status(status_filter=status_filter)
-        elif 'market' in message_lower and 'update' in message_lower:
-            tool_response = get_market_note_updates()
-        elif 'summary' in message_lower or 'stats' in message_lower or 'overview' in message_lower:
-            tool_response = get_summary_stats()
-        elif 'market' in message_lower and ('insight' in message_lower or 'note' in message_lower):
-            tool_response = get_market_insights()
-        elif 'compare' in message_lower:
-            if numbers:
-                tool_response = compare_stores(','.join(numbers))
-        elif 'trend' in message_lower or 'analysis' in message_lower:
-            if numbers:
-                tool_response = analyze_trends(numbers[0])
-        elif 'search' in message_lower or 'find' in message_lower:
-            # Check if searching for keyword in notes
-            match = re.search(r'(?:search|find)\s+(?:for\s+)?(?:stores?\s+with\s+)?["\']?([^"\']+)["\']?', message_lower)
-            if match:
-                keyword = match.group(1).strip()
-                # Don't search for rating words as keywords
-                if keyword not in ['green', 'yellow', 'red', 'visits', 'visit', 'store', 'stores']:
-                    tool_response = search_notes(keyword)
-            # If no keyword match but has store number, search visits
-            if not tool_response and numbers:
-                # Check if user wants only the last/most recent visit (singular)
-                single_visit = bool(re.search(r'\b(last|most recent|latest)\s+visit\b', message_lower) and 'visits' not in message_lower)
-                visit_limit = 1 if single_visit else 5
-                tool_response = search_visits(numbers[0], limit=visit_limit, rating=rating_filter)
-        elif numbers:
-            # Has store number - search visits with optional rating filter
-            # Check if user wants only the last/most recent visit (singular)
-            single_visit = bool(re.search(r'\b(last|most recent|latest)\s+visit\b', message_lower) and 'visits' not in message_lower)
-            visit_limit = 1 if single_visit else 5
-            tool_response = search_visits(numbers[0], limit=visit_limit, rating=rating_filter)
-        else:
-            tool_response = get_summary_stats()
-
-        # Use Gemini to generate natural language response
-        if tool_response:
-            import json
-            tool_data = json.loads(tool_response)
-
-            prompt = f"""You are Jax, a helpful assistant for analyzing store visit data. Answer the user's question based on the data provided.
-
-User's question: {message}
-
-Data from database:
-{json.dumps(tool_data, indent=2)}
-
-=== RESPONSE FORMAT ===
-Choose the appropriate format based on the question type:
-
-**FOR SIMPLE LOOKUPS** (who is X, what's the phone number, find contact, etc.):
-- Give a direct, conversational answer
-- Just provide the requested info naturally
-- No special formatting needed
-
-**FOR SUMMARIES/INSIGHTS** (summarize, analyze, what's the status, give me insights, overview, how are things going, etc.):
-Use Smart Brevity format:
-
-1. **THE BIG PICTURE** (1 sentence)
-   Lead with the single most important takeaway. Be direct and specific.
-
-2. **WHY IT MATTERS** (1-2 sentences)
-   Explain the significance or impact. What should they care about?
-
-3. **KEY DETAILS** (bullet points)
-   - Use short, scannable bullets
-   - One idea per bullet
-   - Include specific numbers, dates, names, statuses
-   - Max 5-7 bullets unless more detail is requested
-
-4. **WHAT'S NEXT** (optional, if action needed)
-   Specific next steps or recommendations.
-
-=== DATA FIELD REFERENCE ===
-- top_3 = Top 3 improvement opportunities (action items)
-- store_notes = general store observations
-- market_notes = market-level observations
-- good_notes = positive observations (what's going well)
-- Gold Stars = weekly focus areas stores need to complete
-- Champions = team members and their assigned responsibilities
-- Issues/Feedback = tracked problems with status (open, in_progress, resolved, closed)
-- Market note status = new, in_progress, on_hold, or completed with assignee
-- Mentees = associates in mentee circle with store, position, contact info
-- Contacts = people of interest with name, title, department/what they oversee, who they report to, phone, email
-- Enablers = tips/tricks with status: idea, slide_made, presented
-- Tasks = standalone items with status, priority (0-3), assignee, due date
-- User Notes = personal notes with folders and embedded tasks
-
-=== STYLE RULES ===
-- Be concise. No fluff or filler words.
-- Use bold for emphasis on key points
-- Numbers over words (use "5" not "five")
-- Active voice, present tense
-- If data is missing, acknowledge it briefly and move on"""
-
-            if model is None:
-                # Format data nicely without Gemini
-                formatted = format_jax_response(message_lower, tool_data)
-                return jsonify({
-                    "response": formatted,
-                    "source": "formatted_fallback"
-                })
-
-            try:
-                response = model.generate_content(prompt)
-                return jsonify({"response": response.text, "source": "gemini"})
-            except Exception as e:
-                print(f"Gemini error: {e}")
-                # Format data nicely without Gemini
-                formatted = format_jax_response(message_lower, tool_data)
-                return jsonify({
-                    "response": formatted,
-                    "source": "formatted_fallback"
-                })
-
-        return jsonify({"error": "Could not process your question"}), 400
+        return jsonify(result)
 
     except Exception as e:
         print(f"Chat error: {e}")
