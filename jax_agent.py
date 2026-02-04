@@ -32,35 +32,45 @@ You have access to tools that query a database containing:
 === RESPONSE FORMAT ===
 Choose the appropriate format based on the question type:
 
-**FOR SIMPLE LOOKUPS** (who is X, what's the phone number, find contact, etc.):
-- Give a direct, conversational answer
-- Just provide the requested info naturally
-- No special formatting needed
+**FOR SINGLE RESULT LOOKUPS** (who is John, one specific contact):
+- Give a direct, conversational answer in 1-2 sentences
+- Include key details naturally: name, title, department, phone/email if available
+- Example: "John Smith handles Meat. He's a Market Fresh Lead and you can reach him at 555-1234."
 
-**FOR SUMMARIES/INSIGHTS** (summarize, analyze, what's the status, give me insights, overview, how are things going, etc.):
+**FOR MULTIPLE RESULTS** (who has meat, list contacts, show all X):
+- Start with a brief intro line if helpful
+- List EACH result on its own line with a bullet point
+- Format each entry consistently:
+  • **Name** - Title (Department)
+    Phone: xxx | Email: xxx
+- Keep each entry scannable - don't write paragraphs
+
+**FOR SUMMARIES/INSIGHTS** (summarize, analyze, what's the status, overview):
 Use Smart Brevity format:
 
 1. **THE BIG PICTURE** (1 sentence)
-   Lead with the single most important takeaway. Be direct and specific.
+   Lead with the single most important takeaway.
 
 2. **WHY IT MATTERS** (1-2 sentences)
-   Explain the significance or impact. What should they care about?
+   Explain the significance or impact.
 
 3. **KEY DETAILS** (bullet points)
-   - Use short, scannable bullets
+   - Short, scannable bullets
    - One idea per bullet
-   - Include specific numbers, dates, names, statuses
-   - Max 5-7 bullets unless more detail is requested
+   - Include specific numbers, dates, names
+   - Max 5-7 bullets
 
-4. **WHAT'S NEXT** (optional, if action needed)
-   Specific next steps or recommendations.
+4. **WHAT'S NEXT** (optional)
+   Specific next steps if action needed.
 
 === STYLE RULES ===
 - Be concise. No fluff or filler words.
-- Use bold for emphasis on key points
+- Use **bold** for names and emphasis
+- Use bullet points (•) for lists - one item per line
 - Numbers over words (use "5" not "five")
 - Active voice, present tense
-- If data is missing, acknowledge it briefly and move on
+- If no results found, say so directly
+- NEVER dump raw JSON - always format nicely
 """
 
 # Mapping of tool names to functions for manual router
@@ -214,43 +224,99 @@ Recent activity (30d): {data.get('recent_visits_30d', 0)} visits"""
         """Format champions list"""
         if not data:
             return "No champions found."
-        lines = ["**Champions:**"]
+
+        if len(data) == 1:
+            c = data[0]
+            return f"**{c.get('name', 'Unknown')}** is the champion for {c.get('responsibility', 'their area')}."
+
+        lines = [f"**{len(data)} Champions:**\n"]
         for c in data:
-            lines.append(f"- **{c.get('name', 'Unknown')}**: {c.get('responsibility', 'No responsibility assigned')}")
+            lines.append(f"• **{c.get('name', 'Unknown')}** - {c.get('responsibility', 'No responsibility assigned')}")
         return "\n".join(lines)
 
     def _format_contacts(self, data: list) -> str:
         """Format contacts list"""
         if not data:
-            return "No contacts found."
-        lines = ["**Contacts:**"]
+            return "No contacts found matching that search."
+
+        # Single result - conversational
+        if len(data) == 1:
+            c = data[0]
+            name = c.get('name', 'Unknown')
+            title = c.get('title', '')
+            dept = c.get('department', '')
+            phone = c.get('phone', '')
+            email = c.get('email', '')
+            reports_to = c.get('reports_to', '')
+
+            response = f"**{name}**"
+            if title:
+                response += f" is a {title}"
+            if dept:
+                response += f" over {dept}"
+            response += "."
+
+            contact_info = []
+            if phone:
+                contact_info.append(f"Phone: {phone}")
+            if email:
+                contact_info.append(f"Email: {email}")
+            if reports_to:
+                contact_info.append(f"Reports to: {reports_to}")
+
+            if contact_info:
+                response += "\n" + " | ".join(contact_info)
+
+            return response
+
+        # Multiple results - bulleted list
+        lines = [f"Found {len(data)} contacts:\n"]
         for c in data:
             name = c.get('name', 'Unknown')
             title = c.get('title', '')
             dept = c.get('department', '')
             phone = c.get('phone', '')
             email = c.get('email', '')
-            info = f"- **{name}**"
+
+            # Build main line
+            line = f"• **{name}**"
             if title:
-                info += f" - {title}"
+                line += f" - {title}"
             if dept:
-                info += f" ({dept})"
+                line += f" ({dept})"
+
+            # Add contact details on same line if short, otherwise below
+            contact_parts = []
             if phone:
-                info += f"\n  Phone: {phone}"
+                contact_parts.append(phone)
             if email:
-                info += f"\n  Email: {email}"
-            lines.append(info)
+                contact_parts.append(email)
+
+            if contact_parts:
+                line += f"\n  {' | '.join(contact_parts)}"
+
+            lines.append(line)
+
         return "\n".join(lines)
 
     def _format_mentees(self, data: list) -> str:
         """Format mentees list"""
         if not data:
             return "No mentees found."
-        lines = ["**Mentee Circle:**"]
-        for m in data:
-            lines.append(f"- **{m.get('name', 'Unknown')}** - Store {m.get('store_nbr', 'N/A')}, {m.get('position', 'N/A')}")
+
+        if len(data) == 1:
+            m = data[0]
+            response = f"**{m.get('name', 'Unknown')}** at Store {m.get('store_nbr', 'N/A')} ({m.get('position', 'N/A')})"
             if m.get('cell_number'):
-                lines.append(f"  Cell: {m['cell_number']}")
+                response += f"\nCell: {m['cell_number']}"
+            return response
+
+        lines = [f"**Mentee Circle ({len(data)}):**\n"]
+        for m in data:
+            line = f"• **{m.get('name', 'Unknown')}** - Store {m.get('store_nbr', 'N/A')}, {m.get('position', 'N/A')}"
+            if m.get('cell_number'):
+                line += f"\n  Cell: {m['cell_number']}"
+            lines.append(line)
         return "\n".join(lines)
 
     def _format_gold_stars(self, data: dict) -> str:
@@ -267,33 +333,63 @@ Recent activity (30d): {data.get('recent_visits_30d', 0)} visits"""
         """Format tasks list"""
         if not data:
             return "No tasks found."
-        lines = ["**Tasks:**"]
-        for t in data:
-            priority = t.get('priority', 0)
-            priority_label = ['Low', 'Medium', 'High', 'Critical'][min(priority, 3)]
+
+        priority_labels = ['Low', 'Medium', 'High', 'Critical']
+
+        if len(data) == 1:
+            t = data[0]
+            priority = priority_labels[min(t.get('priority', 0), 3)]
             status = t.get('status', 'unknown')
             content = t.get('content', 'No content')
-            lines.append(f"- [{priority_label}] {content} ({status})")
+            response = f"**[{priority}]** {content} - Status: {status}"
             if t.get('assigned_to'):
-                lines.append(f"  Assigned to: {t['assigned_to']}")
+                response += f"\nAssigned to: {t['assigned_to']}"
             if t.get('due_date'):
-                lines.append(f"  Due: {t['due_date']}")
+                response += f" | Due: {t['due_date']}"
+            return response
+
+        lines = [f"**{len(data)} Tasks:**\n"]
+        for t in data:
+            priority = priority_labels[min(t.get('priority', 0), 3)]
+            status = t.get('status', 'unknown')
+            content = t.get('content', 'No content')
+            line = f"• **[{priority}]** {content} ({status})"
+            details = []
+            if t.get('assigned_to'):
+                details.append(f"Assigned: {t['assigned_to']}")
+            if t.get('due_date'):
+                details.append(f"Due: {t['due_date']}")
+            if details:
+                line += f"\n  {' | '.join(details)}"
+            lines.append(line)
         return "\n".join(lines)
 
     def _format_visits(self, data: list) -> str:
         """Format visits list"""
         if not data:
             return "No visits found."
-        lines = ["**Recent Visits:**"]
+
+        if len(data) == 1:
+            v = data[0]
+            store = v.get('storeNbr', 'N/A')
+            date = v.get('calendar_date', 'N/A')
+            rating = v.get('rating', 'N/A')
+            response = f"**Store {store}** on {date} - **{rating}**"
+            if v.get('sales_comp_wtd'):
+                response += f"\nSales Comp WTD: {v['sales_comp_wtd']}"
+            if v.get('top_3') and len(v['top_3']) > 0:
+                response += f"\nTop improvements: {', '.join(v['top_3'][:3])}"
+            return response
+
+        lines = [f"**{len(data)} Recent Visits:**\n"]
         for v in data:
             store = v.get('storeNbr', 'N/A')
             date = v.get('calendar_date', 'N/A')
             rating = v.get('rating', 'N/A')
-            lines.append(f"- Store {store} on {date} - **{rating}**")
+            line = f"• **Store {store}** ({date}) - **{rating}**"
             if v.get('sales_comp_wtd'):
-                lines.append(f"  Sales Comp WTD: {v['sales_comp_wtd']}")
-            if v.get('top_3'):
-                lines.append(f"  Improvements: {', '.join(v['top_3'][:3])}")
+                line += f" | Comp: {v['sales_comp_wtd']}"
+            lines.append(line)
         return "\n".join(lines)
 
 
