@@ -1458,6 +1458,56 @@ def delete_market_note_update(update_id):
         release_db_connection(conn)
 
 
+@app.route('/api/market-notes/edit-update/<int:update_id>', methods=['PUT'])
+def edit_market_note_update(update_id):
+    """Edit an update/comment on a market note"""
+    if not db_pool:
+        return jsonify({"error": "Database not connected"}), 500
+
+    data = request.get_json()
+    new_text = data.get('text', '').strip()
+
+    if not new_text:
+        return jsonify({"error": "Text is required"}), 400
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("""
+            UPDATE market_note_updates
+            SET update_text = %s
+            WHERE id = %s
+            RETURNING id, update_text, created_at
+        """, (new_text, update_id))
+
+        result = cursor.fetchone()
+        if not result:
+            return jsonify({"error": "Update not found"}), 404
+
+        conn.commit()
+        cursor.close()
+
+        return jsonify({
+            "success": True,
+            "message": "Update edited",
+            "update": {
+                "id": result['id'],
+                "text": result['update_text'],
+                "created_at": result['created_at'].isoformat() if result['created_at'] else None
+            }
+        })
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error editing market note update: {e}")
+        return jsonify({"error": str(e), "success": False}), 500
+    finally:
+        release_db_connection(conn)
+
+
 @app.route('/api/market-notes/toggle', methods=['POST'])
 def toggle_market_note():
     """Toggle the completion status of a market note (legacy endpoint)"""
@@ -4276,6 +4326,125 @@ def delete_contact(contact_id):
         return jsonify({"error": str(e)}), 500
     finally:
         release_db_connection(conn)
+
+
+@app.route('/api/contacts/smart-add', methods=['POST'])
+def smart_add_contact():
+    """Process natural language text to extract and create a contact using AI"""
+    if not model:
+        return jsonify({"success": False, "error": "AI model not available"}), 503
+
+    ensure_contacts_table()
+
+    data = request.get_json()
+    content = data.get('content', '').strip()
+
+    if not content:
+        return jsonify({"success": False, "error": "Content is required"}), 400
+
+    # Prompt for Gemini to extract contact info
+    prompt = f"""
+    Extract contact information from the following text. The user is adding a contact for their work rolodex.
+
+    TEXT:
+    {content}
+
+    Extract these fields (use null if not mentioned):
+    - name: Full name of the person (REQUIRED - if no clear name, use the most prominent identifier)
+    - title: Job title or role (e.g., "Market Manager", "Team Lead", "Coach")
+    - department: What area/department they oversee or work in (e.g., "Meat", "Produce", "OGP", "Fresh", "GM")
+    - reports_to: Who they report to (their manager's name)
+    - phone: Phone number (clean up formatting but keep the number)
+    - email: Email address
+    - notes: Any additional context or notes about this person
+
+    Common Walmart titles: Store Manager, Assistant Manager, Coach, Team Lead, Market Manager, Regional Manager
+    Common departments: Meat, Produce, Deli, Bakery, Dairy, Frozen, Grocery, OGP, GM, Apparel, Electronics, Sporting Goods, Pharmacy, Frontend, AP, People Lead
+
+    IMPORTANT:
+    - Extract the name even if it's informal (e.g., "Bob from meat" -> name: "Bob", department: "Meat")
+    - Phone numbers may be written in various formats - normalize them
+    - If someone "handles" or "is over" something, that's their department
+    - Return ONLY valid JSON, no markdown formatting
+
+    Return JSON format:
+    {{
+        "name": "string or null",
+        "title": "string or null",
+        "department": "string or null",
+        "reports_to": "string or null",
+        "phone": "string or null",
+        "email": "string or null",
+        "notes": "string or null"
+    }}
+    """
+
+    try:
+        response = model.generate_content(prompt)
+        response_text = response.text.strip()
+
+        # Clean up response - remove markdown code blocks if present
+        if response_text.startswith('```'):
+            lines = response_text.split('\n')
+            response_text = '\n'.join(lines[1:-1] if lines[-1] == '```' else lines[1:])
+        response_text = response_text.strip()
+
+        import json as json_module
+        parsed = json_module.loads(response_text)
+
+        # Validate we got a name
+        if not parsed.get('name'):
+            return jsonify({
+                "success": False,
+                "error": "Could not extract a name from the text. Please include the person's name.",
+                "parsed": parsed
+            }), 400
+
+        # Create the contact in the database
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({"success": False, "error": "Database connection failed"}), 500
+
+        try:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            cursor.execute("""
+                INSERT INTO contacts (name, title, department, reports_to, phone, email, notes)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                RETURNING *
+            """, (
+                parsed.get('name'),
+                parsed.get('title'),
+                parsed.get('department'),
+                parsed.get('reports_to'),
+                parsed.get('phone'),
+                parsed.get('email'),
+                parsed.get('notes')
+            ))
+            contact = cursor.fetchone()
+            conn.commit()
+            cursor.close()
+
+            if contact.get('created_at'):
+                contact['created_at'] = contact['created_at'].isoformat()
+            if contact.get('updated_at'):
+                contact['updated_at'] = contact['updated_at'].isoformat()
+
+            return jsonify({
+                "success": True,
+                "contact": dict(contact),
+                "parsed": parsed
+            }), 201
+
+        except Exception as e:
+            conn.rollback()
+            print(f"Error creating contact from smart add: {e}")
+            return jsonify({"success": False, "error": str(e), "parsed": parsed}), 500
+        finally:
+            release_db_connection(conn)
+
+    except Exception as e:
+        print(f"Error processing contact with AI: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # --- Enablers API ---
