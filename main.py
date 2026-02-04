@@ -4765,12 +4765,13 @@ def chat():
             status_filter = 'new' if 'market' in message_lower else 'open'
 
         # Route to appropriate tool based on message content
-        # Check for contacts queries - "who has X", "who handles X", "who is over X", etc.
+        # Check for contacts queries - "who has X", "who handles X", "who is X", etc.
         contacts_patterns = [
             r'who\s+(?:has|handles?|oversees?|owns?|manages?|works?\s+on|is\s+over|is\s+responsible\s+for|covers?)\s+(.+?)(?:\?|$)',
             r'(?:contact|person)\s+for\s+(.+?)(?:\?|$)',
             r'who\s+do\s+i\s+(?:call|contact|reach)\s+(?:for|about)\s+(.+?)(?:\?|$)',
             r'who\s+(?:can\s+help\s+with|knows\s+about)\s+(.+?)(?:\?|$)',
+            r'who\s+is\s+([a-zA-Z\s]+?)(?:\?|$)',  # "who is John Smith"
         ]
 
         contacts_match = None
@@ -4779,7 +4780,10 @@ def chat():
             if contacts_match:
                 break
 
-        if contacts_match or 'contact' in message_lower or 'who do i call' in message_lower or 'phone number' in message_lower or 'reach out' in message_lower:
+        # Detect if user wants to list/show all contacts
+        list_contacts = any(kw in message_lower for kw in ['list contact', 'show contact', 'all contact', 'my contact', 'contacts list'])
+
+        if contacts_match or list_contacts or 'contact' in message_lower or 'who do i call' in message_lower or 'phone number' in message_lower or 'reach out' in message_lower:
             # Extract search term from pattern match or fallback patterns
             search_term = None
             if contacts_match:
@@ -4821,7 +4825,7 @@ def chat():
             search_match = re.search(r'(?:about|for|with)\s+["\']?([^"\']+)["\']?', message_lower)
             search_term = search_match.group(1).strip() if search_match else None
             tool_response = get_user_notes(search_query=search_term)
-        elif 'champion' in message_lower or 'team' in message_lower or 'assigned' in message_lower or 'who is' in message_lower:
+        elif 'champion' in message_lower or ('team' in message_lower and 'contact' not in message_lower):
             tool_response = get_champions()
         elif 'gold star' in message_lower or 'goldstar' in message_lower:
             # Extract week number if mentioned (e.g., "week 51", "wk 51", "w51")
