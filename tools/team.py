@@ -78,6 +78,83 @@ def get_mentees(store_nbr: Optional[str] = None) -> str:
         release_db_connection(conn)
 
 
+def _normalize_search_term(term: str) -> list:
+    """
+    Normalize search term to handle plurals, common variations, and retail terminology.
+    Returns a list of search variations to try.
+    """
+    if not term:
+        return []
+
+    term = term.lower().strip()
+    variations = [term]
+
+    # Handle common plural endings
+    if term.endswith('ies'):
+        variations.append(term[:-3] + 'y')  # bakeries -> bakery
+    elif term.endswith('es'):
+        variations.append(term[:-2])  # produces -> produc (catches produce)
+        variations.append(term[:-1])  # boxes -> boxe (fallback)
+    elif term.endswith('s') and len(term) > 2:
+        variations.append(term[:-1])  # meats -> meat
+
+    # Also try adding 's' if singular
+    if not term.endswith('s'):
+        variations.append(term + 's')
+
+    # Common retail department aliases
+    retail_aliases = {
+        'meat': ['meat', 'meats', 'butcher', 'protein'],
+        'meats': ['meat', 'meats', 'butcher', 'protein'],
+        'produce': ['produce', 'fruits', 'vegetables', 'fresh'],
+        'deli': ['deli', 'delicatessen', 'prepared foods'],
+        'bakery': ['bakery', 'bread', 'baked goods'],
+        'dairy': ['dairy', 'milk', 'cheese', 'refrigerated'],
+        'frozen': ['frozen', 'freezer', 'ice cream'],
+        'grocery': ['grocery', 'center store', 'dry grocery'],
+        'hba': ['hba', 'health', 'beauty', 'pharmacy', 'otc'],
+        'gm': ['gm', 'general merchandise', 'hardlines'],
+        'apparel': ['apparel', 'clothing', 'softlines', 'fashion'],
+        'electronics': ['electronics', 'wireless', 'photo', 'entertainment'],
+        'sporting': ['sporting', 'sports', 'outdoor', 'fitness'],
+        'automotive': ['automotive', 'auto', 'tires', 'tle'],
+        'garden': ['garden', 'lawn', 'outdoor living', 'seasonal'],
+        'pets': ['pets', 'pet', 'animal'],
+        'baby': ['baby', 'infant', 'kids'],
+        'toys': ['toys', 'toy', 'games'],
+        'home': ['home', 'housewares', 'domestics', 'furniture'],
+        'pharmacy': ['pharmacy', 'rx', 'pharmacist'],
+        'optical': ['optical', 'vision', 'glasses'],
+        'acc': ['acc', 'auto care', 'automotive'],
+        'ogp': ['ogp', 'online grocery', 'pickup', 'delivery', 'digital'],
+        'frontend': ['frontend', 'front end', 'cashier', 'self checkout', 'sco'],
+        'claims': ['claims', 'receiving', 'backroom'],
+        'inventory': ['inventory', 'inv', 'counts', 'on hand'],
+        'fresh': ['fresh', 'perishables', 'produce', 'meat', 'deli', 'bakery'],
+        'cap': ['cap', 'stocking', 'freight'],
+        'ap': ['ap', 'asset protection', 'security', 'loss prevention'],
+        'people': ['people', 'hr', 'human resources', 'personnel', 'associate'],
+        'ops': ['ops', 'operations', 'store ops'],
+        'coach': ['coach', 'team lead', 'tl', 'supervisor'],
+        'manager': ['manager', 'mgr', 'asm', 'store manager', 'sm'],
+    }
+
+    # Add aliases if term matches
+    for key, aliases in retail_aliases.items():
+        if term in aliases or any(term in alias for alias in aliases):
+            variations.extend(aliases)
+
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_variations = []
+    for v in variations:
+        if v not in seen:
+            seen.add(v)
+            unique_variations.append(v)
+
+    return unique_variations
+
+
 def get_contacts(search_term: Optional[str] = None, department: Optional[str] = None) -> str:
     """
     Get contacts list - people of interest to reach out to.
@@ -101,17 +178,31 @@ def get_contacts(search_term: Optional[str] = None, department: Optional[str] = 
         params = []
 
         if search_term:
-            query += """ AND (LOWER(name) LIKE LOWER(%s)
-                         OR LOWER(title) LIKE LOWER(%s)
-                         OR LOWER(department) LIKE LOWER(%s)
-                         OR LOWER(reports_to) LIKE LOWER(%s)
-                         OR LOWER(notes) LIKE LOWER(%s))"""
-            search_pattern = f"%{search_term}%"
-            params.extend([search_pattern] * 5)
+            # Get all search variations (handles plurals, aliases)
+            search_variations = _normalize_search_term(search_term)
+
+            # Build OR conditions for each variation
+            or_conditions = []
+            for variation in search_variations:
+                or_conditions.append("""(LOWER(name) LIKE LOWER(%s)
+                                     OR LOWER(title) LIKE LOWER(%s)
+                                     OR LOWER(department) LIKE LOWER(%s)
+                                     OR LOWER(reports_to) LIKE LOWER(%s)
+                                     OR LOWER(notes) LIKE LOWER(%s))""")
+                search_pattern = f"%{variation}%"
+                params.extend([search_pattern] * 5)
+
+            if or_conditions:
+                query += " AND (" + " OR ".join(or_conditions) + ")"
 
         if department:
-            query += " AND LOWER(department) LIKE LOWER(%s)"
-            params.append(f"%{department}%")
+            dept_variations = _normalize_search_term(department)
+            dept_conditions = []
+            for variation in dept_variations:
+                dept_conditions.append("LOWER(department) LIKE LOWER(%s)")
+                params.append(f"%{variation}%")
+            if dept_conditions:
+                query += " AND (" + " OR ".join(dept_conditions) + ")"
 
         query += " ORDER BY name"
 

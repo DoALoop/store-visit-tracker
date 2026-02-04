@@ -11,12 +11,22 @@ class ManualRouter:
     """Regex-based routing fallback when LLM unavailable"""
 
     def __init__(self):
+        # Contact detection patterns - order matters (more specific first)
         self.contacts_patterns = [
-            r'who\s+(?:has|handles?|oversees?|owns?|manages?|works?\s+on|is\s+over|is\s+responsible\s+for|covers?)\s+(.+?)(?:\?|$)',
-            r'(?:contact|person)\s+for\s+(.+?)(?:\?|$)',
-            r'who\s+do\s+i\s+(?:call|contact|reach)\s+(?:for|about)\s+(.+?)(?:\?|$)',
-            r'who\s+(?:can\s+help\s+with|knows\s+about)\s+(.+?)(?:\?|$)',
-            r'who\s+is\s+([a-zA-Z\s]+?)(?:\?|$)',
+            # "who has/handles/oversees X" patterns
+            r'who\s+(?:has|handles?|oversees?|owns?|manages?|works?\s+on|is\s+over|is\s+responsible\s+for|covers?|runs?|leads?)\s+(.+?)(?:\?|$)',
+            # "contact/person for X"
+            r'(?:contact|person|guy|point\s+of\s+contact|poc)\s+for\s+(.+?)(?:\?|$)',
+            # "who do I call/contact for X"
+            r'who\s+(?:do\s+i|should\s+i|can\s+i|to)\s+(?:call|contact|reach|talk\s+to|speak\s+with|ask)\s+(?:for|about|regarding|on)?\s*(.+?)(?:\?|$)',
+            # "who can help with X"
+            r'who\s+(?:can\s+help\s+with|knows\s+about|deals\s+with|works\s+with)\s+(.+?)(?:\?|$)',
+            # "who is over X" / "who is the X person"
+            r'who\s+is\s+(?:over\s+|the\s+)?(.+?)(?:\s+person|\s+guy|\s+contact|\s+lead)?(?:\?|$)',
+            # "X contact" or "X person"
+            r'(.+?)\s+(?:contact|person|guy|lead|manager)(?:\?|$)',
+            # "get me X" / "find X contact"
+            r'(?:get|find|show)\s+(?:me\s+)?(?:the\s+)?(.+?)\s+(?:contact|person|info)(?:\?|$)',
         ]
 
     def route(self, message: str) -> Tuple[str, Dict[str, Any]]:
@@ -169,16 +179,34 @@ class ManualRouter:
 
     def _extract_contact_term(self, message_lower: str, contacts_match) -> Optional[str]:
         """Extract search term for contacts query"""
+        search_term = None
+
         if contacts_match:
-            return contacts_match.group(1).strip().rstrip('?.,!')
+            search_term = contacts_match.group(1).strip().rstrip('?.,!')
+        else:
+            # Fallback extraction patterns
+            fallback_patterns = [
+                r'(?:about|for|with|regarding|on)\s+["\']?([^"\'?]+)["\']?',
+                r'(?:named?|called)\s+["\']?([^"\'?]+)["\']?',
+                r'(?:in|from|handles?|oversees?|over|runs?)\s+["\']?([^"\'?]+)["\']?',
+            ]
+            for pattern in fallback_patterns:
+                match = re.search(pattern, message_lower)
+                if match:
+                    search_term = match.group(1).strip()
+                    break
 
-        # Fallback extraction
-        search_match = re.search(r'(?:about|for|with|named?)\s+["\']?([^"\'?]+)["\']?', message_lower)
-        if search_match:
-            return search_match.group(1).strip()
+        if search_term:
+            # Clean up common noise words at the end
+            noise_words = ['department', 'dept', 'area', 'section', 'team', 'the', 'a', 'an']
+            words = search_term.split()
+            while words and words[-1] in noise_words:
+                words.pop()
+            search_term = ' '.join(words) if words else search_term
 
-        dept_match = re.search(r'(?:in|from|handles?|oversees?)\s+["\']?([^"\'?]+)["\']?', message_lower)
-        if dept_match:
-            return dept_match.group(1).strip()
+            # Clean up common noise words at the start
+            while words and words[0] in ['the', 'a', 'an', 'our', 'my']:
+                words.pop(0)
+            search_term = ' '.join(words) if words else search_term
 
-        return None
+        return search_term if search_term else None
