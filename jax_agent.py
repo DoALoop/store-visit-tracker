@@ -17,7 +17,10 @@ logger = logging.getLogger(__name__)
 # System prompt for JaxAI
 SYSTEM_PROMPT = """You are Jax, a helpful assistant for analyzing store visit data for a Walmart retail district manager.
 
-You have access to tools that query a database containing:
+You have access to tools that can QUERY data AND TAKE ACTIONS.
+
+=== QUERY CAPABILITIES ===
+You can search and retrieve:
 - Store visits with ratings (Green, Yellow, Red) and metrics
 - Market notes and their completion status
 - Gold stars (weekly focus areas) and store completions
@@ -28,6 +31,43 @@ You have access to tools that query a database containing:
 - Issues and feedback
 - Tasks with priorities and assignments
 - Personal user notes
+
+=== ACTION CAPABILITIES ===
+You can TAKE ACTIONS on behalf of the user:
+
+**Gold Stars:**
+- Mark gold stars complete: "mark gold star 1 complete for store 1234"
+- Update gold star notes for the week
+
+**Contacts:**
+- Add contacts: "add John Smith as meat coach, phone 555-1234"
+- Delete contacts: "remove John Smith from contacts"
+
+**Tasks:**
+- Create tasks: "create task to follow up with store 5678"
+- Complete tasks: "mark task 42 as done"
+- Delete tasks: "delete task 15"
+
+**Market Notes:**
+- Update status: "mark the freezer market note as in progress"
+- Assign notes: "assign the freezer note to Mike"
+- Add comments: "add comment 'checked today' to the freezer note"
+- Mark complete: "complete the market note about freezer"
+
+**Champions & Mentees:**
+- Add champions: "add Sarah as champion for OGP"
+- Add mentees: "add Mike from store 1234 to my mentee circle"
+- Remove champions/mentees
+
+**Enablers:**
+- Mark complete: "mark enabler 5 complete for store 1234"
+- Create enablers: "add new enabler: use cart pusher for 2pm"
+
+**Issues:**
+- Log feedback: "log feedback about slow loading"
+- Report bugs: "report bug: app crashes on save"
+
+When taking actions, CONFIRM what you did with specific details.
 
 === RESPONSE FORMAT ===
 Choose the appropriate format based on the question type:
@@ -187,6 +227,10 @@ Please provide a helpful response based on this data."""
         if isinstance(data, dict) and 'error' in data:
             return f"Error: {data['error']}"
 
+        # Check if this is an action result (has 'success' key)
+        if isinstance(data, dict) and 'success' in data:
+            return self._format_action_result(data)
+
         if tool_name == 'get_summary_stats':
             return self._format_summary_stats(data)
         elif tool_name == 'get_champions':
@@ -204,6 +248,62 @@ Please provide a helpful response based on this data."""
 
         # Default: pretty JSON
         return f"Here's what I found:\n\n```json\n{json.dumps(data, indent=2)}\n```"
+
+    def _format_action_result(self, data: dict) -> str:
+        """Format action results (create, update, delete operations)"""
+        if data.get('success'):
+            message = data.get('message', 'Action completed successfully')
+            response = f"✓ **Done!** {message}"
+
+            # Add details if available
+            if 'contact' in data:
+                c = data['contact']
+                response += f"\n\n**Contact added:**"
+                response += f"\n• Name: {c.get('name', 'N/A')}"
+                if c.get('title'):
+                    response += f"\n• Title: {c['title']}"
+                if c.get('department'):
+                    response += f"\n• Department: {c['department']}"
+                if c.get('phone'):
+                    response += f"\n• Phone: {c['phone']}"
+                if c.get('email'):
+                    response += f"\n• Email: {c['email']}"
+
+            elif 'task' in data:
+                t = data['task']
+                response += f"\n\n**Task details:**"
+                response += f"\n• ID: #{t.get('id', 'N/A')}"
+                response += f"\n• Content: {t.get('content', 'N/A')}"
+                response += f"\n• Status: {t.get('status', 'new')}"
+                if t.get('assigned_to'):
+                    response += f"\n• Assigned to: {t['assigned_to']}"
+                if t.get('store_number'):
+                    response += f"\n• Store: {t['store_number']}"
+
+            elif 'champion' in data:
+                c = data['champion']
+                response += f"\n\n• **{c.get('name', 'N/A')}** - {c.get('responsibility', 'N/A')}"
+
+            elif 'mentee' in data:
+                m = data['mentee']
+                response += f"\n\n• **{m.get('name', 'N/A')}**"
+                if m.get('store_nbr'):
+                    response += f" - Store {m['store_nbr']}"
+                if m.get('position'):
+                    response += f", {m['position']}"
+
+            elif 'enabler' in data:
+                e = data['enabler']
+                response += f"\n\n• **{e.get('title', 'N/A')}** ({e.get('status', 'idea')})"
+
+            elif 'issue' in data:
+                i = data['issue']
+                response += f"\n\n• **{i.get('title', 'N/A')}** (#{i.get('id', 'N/A')}) - {i.get('type', 'issue')}"
+
+            return response
+        else:
+            error = data.get('error', 'Unknown error')
+            return f"✗ **Action failed:** {error}"
 
     def _format_summary_stats(self, data: dict) -> str:
         """Format summary stats"""

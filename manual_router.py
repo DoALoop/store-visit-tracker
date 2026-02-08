@@ -43,7 +43,85 @@ class ManualRouter:
         rating_filter = self._extract_rating(message_lower)
         status_filter = self._extract_status(message_lower)
 
-        # Priority-ordered routing rules
+        # ============ ACTION ROUTING (check first - more specific) ============
+
+        # Gold star completion actions
+        if ('gold star' in message_lower or 'goldstar' in message_lower) and any(kw in message_lower for kw in ['complete', 'mark', 'done', 'finish']):
+            store = numbers[0] if numbers else None
+            note_num_match = re.search(r'(?:gold\s*star|star)\s*#?\s*(\d)', message_lower)
+            note_num = int(note_num_match.group(1)) if note_num_match else 1
+            completed = 'incomplete' not in message_lower and 'undo' not in message_lower
+            if store:
+                return 'mark_gold_star_complete', {'store_nbr': store, 'note_number': note_num, 'completed': completed}
+
+        # Contact creation
+        if any(kw in message_lower for kw in ['add contact', 'create contact', 'new contact', 'add a contact']):
+            # Extract contact info from message
+            name = self._extract_name(message)
+            title = self._extract_field(message_lower, ['title', 'role', 'position', 'as a', 'as the', 'is the', 'is a'])
+            department = self._extract_field(message_lower, ['department', 'dept', 'area'])
+            phone = self._extract_phone(message)
+            email = self._extract_email(message)
+            return 'create_contact', {'name': name, 'title': title, 'department': department, 'phone': phone, 'email': email}
+
+        # Contact deletion
+        if any(kw in message_lower for kw in ['delete contact', 'remove contact']):
+            name = self._extract_name(message)
+            return 'delete_contact', {'name': name}
+
+        # Task creation
+        if any(kw in message_lower for kw in ['create task', 'add task', 'new task', 'create a task', 'add a task']):
+            content = self._extract_task_content(message)
+            store = numbers[0] if numbers else None
+            assigned = self._extract_field(message_lower, ['assign to', 'assigned to', 'for'])
+            priority = self._extract_priority(message_lower)
+            return 'create_task', {'content': content, 'store_number': store, 'assigned_to': assigned, 'priority': priority}
+
+        # Task completion/status update
+        if 'task' in message_lower and any(kw in message_lower for kw in ['complete', 'done', 'finish', 'mark']):
+            task_id_match = re.search(r'task\s*#?\s*(\d+)', message_lower)
+            if task_id_match:
+                task_id = int(task_id_match.group(1))
+                status = 'completed' if any(kw in message_lower for kw in ['complete', 'done', 'finish']) else status_filter
+                return 'update_task_status', {'task_id': task_id, 'status': status or 'completed'}
+
+        # Market note completion
+        if 'market' in message_lower and 'note' in message_lower and any(kw in message_lower for kw in ['complete', 'done', 'finish', 'mark']):
+            # This needs visit_id and note_text - may need to look up
+            return 'get_market_note_status', {'status_filter': None}  # Fallback to showing notes
+
+        # Market note assignment
+        if 'market' in message_lower and 'note' in message_lower and 'assign' in message_lower:
+            assigned = self._extract_field(message_lower, ['assign to', 'assigned to', 'to'])
+            return 'get_market_note_status', {'status_filter': None}  # Need more context
+
+        # Champion creation
+        if any(kw in message_lower for kw in ['add champion', 'create champion', 'new champion']):
+            name = self._extract_name(message)
+            responsibility = self._extract_field(message_lower, ['for', 'over', 'responsible for', 'handles'])
+            return 'create_champion', {'name': name, 'responsibility': responsibility}
+
+        # Mentee creation
+        if any(kw in message_lower for kw in ['add mentee', 'create mentee', 'new mentee']):
+            name = self._extract_name(message)
+            store = numbers[0] if numbers else None
+            position = self._extract_field(message_lower, ['position', 'role', 'as a', 'as the'])
+            return 'create_mentee', {'name': name, 'store_nbr': store, 'position': position}
+
+        # Enabler completion
+        if 'enabler' in message_lower and any(kw in message_lower for kw in ['complete', 'done', 'finish', 'mark']):
+            enabler_id_match = re.search(r'enabler\s*#?\s*(\d+)', message_lower)
+            store = numbers[0] if numbers else None
+            if enabler_id_match and store:
+                return 'mark_enabler_complete', {'enabler_id': int(enabler_id_match.group(1)), 'store_nbr': store}
+
+        # Issue/feedback creation
+        if any(kw in message_lower for kw in ['log issue', 'create issue', 'report bug', 'submit feedback', 'log feedback']):
+            issue_type = 'bug' if 'bug' in message_lower else ('feedback' if 'feedback' in message_lower else 'feature')
+            title = self._extract_task_content(message)  # Reuse task content extraction
+            return 'create_issue', {'issue_type': issue_type, 'title': title}
+
+        # ============ QUERY ROUTING ============
 
         # Contacts
         contacts_match = self._match_contacts(message_lower)
@@ -210,3 +288,55 @@ class ManualRouter:
             search_term = ' '.join(words) if words else search_term
 
         return search_term if search_term else None
+
+    def _extract_name(self, message: str) -> Optional[str]:
+        """Extract a person's name from the message"""
+        # Common patterns: "add contact John Smith", "John Smith as meat coach"
+        patterns = [
+            r'(?:named?|called)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)',
+            r'(?:contact|champion|mentee)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)',
+            r'add\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+(?:as|to|for)',
+            r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+(?:is|as)\s+(?:a|the)',
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, message)
+            if match:
+                return match.group(1).strip()
+        return None
+
+    def _extract_field(self, message_lower: str, keywords: list) -> Optional[str]:
+        """Extract a field value following keywords"""
+        for kw in keywords:
+            pattern = rf'{kw}\s+["\']?([^"\',.]+)["\']?'
+            match = re.search(pattern, message_lower)
+            if match:
+                return match.group(1).strip()
+        return None
+
+    def _extract_phone(self, message: str) -> Optional[str]:
+        """Extract phone number from message"""
+        phone_match = re.search(r'(\d{3}[-.\s]?\d{3}[-.\s]?\d{4})', message)
+        return phone_match.group(1) if phone_match else None
+
+    def _extract_email(self, message: str) -> Optional[str]:
+        """Extract email from message"""
+        email_match = re.search(r'[\w.+-]+@[\w-]+\.[\w.-]+', message)
+        return email_match.group(0) if email_match else None
+
+    def _extract_task_content(self, message: str) -> str:
+        """Extract task content/description from message"""
+        # Remove common prefixes
+        content = re.sub(r'^(?:create|add|new)\s+(?:a\s+)?task\s+(?:to\s+)?', '', message, flags=re.IGNORECASE)
+        content = re.sub(r'\s+(?:for|at)\s+store\s+\d+', '', content, flags=re.IGNORECASE)
+        content = re.sub(r'\s+(?:assigned?\s+to|for)\s+\w+', '', content, flags=re.IGNORECASE)
+        return content.strip() or message
+
+    def _extract_priority(self, message_lower: str) -> int:
+        """Extract priority from message"""
+        if 'high priority' in message_lower or 'urgent' in message_lower:
+            return 3
+        elif 'medium priority' in message_lower:
+            return 2
+        elif 'low priority' in message_lower:
+            return 1
+        return 0
