@@ -412,6 +412,24 @@ COMMON ABBREVIATIONS:
 - w/ = with, w/o = without, b/c = because
 - @ = at, # = number, & = and
 
+=== NOTE FORMAT RULES (CRITICAL) ===
+
+The author writes notes as bullet points starting with a dash "-".
+- Each NEW note begins with a "-" character at the start of a line.
+- A note often WRAPS to the next line(s) on the paper because of limited writing space.
+- Continuation lines do NOT start with a "-" — they are simply the rest of the same note.
+- You MUST join wrapped continuation lines into a SINGLE note with the preceding "-" line.
+- Only start a new note when you see the next "-" at the beginning of a line.
+- Example on paper:
+    "- Need to work on
+       backroom organization
+       and top stock"
+  = ONE note: "Need to work on backroom organization and top stock"
+- Example on paper:
+    "- Grocery looks great
+     - Deli needs deep clean"
+  = TWO notes: "Grocery looks great" and "Deli needs deep clean"
+
 === DATA EXTRACTION SCHEMA ===
 
 Extract and return as JSON:
@@ -434,7 +452,8 @@ Extract and return as JSON:
 
 4. "store_notes": Array of general observations (each note = one array item)
    - Transcribe EXACTLY as written, preserving the original wording
-   - Each distinct thought or line = separate array entry
+   - Each note starts with a "-" on the paper. Lines without a leading "-" are continuations of the previous note.
+   - Join wrapped/continuation lines into ONE note entry — do NOT split them into separate array items
    - Include names, departments, specific issues mentioned
    - DO NOT include metrics as notes - these belong in the "metrics" object:
      * Sales metrics: Comp Yesterday, Index Yesterday, Comp WTD, Index WTD, Comp MTD, Index MTD
@@ -444,15 +463,16 @@ Extract and return as JSON:
 5. "mkt_notes": Array of market/competitor notes
    - Look for: "Market", "Mkt", "Me", "M:", or competitor mentions
    - "Me" often means "Market" in this context
-   - IMPORTANT: A single market note may span multiple lines due to limited writing space
-   - Treat text that flows continuously (same topic/thought) as ONE note, even across lines
-   - Only start a new note when there's a clear new bullet point, dash, or distinct new topic
-   - Example: "Garden market meeting\nscheduled for Tuesday" = ONE note: "Garden market meeting scheduled for Tuesday"
-   - Example: "- Floral vendor issue" then "- SP Falls electrical" = TWO separate notes
-   - Look for visual separators (dashes, bullets, line breaks with new topics) to identify distinct notes
+   - Each note starts with a "-" on the paper. Lines without a leading "-" are continuations of the previous note.
+   - Join wrapped/continuation lines into ONE note entry — do NOT split them into separate array items
+   - Only start a new note when you see the next "-" at the beginning of a line
+   - Example: "- Garden market meeting\n  scheduled for Tuesday" = ONE note: "Garden market meeting scheduled for Tuesday"
+   - Example: "- Floral vendor issue\n- SP Falls electrical" = TWO separate notes
 
 6. "good": Array of positive observations
    - Look for content under sections labeled "Good", "What's Good", "+", etc.
+   - Each note starts with a "-" on the paper. Lines without a leading "-" are continuations of the previous note.
+   - Join wrapped/continuation lines into ONE note entry — do NOT split them into separate array items
    - If "Good" is just a header/label with nothing written underneath, return []
    - DO NOT add the word "Good" itself as a note - only actual observations
    - DO NOT include section headers or labels as notes
