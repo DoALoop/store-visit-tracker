@@ -2144,7 +2144,7 @@ def get_issues():
     try:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         cursor.execute("""
-            SELECT id, type, title, description, status, created_at, updated_at, completed_at
+            SELECT id, type, title, description, status, priority, created_at, updated_at, completed_at
             FROM issues
             ORDER BY
                 CASE status
@@ -2152,6 +2152,11 @@ def get_issues():
                     WHEN 'in_progress' THEN 2
                     WHEN 'stalled' THEN 3
                     WHEN 'completed' THEN 4
+                END,
+                CASE priority
+                    WHEN 'high' THEN 1
+                    WHEN 'medium' THEN 2
+                    WHEN 'low' THEN 3
                 END,
                 created_at DESC
         """)
@@ -2167,6 +2172,7 @@ def get_issues():
                 "title": issue["title"],
                 "description": issue["description"],
                 "status": issue["status"],
+                "priority": issue.get("priority", "medium"),
                 "created_at": issue["created_at"].isoformat() if issue["created_at"] else None,
                 "updated_at": issue["updated_at"].isoformat() if issue["updated_at"] else None,
                 "completed_at": issue["completed_at"].isoformat() if issue["completed_at"] else None
@@ -2193,18 +2199,21 @@ def add_issue():
         issue_type = data.get('type', '').strip()
         title = data.get('title', '').strip()
         description = data.get('description', '').strip()
+        priority = data.get('priority', 'medium').strip()
 
         if not issue_type or issue_type not in ['feature', 'bug', 'feedback']:
             return jsonify({"error": "Valid type is required (feature, bug, feedback)"}), 400
         if not title:
             return jsonify({"error": "Title is required"}), 400
+        if priority not in ['high', 'medium', 'low']:
+            return jsonify({"error": "Invalid priority (high, medium, low)"}), 400
 
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         cursor.execute("""
-            INSERT INTO issues (type, title, description, status)
-            VALUES (%s, %s, %s, 'new')
-            RETURNING id, type, title, description, status, created_at
-        """, (issue_type, title, description))
+            INSERT INTO issues (type, title, description, status, priority)
+            VALUES (%s, %s, %s, 'new', %s)
+            RETURNING id, type, title, description, status, priority, created_at
+        """, (issue_type, title, description, priority))
 
         new_issue = cursor.fetchone()
         conn.commit()
@@ -2216,6 +2225,7 @@ def add_issue():
             "title": new_issue["title"],
             "description": new_issue["description"],
             "status": new_issue["status"],
+            "priority": new_issue["priority"],
             "created_at": new_issue["created_at"].isoformat() if new_issue["created_at"] else None
         })
 
@@ -2240,6 +2250,7 @@ def update_issue(issue_id):
         title = data.get('title')
         description = data.get('description')
         issue_type = data.get('type')
+        priority = data.get('priority')
 
         cursor = conn.cursor(cursor_factory=RealDictCursor)
 
@@ -2264,6 +2275,12 @@ def update_issue(issue_id):
             updates.append("type = %s")
             params.append(issue_type)
 
+        if priority:
+            if priority not in ['high', 'medium', 'low']:
+                return jsonify({"error": "Invalid priority"}), 400
+            updates.append("priority = %s")
+            params.append(priority)
+
         if title is not None:
             updates.append("title = %s")
             params.append(title.strip())
@@ -2274,14 +2291,14 @@ def update_issue(issue_id):
 
         updates.append("updated_at = %s")
         params.append(datetime.now())
-        
+
         params.append(issue_id)
 
         query = f"""
-            UPDATE issues 
-            SET {', '.join(updates)} 
+            UPDATE issues
+            SET {', '.join(updates)}
             WHERE id = %s
-            RETURNING id, type, title, description, status, created_at, updated_at, completed_at
+            RETURNING id, type, title, description, status, priority, created_at, updated_at, completed_at
         """
         cursor.execute(query, params)
         updated_issue = cursor.fetchone()
@@ -5104,6 +5121,237 @@ def update_photo_caption(visit_id, photo_id):
     except Exception as e:
         conn.rollback()
         print(f"Error updating photo caption: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+def ensure_store_info_table():
+    """Ensure store_info table exists"""
+    conn = get_db_connection()
+    if not conn:
+        return
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS store_info (
+                id SERIAL PRIMARY KEY,
+                store_number VARCHAR(10) UNIQUE NOT NULL,
+                store_format VARCHAR(50) DEFAULT 'Supercenter',
+                city VARCHAR(100),
+                state VARCHAR(2),
+                sales_volume VARCHAR(50),
+                operating_income VARCHAR(50),
+                building_size VARCHAR(50),
+                date_opened DATE,
+                last_remodel DATE,
+                store_manager VARCHAR(100),
+                notes TEXT DEFAULT '',
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        conn.commit()
+        cursor.close()
+    except Exception as e:
+        print(f"Error ensuring store_info table: {e}")
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/store-info', methods=['GET'])
+def get_all_store_info():
+    """Get store info for all stores"""
+    ensure_store_info_table()
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("""
+            SELECT id, store_number, store_format, city, state, sales_volume,
+                   operating_income, building_size, date_opened, last_remodel,
+                   store_manager, notes, created_at, updated_at
+            FROM store_info
+            ORDER BY store_number ASC
+        """)
+        stores = cursor.fetchall()
+        cursor.close()
+
+        for s in stores:
+            if s.get('date_opened'):
+                s['date_opened'] = s['date_opened'].isoformat()
+            if s.get('last_remodel'):
+                s['last_remodel'] = s['last_remodel'].isoformat()
+            if s.get('created_at'):
+                s['created_at'] = s['created_at'].isoformat()
+            if s.get('updated_at'):
+                s['updated_at'] = s['updated_at'].isoformat()
+
+        return jsonify(stores)
+
+    except Exception as e:
+        print(f"Error fetching store info: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/store-info/<store_number>', methods=['GET'])
+def get_store_info_detail(store_number):
+    """Get store info for a single store, including last visit date"""
+    ensure_store_info_table()
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("""
+            SELECT si.*,
+                   (SELECT MAX(calendar_date) FROM store_visits WHERE "storeNbr" = si.store_number) as last_visit_date
+            FROM store_info si
+            WHERE si.store_number = %s
+        """, (store_number,))
+        store = cursor.fetchone()
+        cursor.close()
+
+        if not store:
+            return jsonify({"error": "Store not found"}), 404
+
+        if store.get('date_opened'):
+            store['date_opened'] = store['date_opened'].isoformat()
+        if store.get('last_remodel'):
+            store['last_remodel'] = store['last_remodel'].isoformat()
+        if store.get('last_visit_date'):
+            store['last_visit_date'] = store['last_visit_date'].isoformat()
+        if store.get('created_at'):
+            store['created_at'] = store['created_at'].isoformat()
+        if store.get('updated_at'):
+            store['updated_at'] = store['updated_at'].isoformat()
+
+        return jsonify(store)
+
+    except Exception as e:
+        print(f"Error fetching store info detail: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/store-info', methods=['POST'])
+def create_store_info():
+    """Create a new store info record"""
+    ensure_store_info_table()
+    data = request.get_json()
+    if not data or not data.get('store_number'):
+        return jsonify({"success": False, "error": "store_number is required"}), 400
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"success": False, "error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("""
+            INSERT INTO store_info (store_number, store_format, city, state, sales_volume,
+                                    operating_income, building_size, date_opened, last_remodel,
+                                    store_manager, notes)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING *
+        """, (
+            data.get('store_number'),
+            data.get('store_format', 'Supercenter'),
+            data.get('city'),
+            data.get('state'),
+            data.get('sales_volume'),
+            data.get('operating_income'),
+            data.get('building_size'),
+            data.get('date_opened'),
+            data.get('last_remodel'),
+            data.get('store_manager'),
+            data.get('notes', '')
+        ))
+        store = cursor.fetchone()
+        conn.commit()
+        cursor.close()
+
+        if store.get('date_opened'):
+            store['date_opened'] = store['date_opened'].isoformat()
+        if store.get('last_remodel'):
+            store['last_remodel'] = store['last_remodel'].isoformat()
+        if store.get('created_at'):
+            store['created_at'] = store['created_at'].isoformat()
+        if store.get('updated_at'):
+            store['updated_at'] = store['updated_at'].isoformat()
+
+        return jsonify({"success": True, "store": dict(store)}), 201
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error creating store info: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/store-info/<store_number>', methods=['PUT'])
+def upsert_store_info(store_number):
+    """Upsert store info — update if exists, create if not"""
+    ensure_store_info_table()
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Build upsert with only provided fields
+        fields = ['store_format', 'city', 'state', 'sales_volume', 'operating_income',
+                  'building_size', 'date_opened', 'last_remodel', 'store_manager', 'notes']
+
+        insert_cols = ['store_number']
+        insert_vals = [store_number]
+        insert_placeholders = ['%s']
+        update_parts = ['updated_at = NOW()']
+
+        for field in fields:
+            if field in data:
+                insert_cols.append(field)
+                insert_vals.append(data[field] if data[field] != '' else None)
+                insert_placeholders.append('%s')
+                update_parts.append(f"{field} = EXCLUDED.{field}")
+
+        query = f"""
+            INSERT INTO store_info ({', '.join(insert_cols)})
+            VALUES ({', '.join(insert_placeholders)})
+            ON CONFLICT (store_number) DO UPDATE SET {', '.join(update_parts)}
+            RETURNING *
+        """
+        cursor.execute(query, insert_vals)
+        store = cursor.fetchone()
+        conn.commit()
+        cursor.close()
+
+        if store.get('date_opened'):
+            store['date_opened'] = store['date_opened'].isoformat()
+        if store.get('last_remodel'):
+            store['last_remodel'] = store['last_remodel'].isoformat()
+        if store.get('created_at'):
+            store['created_at'] = store['created_at'].isoformat()
+        if store.get('updated_at'):
+            store['updated_at'] = store['updated_at'].isoformat()
+
+        return jsonify({"success": True, "store": dict(store)})
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error upserting store info: {e}")
         return jsonify({"error": str(e)}), 500
     finally:
         release_db_connection(conn)

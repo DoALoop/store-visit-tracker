@@ -125,6 +125,9 @@
             <button onclick="switchTab('contacts'); closeDrawer();" class="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg flex items-center">
                 <i class="fas fa-address-book w-6 text-walmart-blue"></i><span class="ml-3">Contacts</span>
             </button>
+            <button onclick="switchTab('store-info'); closeDrawer();" class="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg flex items-center">
+                <i class="fas fa-store w-6 text-walmart-blue"></i><span class="ml-3">Store Info</span>
+            </button>
             <hr class="my-4">
             <button onclick="switchTab('status'); closeDrawer();" class="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg flex items-center">
                 <i class="fas fa-server w-6 text-walmart-blue"></i><span class="ml-3">Status</span>
@@ -1234,8 +1237,28 @@
                 </button>
             </div>
 
+            <!-- Summary Stats Bar -->
+            <div class="grid grid-cols-4 gap-2 mb-4" id="issues-stats-bar">
+                <div class="bg-white rounded-xl shadow-sm p-3 text-center">
+                    <p id="issues-stat-total" class="text-2xl font-bold text-gray-900">-</p>
+                    <p class="text-xs text-gray-500">Total</p>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm p-3 text-center">
+                    <p id="issues-stat-new" class="text-2xl font-bold text-blue-600">-</p>
+                    <p class="text-xs text-gray-500">New</p>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm p-3 text-center">
+                    <p id="issues-stat-wip" class="text-2xl font-bold text-yellow-600">-</p>
+                    <p class="text-xs text-gray-500">In Progress</p>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm p-3 text-center">
+                    <p id="issues-stat-stalled" class="text-2xl font-bold text-red-600">-</p>
+                    <p class="text-xs text-gray-500">Stalled</p>
+                </div>
+            </div>
+
             <!-- Filter Tabs -->
-            <div class="flex gap-2 mb-4 overflow-x-auto pb-2">
+            <div class="flex gap-2 mb-3 overflow-x-auto pb-2">
                 <button onclick="filterIssues('all')" id="filter-all" class="issue-filter-btn px-4 py-2 rounded-full text-sm font-medium bg-walmart-blue text-white">
                     All
                 </button>
@@ -1248,6 +1271,23 @@
                 <button onclick="filterIssues('feedback')" id="filter-feedback" class="issue-filter-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-700 hover:bg-gray-300">
                     <i class="fas fa-comment mr-1"></i> Feedback
                 </button>
+            </div>
+
+            <!-- Search & Sort Row -->
+            <div class="flex gap-2 mb-4">
+                <div class="flex-1 relative">
+                    <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                    <input type="text" id="issues-search" placeholder="Search issues..."
+                           oninput="handleIssueSearch(this.value)"
+                           class="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-walmart-blue focus:ring-walmart-blue bg-white">
+                </div>
+                <select id="issues-sort" onchange="handleIssueSort(this.value)"
+                        class="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:border-walmart-blue focus:ring-walmart-blue">
+                    <option value="priority">Priority</option>
+                    <option value="newest">Newest</option>
+                    <option value="oldest">Oldest</option>
+                    <option value="alpha">A-Z</option>
+                </select>
             </div>
 
             <!-- Active Issues List -->
@@ -1355,6 +1395,159 @@
                 <i class="fas fa-address-book text-5xl text-gray-300 mb-4"></i>
                 <p class="text-gray-600 font-medium">No contacts yet</p>
                 <p class="text-gray-400 text-sm mt-1">Add your first contact</p>
+            </div>
+        </div>
+
+        <!-- VIEW: STORE INFO -->
+        <div id="view-store-info" class="hidden-view p-4 bg-gray-100 min-h-full">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-gray-900">Store Info</h2>
+            </div>
+
+            <!-- Store Picker Dropdown -->
+            <div class="mb-4">
+                <select id="store-info-picker" onchange="loadStoreInfoDetail(this.value)"
+                        class="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 font-medium shadow-sm focus:ring-2 focus:ring-walmart-blue focus:border-transparent">
+                    <option value="">Select a store...</option>
+                </select>
+            </div>
+
+            <!-- Hero Banner -->
+            <div id="store-info-hero" class="bg-walmart-blue rounded-2xl p-5 mb-4 text-white relative hidden">
+                <button onclick="editStoreInfo()" id="store-info-edit-btn"
+                        class="absolute top-4 right-4 w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30">
+                    <i class="fas fa-pencil-alt text-sm"></i>
+                </button>
+                <p class="text-sm font-medium text-blue-200 uppercase tracking-wide" id="store-info-format">Supercenter</p>
+                <h3 class="text-3xl font-bold mt-1" id="store-info-number">Store #----</h3>
+                <p class="text-blue-100 mt-1" id="store-info-location">
+                    <i class="fas fa-map-marker-alt mr-1"></i><span>--</span>
+                </p>
+                <div class="mt-3 inline-flex items-center bg-white/20 rounded-full px-3 py-1" id="store-info-sales-badge">
+                    <i class="fas fa-dollar-sign mr-1 text-walmart-yellow text-sm"></i>
+                    <span class="text-sm font-medium" id="store-info-sales">--</span>
+                </div>
+            </div>
+
+            <!-- Detail Cards -->
+            <div id="store-info-details" class="hidden">
+                <div class="grid grid-cols-2 gap-3 mb-4">
+                    <div class="bg-white rounded-xl shadow-sm p-4">
+                        <div class="flex items-center text-gray-400 mb-1">
+                            <i class="fas fa-ruler-combined w-5 text-sm"></i>
+                            <span class="text-xs ml-1">Building Size</span>
+                        </div>
+                        <p class="text-gray-900 font-semibold" id="store-info-building-size">--</p>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm p-4">
+                        <div class="flex items-center text-gray-400 mb-1">
+                            <i class="fas fa-chart-line w-5 text-sm"></i>
+                            <span class="text-xs ml-1">Operating Income</span>
+                        </div>
+                        <p class="text-gray-900 font-semibold" id="store-info-operating-income">--</p>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm p-4">
+                        <div class="flex items-center text-gray-400 mb-1">
+                            <i class="fas fa-calendar-plus w-5 text-sm"></i>
+                            <span class="text-xs ml-1">Date Opened</span>
+                        </div>
+                        <p class="text-gray-900 font-semibold" id="store-info-date-opened">--</p>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm p-4">
+                        <div class="flex items-center text-gray-400 mb-1">
+                            <i class="fas fa-hammer w-5 text-sm"></i>
+                            <span class="text-xs ml-1">Last Remodel</span>
+                        </div>
+                        <p class="text-gray-900 font-semibold" id="store-info-last-remodel">--</p>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm p-4">
+                        <div class="flex items-center text-gray-400 mb-1">
+                            <i class="fas fa-user-tie w-5 text-sm"></i>
+                            <span class="text-xs ml-1">Store Manager</span>
+                        </div>
+                        <p class="text-gray-900 font-semibold" id="store-info-manager">--</p>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm p-4">
+                        <div class="flex items-center text-gray-400 mb-1">
+                            <i class="fas fa-walking w-5 text-sm"></i>
+                            <span class="text-xs ml-1">Last Visit</span>
+                        </div>
+                        <p class="text-gray-900 font-semibold" id="store-info-last-visit">--</p>
+                    </div>
+                </div>
+
+                <!-- Notes Section -->
+                <div class="bg-white rounded-xl shadow-sm p-4 mb-4">
+                    <div class="flex items-center text-gray-400 mb-2">
+                        <i class="fas fa-sticky-note w-5 text-sm"></i>
+                        <span class="text-xs ml-1">Notes</span>
+                    </div>
+                    <p class="text-gray-700 text-sm whitespace-pre-wrap" id="store-info-notes-display">No notes yet</p>
+                </div>
+            </div>
+
+            <!-- Edit Form (hidden by default) -->
+            <div id="store-info-edit-form" class="hidden">
+                <div class="bg-white rounded-xl shadow-sm p-4 mb-3">
+                    <h4 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Store Details</h4>
+                    <div class="space-y-3">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="text-xs text-gray-500">City</label>
+                                <input type="text" id="edit-store-city" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-walmart-blue focus:border-transparent" placeholder="City">
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-500">State</label>
+                                <input type="text" id="edit-store-state" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-walmart-blue focus:border-transparent" placeholder="TX" maxlength="2">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-500">Store Format</label>
+                            <input type="text" id="edit-store-format" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-walmart-blue focus:border-transparent" placeholder="Supercenter">
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-500">Sales Volume</label>
+                            <input type="text" id="edit-store-sales" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-walmart-blue focus:border-transparent" placeholder="e.g. $98M">
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-500">Operating Income</label>
+                            <input type="text" id="edit-store-income" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-walmart-blue focus:border-transparent" placeholder="e.g. $5.2M">
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-500">Building Size</label>
+                            <input type="text" id="edit-store-building" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-walmart-blue focus:border-transparent" placeholder="e.g. 187,000 sq ft">
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="text-xs text-gray-500">Date Opened</label>
+                                <input type="date" id="edit-store-opened" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-walmart-blue focus:border-transparent">
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-500">Last Remodel</label>
+                                <input type="date" id="edit-store-remodel" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-walmart-blue focus:border-transparent">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-500">Store Manager</label>
+                            <input type="text" id="edit-store-manager" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-walmart-blue focus:border-transparent" placeholder="Full name">
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-500">Notes</label>
+                            <textarea id="edit-store-notes" rows="3" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-walmart-blue focus:border-transparent resize-none" placeholder="Additional notes about this store..."></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="cancelStoreInfoEdit()" class="flex-1 py-3 bg-gray-200 text-gray-700 rounded-xl font-medium">Cancel</button>
+                    <button onclick="saveStoreInfo()" class="flex-1 py-3 bg-walmart-blue text-white rounded-xl font-medium">Save</button>
+                </div>
+            </div>
+
+            <!-- Empty State -->
+            <div id="store-info-empty" class="text-center py-12 bg-white rounded-xl mt-4">
+                <i class="fas fa-store text-5xl text-gray-300 mb-4"></i>
+                <p class="text-gray-600 font-medium">Select a store above</p>
+                <p class="text-gray-400 text-sm mt-1">View and edit store details</p>
             </div>
         </div>
 
@@ -1487,6 +1680,28 @@
                     </div>
                 </div>
 
+                <!-- Priority Selection -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Priority</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button type="button" onclick="selectFeedbackPriority('high')" id="priority-high"
+                                class="feedback-priority-btn flex items-center justify-center gap-1 p-2 rounded-lg border-2 border-gray-200 hover:border-walmart-blue transition-colors">
+                            <span class="w-2.5 h-2.5 rounded-full bg-red-500"></span>
+                            <span class="text-xs font-medium">High</span>
+                        </button>
+                        <button type="button" onclick="selectFeedbackPriority('medium')" id="priority-medium"
+                                class="feedback-priority-btn flex items-center justify-center gap-1 p-2 rounded-lg border-2 border-walmart-blue bg-blue-50 transition-colors">
+                            <span class="w-2.5 h-2.5 rounded-full bg-yellow-500"></span>
+                            <span class="text-xs font-medium">Medium</span>
+                        </button>
+                        <button type="button" onclick="selectFeedbackPriority('low')" id="priority-low"
+                                class="feedback-priority-btn flex items-center justify-center gap-1 p-2 rounded-lg border-2 border-gray-200 hover:border-walmart-blue transition-colors">
+                            <span class="w-2.5 h-2.5 rounded-full bg-green-500"></span>
+                            <span class="text-xs font-medium">Low</span>
+                        </button>
+                    </div>
+                </div>
+
                 <!-- Title -->
                 <div>
                     <label for="feedback-title" class="block text-sm font-medium text-gray-700 mb-1">Title</label>
@@ -1535,6 +1750,28 @@
                         <button type="button" onclick="selectEditIssueType('feedback')" id="edit-type-feedback" class="edit-issue-type-btn flex flex-col items-center p-3 rounded-lg border-2 border-gray-200 hover:border-walmart-blue transition-colors">
                             <i class="fas fa-comment text-2xl text-walmart-blue mb-1"></i>
                             <span class="text-xs font-medium">Feedback</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Priority Selection -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Priority</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button type="button" onclick="selectEditIssuePriority('high')" id="edit-priority-high"
+                                class="edit-issue-priority-btn flex items-center justify-center gap-1 p-2 rounded-lg border-2 border-gray-200 hover:border-walmart-blue transition-colors">
+                            <span class="w-2.5 h-2.5 rounded-full bg-red-500"></span>
+                            <span class="text-xs font-medium">High</span>
+                        </button>
+                        <button type="button" onclick="selectEditIssuePriority('medium')" id="edit-priority-medium"
+                                class="edit-issue-priority-btn flex items-center justify-center gap-1 p-2 rounded-lg border-2 border-gray-200 hover:border-walmart-blue transition-colors">
+                            <span class="w-2.5 h-2.5 rounded-full bg-yellow-500"></span>
+                            <span class="text-xs font-medium">Medium</span>
+                        </button>
+                        <button type="button" onclick="selectEditIssuePriority('low')" id="edit-priority-low"
+                                class="edit-issue-priority-btn flex items-center justify-center gap-1 p-2 rounded-lg border-2 border-gray-200 hover:border-walmart-blue transition-colors">
+                            <span class="w-2.5 h-2.5 rounded-full bg-green-500"></span>
+                            <span class="text-xs font-medium">Low</span>
                         </button>
                     </div>
                 </div>
@@ -2025,7 +2262,7 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
 
         // --- Navigation ---
         function switchTab(tabName) {
-            ['view-home', 'view-log-visit', 'view-visits', 'view-prior-tours', 'view-market-notes', 'view-gold-stars', 'view-champions', 'view-mentees', 'view-enablers', 'view-status', 'view-issues', 'view-notes', 'view-contacts'].forEach(id => {
+            ['view-home', 'view-log-visit', 'view-visits', 'view-prior-tours', 'view-market-notes', 'view-gold-stars', 'view-champions', 'view-mentees', 'view-enablers', 'view-status', 'view-issues', 'view-notes', 'view-contacts', 'view-store-info'].forEach(id => {
                 document.getElementById(id).classList.add('hidden-view');
             });
 
@@ -2043,6 +2280,7 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             if (tabName === 'status') loadStatus();
             if (tabName === 'issues') loadIssues();
             if (tabName === 'notes') loadNotesView();
+            if (tabName === 'store-info') loadStoreInfo();
 
             document.querySelectorAll('.nav-btn').forEach(btn => {
                 const isTarget = btn.getAttribute('data-target') === targetId;
@@ -4953,6 +5191,205 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             }
         }
 
+        // --- Store Info ---
+        let storeInfoCache = {};
+        let allStoreInfo = [];
+        let currentStoreInfoNumber = null;
+        let storeInfoEditMode = false;
+
+        async function loadStoreInfo() {
+            const picker = document.getElementById('store-info-picker');
+            try {
+                const response = await fetch('/api/store-info');
+                if (!response.ok) throw new Error('Failed to load store info');
+                allStoreInfo = await response.json();
+
+                // Populate dropdown grouped by market
+                const stores = getMarketStores();
+                const market399 = MARKET_STORES['399'] || [];
+                const market451 = MARKET_STORES['451'] || [];
+
+                let html = '<option value="">Select a store...</option>';
+                if (currentMarket === 'all' || currentMarket === '399') {
+                    html += '<optgroup label="Market 399">';
+                    market399.forEach(s => {
+                        const info = allStoreInfo.find(si => si.store_number === s);
+                        const label = info && info.city ? `Store #${s} - ${info.city}, ${info.state || ''}` : `Store #${s}`;
+                        html += `<option value="${s}"${s === currentStoreInfoNumber ? ' selected' : ''}>${label}</option>`;
+                    });
+                    html += '</optgroup>';
+                }
+                if (currentMarket === 'all' || currentMarket === '451') {
+                    html += '<optgroup label="Market 451">';
+                    market451.forEach(s => {
+                        const info = allStoreInfo.find(si => si.store_number === s);
+                        const label = info && info.city ? `Store #${s} - ${info.city}, ${info.state || ''}` : `Store #${s}`;
+                        html += `<option value="${s}"${s === currentStoreInfoNumber ? ' selected' : ''}>${label}</option>`;
+                    });
+                    html += '</optgroup>';
+                }
+                picker.innerHTML = html;
+
+                // Auto-select last viewed store or first store
+                if (currentStoreInfoNumber) {
+                    picker.value = currentStoreInfoNumber;
+                    loadStoreInfoDetail(currentStoreInfoNumber);
+                }
+            } catch (e) {
+                console.error('Error loading store info:', e);
+            }
+        }
+
+        async function loadStoreInfoDetail(storeNumber) {
+            if (!storeNumber) {
+                document.getElementById('store-info-hero').classList.add('hidden');
+                document.getElementById('store-info-details').classList.add('hidden');
+                document.getElementById('store-info-edit-form').classList.add('hidden');
+                document.getElementById('store-info-empty').classList.remove('hidden');
+                return;
+            }
+
+            currentStoreInfoNumber = storeNumber;
+
+            // Check cache first
+            if (storeInfoCache[storeNumber]) {
+                renderStoreInfo(storeInfoCache[storeNumber]);
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/store-info/${storeNumber}`);
+                if (!response.ok) throw new Error('Failed to load store detail');
+                const store = await response.json();
+                storeInfoCache[storeNumber] = store;
+                renderStoreInfo(store);
+            } catch (e) {
+                console.error('Error loading store detail:', e);
+            }
+        }
+
+        function renderStoreInfo(store) {
+            document.getElementById('store-info-empty').classList.add('hidden');
+            document.getElementById('store-info-edit-form').classList.add('hidden');
+            document.getElementById('store-info-hero').classList.remove('hidden');
+            document.getElementById('store-info-details').classList.remove('hidden');
+
+            // Hero banner
+            document.getElementById('store-info-format').textContent = store.store_format || 'Supercenter';
+            document.getElementById('store-info-number').textContent = `Store #${store.store_number}`;
+
+            const locationSpan = document.querySelector('#store-info-location span');
+            if (store.city && store.state) {
+                locationSpan.textContent = `${store.city}, ${store.state}`;
+            } else if (store.city) {
+                locationSpan.textContent = store.city;
+            } else {
+                locationSpan.textContent = 'Location not set';
+            }
+
+            document.getElementById('store-info-sales').textContent = store.sales_volume || 'Not set';
+
+            // Detail cards
+            document.getElementById('store-info-building-size').textContent = store.building_size || '--';
+            document.getElementById('store-info-operating-income').textContent = store.operating_income || '--';
+            document.getElementById('store-info-manager').textContent = store.store_manager || '--';
+
+            // Format dates nicely
+            const formatDate = (dateStr) => {
+                if (!dateStr) return '--';
+                const d = new Date(dateStr + 'T00:00:00');
+                return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            };
+
+            document.getElementById('store-info-date-opened').textContent = formatDate(store.date_opened);
+            document.getElementById('store-info-last-remodel').textContent = formatDate(store.last_remodel);
+            document.getElementById('store-info-last-visit').textContent = formatDate(store.last_visit_date);
+
+            // Notes
+            const notesDisplay = document.getElementById('store-info-notes-display');
+            notesDisplay.textContent = store.notes || 'No notes yet';
+            if (!store.notes) {
+                notesDisplay.classList.add('italic', 'text-gray-400');
+            } else {
+                notesDisplay.classList.remove('italic', 'text-gray-400');
+            }
+        }
+
+        function editStoreInfo() {
+            const store = storeInfoCache[currentStoreInfoNumber];
+            if (!store) return;
+
+            // Hide display, show edit form
+            document.getElementById('store-info-hero').classList.add('hidden');
+            document.getElementById('store-info-details').classList.add('hidden');
+            document.getElementById('store-info-edit-form').classList.remove('hidden');
+
+            // Populate form fields
+            document.getElementById('edit-store-city').value = store.city || '';
+            document.getElementById('edit-store-state').value = store.state || '';
+            document.getElementById('edit-store-format').value = store.store_format || 'Supercenter';
+            document.getElementById('edit-store-sales').value = store.sales_volume || '';
+            document.getElementById('edit-store-income').value = store.operating_income || '';
+            document.getElementById('edit-store-building').value = store.building_size || '';
+            document.getElementById('edit-store-opened').value = store.date_opened || '';
+            document.getElementById('edit-store-remodel').value = store.last_remodel || '';
+            document.getElementById('edit-store-manager').value = store.store_manager || '';
+            document.getElementById('edit-store-notes').value = store.notes || '';
+
+            storeInfoEditMode = true;
+        }
+
+        function cancelStoreInfoEdit() {
+            storeInfoEditMode = false;
+            document.getElementById('store-info-edit-form').classList.add('hidden');
+            const store = storeInfoCache[currentStoreInfoNumber];
+            if (store) renderStoreInfo(store);
+        }
+
+        async function saveStoreInfo() {
+            if (!currentStoreInfoNumber) return;
+
+            const data = {
+                city: document.getElementById('edit-store-city').value.trim(),
+                state: document.getElementById('edit-store-state').value.trim().toUpperCase(),
+                store_format: document.getElementById('edit-store-format').value.trim(),
+                sales_volume: document.getElementById('edit-store-sales').value.trim(),
+                operating_income: document.getElementById('edit-store-income').value.trim(),
+                building_size: document.getElementById('edit-store-building').value.trim(),
+                date_opened: document.getElementById('edit-store-opened').value || null,
+                last_remodel: document.getElementById('edit-store-remodel').value || null,
+                store_manager: document.getElementById('edit-store-manager').value.trim(),
+                notes: document.getElementById('edit-store-notes').value.trim()
+            };
+
+            try {
+                const response = await fetch(`/api/store-info/${currentStoreInfoNumber}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (!response.ok) throw new Error('Failed to save');
+                const result = await response.json();
+
+                // Update cache with fresh data (preserve last_visit_date from old cache)
+                const oldCache = storeInfoCache[currentStoreInfoNumber];
+                storeInfoCache[currentStoreInfoNumber] = {
+                    ...result.store,
+                    last_visit_date: oldCache ? oldCache.last_visit_date : null
+                };
+
+                storeInfoEditMode = false;
+                renderStoreInfo(storeInfoCache[currentStoreInfoNumber]);
+
+                // Also update the dropdown label if city changed
+                loadStoreInfo();
+            } catch (e) {
+                console.error('Error saving store info:', e);
+                alert('Failed to save store info');
+            }
+        }
+
         // --- Enablers ---
         let allEnablers = [];
         let editingEnablerId = null;
@@ -5529,8 +5966,11 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
         // --- Issues/Feedback ---
         let allIssues = [];
         let currentIssueFilter = 'all';
+        let currentIssueSearch = '';
+        let currentIssueSort = 'priority';
         let issuesCompletedExpanded = false;
         let selectedFeedbackType = null;
+        let selectedFeedbackPriority = 'medium';
 
         async function loadIssues() {
             const listEl = document.getElementById('issues-list');
@@ -5547,6 +5987,16 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             }
         }
 
+        function handleIssueSearch(value) {
+            currentIssueSearch = value.toLowerCase().trim();
+            renderIssues();
+        }
+
+        function handleIssueSort(value) {
+            currentIssueSort = value;
+            renderIssues();
+        }
+
         function renderIssues() {
             const listEl = document.getElementById('issues-list');
             const emptyEl = document.getElementById('issues-empty');
@@ -5554,38 +6004,74 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             const completedContainer = document.getElementById('issues-completed-container');
             const completedCount = document.getElementById('issues-completed-count');
 
-            // Filter issues
+            // Update stats bar (always from unfiltered data)
+            const totalNew = allIssues.filter(i => i.status === 'new').length;
+            const totalWip = allIssues.filter(i => i.status === 'in_progress').length;
+            const totalStalled = allIssues.filter(i => i.status === 'stalled').length;
+            document.getElementById('issues-stat-total').textContent = allIssues.length;
+            document.getElementById('issues-stat-new').textContent = totalNew;
+            document.getElementById('issues-stat-wip').textContent = totalWip;
+            document.getElementById('issues-stat-stalled').textContent = totalStalled;
+
+            // Filter by type
             let filteredIssues = allIssues;
             if (currentIssueFilter !== 'all') {
-                filteredIssues = allIssues.filter(i => i.type === currentIssueFilter);
+                filteredIssues = filteredIssues.filter(i => i.type === currentIssueFilter);
             }
 
-            // Separate active and completed
-            const completedIssues = filteredIssues.filter(i => i.status === 'completed');
-            
-            // Group active issues
-            const newIssues = filteredIssues.filter(i => i.status === 'new');
-            const inProgressIssues = filteredIssues.filter(i => i.status === 'in_progress');
-            const stalledIssues = filteredIssues.filter(i => i.status === 'stalled');
-            
+            // Filter by search
+            if (currentIssueSearch) {
+                filteredIssues = filteredIssues.filter(i =>
+                    i.title.toLowerCase().includes(currentIssueSearch) ||
+                    (i.description && i.description.toLowerCase().includes(currentIssueSearch))
+                );
+            }
+
+            // Sort function
+            const sortIssues = (issues) => {
+                const sorted = [...issues];
+                switch (currentIssueSort) {
+                    case 'priority':
+                        const pOrder = { high: 1, medium: 2, low: 3 };
+                        sorted.sort((a, b) => (pOrder[a.priority] || 2) - (pOrder[b.priority] || 2) || new Date(b.created_at) - new Date(a.created_at));
+                        break;
+                    case 'newest':
+                        sorted.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                        break;
+                    case 'oldest':
+                        sorted.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+                        break;
+                    case 'alpha':
+                        sorted.sort((a, b) => a.title.localeCompare(b.title));
+                        break;
+                }
+                return sorted;
+            };
+
+            // Separate and sort
+            const completedIssues = sortIssues(filteredIssues.filter(i => i.status === 'completed'));
+            const newIssues = sortIssues(filteredIssues.filter(i => i.status === 'new'));
+            const inProgressIssues = sortIssues(filteredIssues.filter(i => i.status === 'in_progress'));
+            const stalledIssues = sortIssues(filteredIssues.filter(i => i.status === 'stalled'));
+
             const totalActive = newIssues.length + inProgressIssues.length + stalledIssues.length;
 
-            // Handle Empty State (Active & Completed)
+            // Handle empty state
             if (totalActive === 0 && completedIssues.length === 0) {
                 listEl.innerHTML = '';
                 emptyEl.classList.remove('hidden');
                 completedSection.classList.add('hidden');
                 return;
             }
-            
+
             emptyEl.classList.add('hidden');
-            
+
             // Render active groups
             if (totalActive === 0) {
-                listEl.innerHTML = '<div class="text-center py-8 text-gray-500">No active issues</div>';
+                listEl.innerHTML = '<div class="text-center py-8 text-gray-500">No matching issues</div>';
             } else {
                 let contentHtml = '';
-                
+
                 const renderGroup = (title, issues, dotColor) => {
                     if (issues.length === 0) return '';
                     return `
@@ -5607,7 +6093,7 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                 contentHtml += renderGroup('New', newIssues, 'bg-blue-500');
                 contentHtml += renderGroup('In Progress', inProgressIssues, 'bg-yellow-500');
                 contentHtml += renderGroup('Stalled', stalledIssues, 'bg-red-500');
-                
+
                 listEl.innerHTML = contentHtml;
             }
 
@@ -5628,6 +6114,12 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                 feedback: '<i class="fas fa-comment text-walmart-blue"></i>'
             };
 
+            const priorityConfig = {
+                high:   { dot: 'bg-red-500',    badge: 'bg-red-100 text-red-800',       label: 'HIGH',  border: 'border-red-500' },
+                medium: { dot: 'bg-yellow-500',  badge: 'bg-yellow-100 text-yellow-800', label: 'MED',   border: 'border-yellow-500' },
+                low:    { dot: 'bg-green-500',   badge: 'bg-green-100 text-green-800',   label: 'LOW',   border: 'border-green-500' }
+            };
+
             const statusColors = {
                 new: 'bg-blue-100 text-blue-800',
                 in_progress: 'bg-yellow-100 text-yellow-800',
@@ -5635,38 +6127,38 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                 completed: 'bg-green-100 text-green-800'
             };
 
-            const statusLabels = {
-                new: 'New',
-                in_progress: 'In Progress',
-                stalled: 'Stalled',
-                completed: 'Completed'
-            };
-
-            const date = issue.created_at ? new Date(issue.created_at).toLocaleDateString() : '';
+            const priority = priorityConfig[issue.priority] || priorityConfig.medium;
+            const date = issue.created_at ? new Date(issue.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+            const descPreview = issue.description
+                ? escapeHtml(issue.description.length > 80 ? issue.description.substring(0, 80) + '...' : issue.description)
+                : '<span class="italic text-gray-400">No description</span>';
+            const borderClass = isCompleted ? 'border-gray-300' : priority.border;
 
             return `
-                <div class="bg-white rounded-xl shadow-sm p-4 ${isCompleted ? 'opacity-60' : ''} cursor-pointer hover:bg-gray-50 transition-colors" onclick="openEditIssueModal(${issue.id})">
-                    <div class="flex items-start justify-between mb-2">
+                <div class="bg-white rounded-xl shadow-sm p-4 border-l-4 ${borderClass} ${isCompleted ? 'opacity-60' : ''} cursor-pointer hover:bg-gray-50 transition-colors" onclick="openEditIssueModal(${issue.id})">
+                    <div class="flex items-center justify-between mb-1.5">
                         <div class="flex items-center gap-2">
+                            <span class="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full ${priority.badge}">
+                                <span class="w-1.5 h-1.5 rounded-full ${priority.dot}"></span>
+                                ${priority.label}
+                            </span>
                             ${typeIcons[issue.type] || ''}
-                            <span class="font-medium text-gray-900 ${isCompleted ? 'line-through' : ''}">${escapeHtml(issue.title)}</span>
                         </div>
-                        <div class="flex items-center gap-2" onclick="event.stopPropagation()">
-                            <select onchange="updateIssueStatus(${issue.id}, this.value)" class="text-xs border rounded px-2 py-1 ${statusColors[issue.status]}">
+                        <div class="flex items-center gap-1" onclick="event.stopPropagation()">
+                            <select onchange="updateIssueStatus(${issue.id}, this.value)"
+                                    class="text-xs border rounded px-2 py-1 ${statusColors[issue.status]}">
                                 <option value="new" ${issue.status === 'new' ? 'selected' : ''}>New</option>
                                 <option value="in_progress" ${issue.status === 'in_progress' ? 'selected' : ''}>In Progress</option>
                                 <option value="stalled" ${issue.status === 'stalled' ? 'selected' : ''}>Stalled</option>
                                 <option value="completed" ${issue.status === 'completed' ? 'selected' : ''}>Completed</option>
                             </select>
-                            <button onclick="openEditIssueModal(${issue.id})" class="text-gray-400 hover:text-walmart-blue p-1" title="Edit">
-                                <i class="fas fa-edit text-sm"></i>
-                            </button>
                             <button onclick="deleteIssue(${issue.id})" class="text-gray-400 hover:text-red-500 p-1" title="Delete">
                                 <i class="fas fa-trash text-sm"></i>
                             </button>
                         </div>
                     </div>
-                    ${issue.description ? `<p class="text-sm text-gray-600 mb-2">${escapeHtml(issue.description)}</p>` : ''}
+                    <p class="font-medium text-gray-900 ${isCompleted ? 'line-through' : ''} mb-1">${escapeHtml(issue.title)}</p>
+                    <p class="text-sm text-gray-500 mb-1.5">${descPreview}</p>
                     <div class="text-xs text-gray-400">${date}</div>
                 </div>
             `;
@@ -5744,6 +6236,7 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
 
         // --- Edit Issue Modal ---
         let selectedEditIssueType = null;
+        let selectedEditIssuePriority = null;
 
         function openEditIssueModal(id) {
             const issue = allIssues.find(i => i.id === id);
@@ -5765,6 +6258,18 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                 selectedBtn.classList.add('border-walmart-blue', 'bg-blue-50');
             }
 
+            // Reset and select the current priority
+            selectedEditIssuePriority = issue.priority || 'medium';
+            document.querySelectorAll('.edit-issue-priority-btn').forEach(btn => {
+                btn.classList.remove('border-walmart-blue', 'bg-blue-50');
+                btn.classList.add('border-gray-200');
+            });
+            const selectedPriorityBtn = document.getElementById(`edit-priority-${selectedEditIssuePriority}`);
+            if (selectedPriorityBtn) {
+                selectedPriorityBtn.classList.remove('border-gray-200');
+                selectedPriorityBtn.classList.add('border-walmart-blue', 'bg-blue-50');
+            }
+
             document.getElementById('edit-issue-modal').classList.remove('hidden');
         }
 
@@ -5779,6 +6284,19 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                 btn.classList.add('border-gray-200');
             });
             const selectedBtn = document.getElementById(`edit-type-${type}`);
+            if (selectedBtn) {
+                selectedBtn.classList.remove('border-gray-200');
+                selectedBtn.classList.add('border-walmart-blue', 'bg-blue-50');
+            }
+        }
+
+        function selectEditIssuePriority(priority) {
+            selectedEditIssuePriority = priority;
+            document.querySelectorAll('.edit-issue-priority-btn').forEach(btn => {
+                btn.classList.remove('border-walmart-blue', 'bg-blue-50');
+                btn.classList.add('border-gray-200');
+            });
+            const selectedBtn = document.getElementById(`edit-priority-${priority}`);
             if (selectedBtn) {
                 selectedBtn.classList.remove('border-gray-200');
                 selectedBtn.classList.add('border-walmart-blue', 'bg-blue-50');
@@ -5807,7 +6325,8 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                     body: JSON.stringify({
                         title,
                         description,
-                        type: selectedEditIssueType
+                        type: selectedEditIssueType,
+                        priority: selectedEditIssuePriority
                     })
                 });
 
@@ -5819,6 +6338,7 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                     issue.title = title;
                     issue.description = description;
                     issue.type = selectedEditIssueType;
+                    issue.priority = selectedEditIssuePriority;
                 }
 
                 closeEditIssueModal();
@@ -5837,13 +6357,34 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
         // --- Feedback Modal ---
         function openFeedbackModal() {
             selectedFeedbackType = null;
+            selectedFeedbackPriority = 'medium';
             document.getElementById('feedback-title').value = '';
             document.getElementById('feedback-description').value = '';
             document.querySelectorAll('.feedback-type-btn').forEach(btn => {
                 btn.classList.remove('border-walmart-blue', 'bg-blue-50');
                 btn.classList.add('border-gray-200');
             });
+            // Reset priority buttons, pre-select medium
+            document.querySelectorAll('.feedback-priority-btn').forEach(btn => {
+                btn.classList.remove('border-walmart-blue', 'bg-blue-50');
+                btn.classList.add('border-gray-200');
+            });
+            document.getElementById('priority-medium').classList.remove('border-gray-200');
+            document.getElementById('priority-medium').classList.add('border-walmart-blue', 'bg-blue-50');
             document.getElementById('feedback-modal').classList.remove('hidden');
+        }
+
+        function selectFeedbackPriority(priority) {
+            selectedFeedbackPriority = priority;
+            document.querySelectorAll('.feedback-priority-btn').forEach(btn => {
+                btn.classList.remove('border-walmart-blue', 'bg-blue-50');
+                btn.classList.add('border-gray-200');
+            });
+            const selectedBtn = document.getElementById(`priority-${priority}`);
+            if (selectedBtn) {
+                selectedBtn.classList.remove('border-gray-200');
+                selectedBtn.classList.add('border-walmart-blue', 'bg-blue-50');
+            }
         }
 
         function closeFeedbackModal() {
@@ -5884,7 +6425,8 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                     body: JSON.stringify({
                         type: selectedFeedbackType,
                         title: title,
-                        description: description
+                        description: description,
+                        priority: selectedFeedbackPriority
                     })
                 });
 
