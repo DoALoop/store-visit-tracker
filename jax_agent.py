@@ -243,7 +243,7 @@ class JaxAIOrchestrator:
 
     def _handle_insight_by_name(self, name: str, insight: str) -> dict:
         """Look up a contact by name and log the insight, or ask for their details."""
-        from tools.team import get_contacts, log_associate_insight, create_contact
+        from tools.team import get_contacts, log_associate_insight
         import json as _json
 
         # Search for the contact by name
