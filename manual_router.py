@@ -43,6 +43,29 @@ class ManualRouter:
         rating_filter = self._extract_rating(message_lower)
         status_filter = self._extract_status(message_lower)
 
+    # ============ ⚠️ RULE #1 — HIGHEST PRIORITY: ASSOCIATE INSIGHT DETECTION ============
+        # Check BEFORE any other routing. Conversational phrases about interacting with someone
+        # should ALWAYS be treated as associate insight logging, never as a store visit query.
+        insight_trigger_patterns = [
+            r'i\s+(?:talked|spoke|chatted|met|visited|caught up)\s+(?:to|with)\s+(\w+)',
+            r'i\s+spent\s+(?:some\s+)?time\s+with\s+(\w+)',
+            r'i\s+(?:ran|bumped)\s+into\s+(\w+)',
+            r'i\s+was\s+with\s+(\w+)',
+            r'i\s+had\s+a\s+(?:call|chat|meeting|conversation)\s+with\s+(\w+)',
+            r'(\w+)\s+(?:told|said|mentioned|shared|informed)\s+(?:me|us)',
+            r'(\w+)\s+said\s+that',
+            r'caught\s+up\s+with\s+(\w+)',
+            r'had\s+a\s+conversation\s+with\s+(\w+)',
+        ]
+        for pattern in insight_trigger_patterns:
+            m = re.search(pattern, message_lower)
+            if m:
+                person_name = m.group(1).strip()
+                # Skip common words that aren't names
+                skip_words = {'a', 'the', 'my', 'our', 'his', 'her', 'their', 'me', 'us', 'him', 'them', 'store', 'him', 'her'}
+                if person_name not in skip_words:
+                    return 'log_associate_insight_by_name', {'name': person_name, 'insight': message}
+
         # ============ ACTION ROUTING (check first - more specific) ============
 
         # Gold star completion actions

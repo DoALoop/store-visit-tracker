@@ -213,6 +213,10 @@ class JaxAIOrchestrator:
         tool_name, kwargs = self.manual_router.route(message)
         logger.info(f"Manual router selected: {tool_name} with {kwargs}")
 
+        # ---- Special handler: Associate Insight by Name ----
+        if tool_name == 'log_associate_insight_by_name':
+            return self._handle_insight_by_name(kwargs.get('name', ''), kwargs.get('insight', message))
+
         # Execute tool
         tool_func = TOOL_FUNCTIONS.get(tool_name)
         if not tool_func:
@@ -236,6 +240,50 @@ class JaxAIOrchestrator:
         # Ultimate fallback: template formatting
         formatted = self._format_fallback(tool_name, tool_data)
         return {"response": formatted, "source": "formatted_fallback"}
+
+    def _handle_insight_by_name(self, name: str, insight: str) -> dict:
+        """Look up a contact by name and log the insight, or ask for their details."""
+        from tools.team import get_contacts, log_associate_insight, create_contact
+        import json as _json
+
+        # Search for the contact by name
+        try:
+            results_raw = get_contacts(search_term=name)
+            contacts = _json.loads(results_raw)
+        except Exception as e:
+            return {"response": f"I had trouble searching your contacts: {e}", "source": "error"}
+
+        if contacts and not isinstance(contacts, dict):
+            # Found matches — use the best one
+            contact = contacts[0]
+            contact_id = contact.get('id')
+            contact_name = contact.get('name', name)
+            try:
+                log_associate_insight(contact_id=contact_id, insight=insight)
+                return {
+                    "response": (
+                        f"✓ Got it! I've logged that **{contact_name}** said:\n\n"
+                        f"> {insight}\n\n"
+                        f"This will now appear in their profile under Recent Insights on the Contacts page."
+                    ),
+                    "source": "insight_logged"
+                }
+            except Exception as e:
+                return {"response": f"I found {contact_name} in your contacts but couldn't log the insight: {e}", "source": "error"}
+        else:
+            # Contact not found — ask for their details
+            return {
+                "response": (
+                    f"I don't have **{name.title()}** in your contacts yet. Before I can save this insight, "
+                    f"I need a little more info:\n\n"
+                    f"1. **Full name** (first and last)\n"
+                    f"2. **Position / title** (e.g., Store Manager, Market Lead)\n"
+                    f"3. **Store number**\n\n"
+                    f"Once you give me those, I'll add them to your contacts and log this right away! 🐾"
+                ),
+                "source": "insight_needs_contact"
+            }
+
 
     def _format_with_llm(self, message: str, data: dict) -> str:
         """Format tool results using LLM"""
