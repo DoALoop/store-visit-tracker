@@ -190,7 +190,22 @@ class JaxAIOrchestrator:
         Returns:
             Dict with 'response' and 'source' keys
         """
-        # Try ADK agent first if available
+        # ⚠️ HIGH-PRIORITY PRE-CHECK: Always intercept insight triggers and contact descriptions
+        # BEFORE the ADK agent, which has no conversation context and will misroute these.
+        pre_check_tool, pre_check_kwargs = self.manual_router.route(message)
+        if pre_check_tool == 'log_associate_insight_by_name':
+            return self._handle_insight_by_name(
+                pre_check_kwargs.get('name', ''),
+                pre_check_kwargs.get('insight', message)
+            )
+        if pre_check_tool == 'create_contact_from_description':
+            return self._handle_create_contact_from_description(
+                pre_check_kwargs.get('name', ''),
+                pre_check_kwargs.get('title', ''),
+                pre_check_kwargs.get('store_number', '')
+            )
+
+        # Try ADK agent first if available (for all other message types)
         if self.adk_agent and self.llm_provider.is_available():
             try:
                 result = self._invoke_adk_agent(message)
@@ -200,6 +215,7 @@ class JaxAIOrchestrator:
 
         # Fallback to manual routing + LLM formatting
         return self._fallback_response(message)
+
 
     def _invoke_adk_agent(self, message: str) -> str:
         """Invoke ADK agent to handle message"""
