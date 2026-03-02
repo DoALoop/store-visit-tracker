@@ -5484,5 +5484,42 @@ def upsert_store_info(store_number):
         release_db_connection(conn)
 
 
+# --- Explicit API Migration Endpoint ---
+@app.route('/api/migrate', methods=['POST'])
+def run_migrations():
+    """Manually trigger all DB table migrations. Safe to call multiple times."""
+    results = {}
+    try:
+        ensure_contacts_table()
+        results['contacts_table'] = 'ok'
+    except Exception as e:
+        results['contacts_table'] = str(e)
+
+    try:
+        ensure_associate_insights_table()
+        results['associate_insights_table'] = 'ok'
+    except Exception as e:
+        results['associate_insights_table'] = str(e)
+
+    try:
+        ensure_store_info_table()
+        results['store_info_table'] = 'ok'
+    except Exception as e:
+        results['store_info_table'] = str(e)
+
+    return jsonify({"success": True, "results": results})
+
+
+# --- Application Startup ---
+# Eagerly run table migrations so the DB schema is always up-to-date on startup
+with app.app_context():
+    try:
+        ensure_contacts_table()
+        ensure_associate_insights_table()
+        print("DB migrations completed at startup.")
+    except Exception as e:
+        print(f"Warning: startup DB migration failed: {e}")
+
+
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
