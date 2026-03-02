@@ -5,6 +5,7 @@ Coordinates ADK agent with manual fallback routing.
 
 import json
 import logging
+import uuid
 from typing import Optional
 
 from llm_provider import LLMProvider, create_provider
@@ -13,6 +14,10 @@ from tools import ALL_TOOLS
 from tools.db import set_db_pool
 
 logger = logging.getLogger(__name__)
+
+# Constants for ADK session management
+USER_ID = "district_manager"  # Single-user app
+APP_NAME = "jax_store_tracker"
 
 # System prompt for JaxAI
 SYSTEM_PROMPT = """You are Jax, a helpful assistant for analyzing store visit data for a Walmart retail district manager.
@@ -153,6 +158,9 @@ class JaxAIOrchestrator:
         self.manual_router = ManualRouter()
         self.adk_agent = None
 
+        # Conversation state: pending insight waiting for contact details
+        self._pending_insight = None  # {'name': str, 'insight': str}
+
         # Set db pool for tools
         if db_pool:
             set_db_pool(db_pool)
@@ -161,9 +169,11 @@ class JaxAIOrchestrator:
         self._init_adk_agent()
 
     def _init_adk_agent(self):
-        """Initialize ADK agent if available"""
+        """Initialize ADK agent with Runner for session-based conversation memory"""
         try:
             from google.adk.agents import Agent
+            from google.adk.runners import Runner
+            from google.adk.sessions.in_memory_session_service import InMemorySessionService
 
             self.adk_agent = Agent(
                 model=self.llm_provider.get_model_string(),
@@ -172,43 +182,76 @@ class JaxAIOrchestrator:
                 instruction=SYSTEM_PROMPT,
                 tools=ALL_TOOLS
             )
-            logger.info("ADK agent initialized successfully")
+
+            # Session service stores conversation history in memory
+            self.session_service = InMemorySessionService()
+
+            # Runner wraps the agent with session management
+            self.runner = Runner(
+                agent=self.adk_agent,
+                app_name=APP_NAME,
+                session_service=self.session_service,
+                auto_create_session=True,
+            )
+
+            logger.info("ADK agent + Runner initialized successfully")
         except ImportError:
             logger.warning("ADK not available, using fallback only")
             self.adk_agent = None
+            self.runner = None
+            self.session_service = None
         except Exception as e:
             logger.error(f"Failed to initialize ADK agent: {e}")
             self.adk_agent = None
+            self.runner = None
+            self.session_service = None
 
-    def process_message(self, message: str) -> dict:
+    def process_message(self, message: str, session_id: str = None) -> dict:
         """
         Process a chat message and return response.
 
         Args:
             message: User's question/message
+            session_id: Optional session ID for conversation continuity.
+                        If None, a transient one-off session is created.
 
         Returns:
             Dict with 'response' and 'source' keys
         """
+        # Generate a transient session_id if none provided (backward compat)
+        session_id = session_id or f"transient-{uuid.uuid4()}"
+
+        # ⚠️ HIGHEST PRIORITY: If we're waiting for contact details to complete an insight log,
+        # treat the incoming message as contact info, NOT a new query.
+        if self._pending_insight:
+            result = self._handle_pending_insight_followup(message)
+            if result:
+                self._inject_into_session_history(session_id, message, result.get('response', ''))
+                return result
+
         # ⚠️ HIGH-PRIORITY PRE-CHECK: Always intercept insight triggers and contact descriptions
         # BEFORE the ADK agent, which has no conversation context and will misroute these.
         pre_check_tool, pre_check_kwargs = self.manual_router.route(message)
         if pre_check_tool == 'log_associate_insight_by_name':
-            return self._handle_insight_by_name(
+            result = self._handle_insight_by_name(
                 pre_check_kwargs.get('name', ''),
                 pre_check_kwargs.get('insight', message)
             )
+            self._inject_into_session_history(session_id, message, result.get('response', ''))
+            return result
         if pre_check_tool == 'create_contact_from_description':
-            return self._handle_create_contact_from_description(
+            result = self._handle_create_contact_from_description(
                 pre_check_kwargs.get('name', ''),
                 pre_check_kwargs.get('title', ''),
                 pre_check_kwargs.get('store_number', '')
             )
+            self._inject_into_session_history(session_id, message, result.get('response', ''))
+            return result
 
         # Try ADK agent first if available (for all other message types)
-        if self.adk_agent and self.llm_provider.is_available():
+        if self.runner and self.llm_provider.is_available():
             try:
-                result = self._invoke_adk_agent(message)
+                result = self._invoke_adk_agent(message, session_id)
                 return {"response": result, "source": "adk_agent"}
             except Exception as e:
                 logger.warning(f"ADK agent failed, falling back: {e}")
@@ -217,11 +260,77 @@ class JaxAIOrchestrator:
         return self._fallback_response(message)
 
 
-    def _invoke_adk_agent(self, message: str) -> str:
-        """Invoke ADK agent to handle message"""
-        # ADK agent handles tool selection and response generation
-        response = self.adk_agent.run(message)
-        return response.text if hasattr(response, 'text') else str(response)
+    def _invoke_adk_agent(self, message: str, session_id: str) -> str:
+        """Invoke ADK agent via Runner with session-based conversation memory.
+
+        Runner.run() is synchronous — it internally manages an async event loop
+        in a background thread. Each call with the same session_id automatically
+        includes all prior conversation history.
+        """
+        from google.genai import types
+
+        new_message = types.Content(
+            role="user",
+            parts=[types.Part(text=message)]
+        )
+
+        final_text = ""
+        for event in self.runner.run(
+            user_id=USER_ID,
+            session_id=session_id,
+            new_message=new_message,
+        ):
+            if event.is_final_response() and event.content and event.content.parts:
+                for part in event.content.parts:
+                    if part.text:
+                        final_text += part.text
+
+        if not final_text:
+            raise RuntimeError("ADK agent returned no text response")
+
+        return final_text
+
+    def _inject_into_session_history(self, session_id: str, user_message: str, assistant_response: str):
+        """Inject a pre-check exchange into the ADK session history.
+
+        When messages are handled by pre-checks (insight triggers, contact creation),
+        they bypass the Runner. This injects synthetic events so the ADK agent
+        has context about those exchanges in future turns.
+        """
+        if not self.session_service:
+            return
+
+        try:
+            from google.genai import types
+            from google.adk.events.event import Event
+
+            # Get or create the session using sync internal methods
+            session = self.session_service._get_session_impl(
+                app_name=APP_NAME, user_id=USER_ID, session_id=session_id
+            )
+            if not session:
+                session = self.session_service._create_session_impl(
+                    app_name=APP_NAME, user_id=USER_ID, session_id=session_id
+                )
+
+            # Access the stored session directly (not the copy)
+            stored = self.session_service.sessions.get(APP_NAME, {}).get(USER_ID, {}).get(session_id)
+            if not stored:
+                return
+
+            # Append user message event
+            stored.events.append(Event(
+                author="user",
+                content=types.Content(role="user", parts=[types.Part(text=user_message)]),
+            ))
+
+            # Append assistant response event
+            stored.events.append(Event(
+                author="jax_assistant",
+                content=types.Content(role="model", parts=[types.Part(text=assistant_response)]),
+            ))
+        except Exception as e:
+            logger.warning(f"Failed to inject pre-check into session history: {e}")
 
     def _fallback_response(self, message: str) -> dict:
         """Manual routing fallback when ADK/LLM unavailable"""
@@ -263,10 +372,179 @@ class JaxAIOrchestrator:
         formatted = self._format_fallback(tool_name, tool_data)
         return {"response": formatted, "source": "formatted_fallback"}
 
+    def _handle_pending_insight_followup(self, message: str) -> Optional[dict]:
+        """
+        Handle the follow-up message when we're waiting for contact details
+        to complete a pending insight log.
+
+        Parses flexible formats like:
+          - "Ibrahim Khalaf, Store Manager, Store 1951"
+          - "Ibrahim Khalaf, store manager store 1951"
+          - "Ibrahim Khalaf store manager 1951"
+          - "his name is Ibrahim Khalaf he's the SM at 1951"
+
+        Returns None if the message doesn't look like contact details (user changed topic).
+        """
+        import re
+
+        pending = self._pending_insight
+        msg = message.strip()
+
+        # Try several flexible patterns to extract name, title, and store number
+        patterns = [
+            # "Name, Title, Store XXXX" or "Name, Title, XXXX"
+            r'^([A-Za-z][A-Za-z\s\-\']+?),\s*(.+?),\s*(?:store\s*)?(\d{3,5})\s*$',
+            # "Name, Title store XXXX" (single comma, store number at end)
+            r'^([A-Za-z][A-Za-z\s\-\']+?),\s*(.+?)\s+(?:store\s*)?(\d{3,5})\s*$',
+            # "Name Title store XXXX" (no commas)
+            r'^([A-Za-z]+(?:\s+[A-Za-z]+)?)\s+(.+?)\s+(?:store\s+)(\d{3,5})\s*$',
+            # "Name is a/the Title at/of store XXXX"
+            r'([A-Za-z][A-Za-z\s\-\']+?)\s+is\s+(?:a\s+|the\s+)?(.+?)\s+(?:at|of|for|in)\s+(?:store\s*)?(\d{3,5})',
+        ]
+
+        name = None
+        title = None
+        store_number = None
+
+        for pattern in patterns:
+            m = re.search(pattern, msg, re.IGNORECASE)
+            if m:
+                name = m.group(1).strip()
+                title = m.group(2).strip()
+                store_number = m.group(3).strip()
+                break
+
+        if not name:
+            # Check if the message has a store number at all — if not, user likely changed topic
+            has_store_number = bool(re.search(r'\d{3,5}', msg))
+            if not has_store_number:
+                # Doesn't look like contact details — clear pending state and let normal routing handle it
+                self._pending_insight = None
+                return None
+            # Has a number but didn't match patterns — try a looser parse
+            # Extract store number
+            store_match = re.search(r'(?:store\s*)?(\d{3,5})', msg, re.IGNORECASE)
+            store_number = store_match.group(1) if store_match else None
+            # Remove the store part and try to split what's left into name + title
+            remainder = re.sub(r',?\s*(?:store\s*)?\d{3,5}\s*$', '', msg, flags=re.IGNORECASE).strip()
+            # Try comma split
+            parts = [p.strip() for p in remainder.split(',') if p.strip()]
+            if len(parts) >= 2:
+                name = parts[0]
+                title = parts[1]
+            elif remainder:
+                # Use pending name if we have one, treat remainder as title or full info
+                name = pending.get('name', '').title() if pending else remainder
+                title = remainder if pending and pending.get('name') else 'Associate'
+
+        if not name or not store_number:
+            # Still can't parse — clear pending and let normal routing handle it
+            self._pending_insight = None
+            return None
+
+        # Clean up title (remove trailing "store" if it leaked in)
+        title = re.sub(r'\s+store\s*$', '', title, flags=re.IGNORECASE).strip()
+        if not title:
+            title = 'Associate'
+
+        # We have enough info — create the contact and log the insight
+        insight_text = pending.get('insight', '') if pending else ''
+        self._pending_insight = None  # Clear state
+
+        # Create the contact and get the new contact_id
+        from tools.db import get_db_connection, release_db_connection
+        from psycopg2.extras import RealDictCursor
+        import json as _json
+
+        conn = get_db_connection()
+        if not conn:
+            return {"response": "I couldn't connect to the database to save this contact.", "source": "error"}
+
+        try:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            cursor.execute("""
+                INSERT INTO contacts (name, store_number, title)
+                VALUES (%s, %s, %s)
+                ON CONFLICT DO NOTHING
+                RETURNING id, name, store_number, title
+            """, (name.title(), store_number, title.title()))
+            contact = cursor.fetchone()
+            conn.commit()
+            cursor.close()
+
+            if not contact:
+                # Contact may already exist — look it up
+                cursor = conn.cursor(cursor_factory=RealDictCursor)
+                cursor.execute("SELECT id, name FROM contacts WHERE name ILIKE %s LIMIT 1", (f"%{name}%",))
+                contact = cursor.fetchone()
+                cursor.close()
+
+            release_db_connection(conn)
+        except Exception as e:
+            release_db_connection(conn)
+            logger.error(f"Contact creation failed: {e}")
+            return {"response": f"I had trouble creating the contact: {e}", "source": "error"}
+
+        contact_id = contact.get('id') if contact else None
+        contact_name = contact.get('name', name.title()) if contact else name.title()
+
+        # Now log the insight using the contact_id
+        if insight_text and contact_id:
+            from tools.team import log_associate_insight
+            try:
+                log_associate_insight(contact_id=contact_id, insight=insight_text)
+                return {
+                    "response": (
+                        f"✓ Added **{contact_name}** ({title.title()}, Store {store_number}) to your contacts "
+                        f"and logged the insight:\n\n"
+                        f"> {insight_text}\n\n"
+                        f"All set! 🐾"
+                    ),
+                    "source": "insight_logged_with_contact"
+                }
+            except Exception as e:
+                logger.error(f"Failed to log insight after contact creation: {e}")
+                return {
+                    "response": (
+                        f"✓ Added **{contact_name}** to your contacts, but I had trouble logging the insight: {e}"
+                    ),
+                    "source": "partial_success"
+                }
+
+        return {
+            "response": (
+                f"✓ Added **{contact_name}** ({title.title()}, Store {store_number}) to your contacts! 🐾"
+            ),
+            "source": "contact_created"
+        }
+
+    def _extract_insight_text(self, message: str, name: str) -> str:
+        """Extract the meaningful insight from a trigger message.
+
+        E.g. 'i talked to ibrahim today he said his family is safe'
+          -> 'his family is safe'
+        """
+        import re
+        # Try to extract what comes after "said/mentioned/told me/shared" etc.
+        extract_patterns = [
+            rf'(?:said|mentioned|told\s+me|shared|informed\s+me)\s+(?:that\s+)?(.+)',
+            rf'{re.escape(name)}\s+(.+)',
+        ]
+        for pattern in extract_patterns:
+            m = re.search(pattern, message, re.IGNORECASE)
+            if m:
+                extracted = m.group(1).strip().rstrip('.')
+                if len(extracted) > 5:  # Make sure we got something meaningful
+                    return extracted
+        return message
+
     def _handle_insight_by_name(self, name: str, insight: str) -> dict:
         """Look up a contact by name and log the insight, or ask for their details."""
         from tools.team import get_contacts, log_associate_insight
         import json as _json
+
+        # Extract the meaningful insight text from the full message
+        insight = self._extract_insight_text(insight, name)
 
         # Search for the contact by name
         try:
@@ -282,6 +560,7 @@ class JaxAIOrchestrator:
             contact_name = contact.get('name', name)
             try:
                 log_associate_insight(contact_id=contact_id, insight=insight)
+                self._pending_insight = None  # Clear any pending state
                 return {
                     "response": (
                         f"✓ Got it! I've logged that **{contact_name}** said:\n\n"
@@ -293,7 +572,8 @@ class JaxAIOrchestrator:
             except Exception as e:
                 return {"response": f"I found {contact_name} in your contacts but couldn't log the insight: {e}", "source": "error"}
         else:
-            # Contact not found — ask for their details
+            # Contact not found — save pending state and ask for their details
+            self._pending_insight = {'name': name, 'insight': insight}
             return {
                 "response": (
                     f"I don't have **{name.title()}** in your contacts yet. Before I can save this insight, "
@@ -704,7 +984,7 @@ def get_orchestrator(db_pool=None) -> JaxAIOrchestrator:
     return _orchestrator
 
 
-def process_chat_message(message: str, db_pool=None) -> dict:
+def process_chat_message(message: str, db_pool=None, session_id: str = None) -> dict:
     """Convenience function to process a chat message"""
     orchestrator = get_orchestrator(db_pool)
-    return orchestrator.process_message(message)
+    return orchestrator.process_message(message, session_id=session_id)

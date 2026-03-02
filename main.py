@@ -5056,13 +5056,14 @@ def chat():
     try:
         data = request.get_json()
         message = data.get('message', '').strip()
+        session_id = data.get('session_id')
 
         if not message:
             return jsonify({"error": "Message is required"}), 400
 
-        # Use the new JaxAI orchestrator
+        # Use the JaxAI orchestrator with session support
         from jax_agent import process_chat_message
-        result = process_chat_message(message, db_pool=db_pool)
+        result = process_chat_message(message, db_pool=db_pool, session_id=session_id)
 
         return jsonify(result)
 

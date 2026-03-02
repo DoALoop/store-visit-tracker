@@ -6950,6 +6950,28 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
             return jaxLoadingMessages[Math.floor(Math.random() * jaxLoadingMessages.length)];
         }
 
+        // Session ID for Jax conversation memory — generated once per page load
+        let jaxSessionId = crypto.randomUUID();
+
+        function resetJaxSession() {
+            jaxSessionId = crypto.randomUUID();
+            const messagesDiv = document.getElementById('jax-messages');
+            messagesDiv.innerHTML = `
+                <div class="flex justify-start mb-3">
+                    <div class="bg-gray-200 rounded-lg px-4 py-2 max-w-sm text-sm">
+                        Hey! I'm Jax. I can help you analyze store visits. Try asking:
+                        <ul class="mt-2 ml-4 list-disc text-xs text-gray-600">
+                            <li>"Give me a summary"</li>
+                            <li>"Show visits for store 1234"</li>
+                            <li>"What's the trend for store 5678?"</li>
+                            <li>"Compare stores 1234 and 5678"</li>
+                            <li>"Find stores with overstock issues"</li>
+                        </ul>
+                    </div>
+                </div>
+            `;
+        }
+
         function toggleJax() {
             jaxOpen = !jaxOpen;
             const panel = document.getElementById('jax-panel');
@@ -7007,7 +7029,7 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                 const response = await fetch('/api/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message })
+                    body: JSON.stringify({ message, session_id: jaxSessionId })
                 });
 
                 const data = await response.json();
@@ -7828,11 +7850,16 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                 <i class="fas fa-paw text-lg mr-2 mt-0.5"></i>
                 <span class="font-semibold">Jax</span>
             </div>
-            <button onclick="toggleJax()" class="text-white hover:text-gray-200">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-            </button>
+            <div class="flex items-center space-x-2">
+                <button onclick="resetJaxSession()" class="text-white hover:text-gray-200 text-xs border border-white/30 rounded px-2 py-0.5" title="Start a new conversation">
+                    New Chat
+                </button>
+                <button onclick="toggleJax()" class="text-white hover:text-gray-200">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
         </div>
 
         <!-- Jax Messages -->
