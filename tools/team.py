@@ -171,7 +171,7 @@ def get_contacts(search_term: Optional[str] = None, department: Optional[str] = 
         cursor = conn.cursor(cursor_factory=RealDictCursor)
 
         query = """
-            SELECT id, name, title, department, reports_to, phone, email, notes, created_at
+            SELECT id, name, store_number, title, department, reports_to, phone, email, notes, created_at
             FROM contacts
             WHERE 1=1
         """
@@ -221,19 +221,22 @@ def get_contacts(search_term: Optional[str] = None, department: Optional[str] = 
         release_db_connection(conn)
 
 
-def log_associate_insight(name: str, insight: str, store_number: Optional[str] = None) -> str:
+def log_associate_insight(contact_id: int, insight: str) -> str:
     """
     Log a personal tidbit or conversational insight about a specific associate.
     Use this proactively when the user mentions learning something new about a team member.
+    IMPORTANT: You MUST first use get_contacts or create_contact to get the person's exact contact_id before calling this.
 
     Args:
-        name: The associate's name (e.g., 'Ibrahim')
+        contact_id: The integer ID of the contact from the contacts table. (Required)
         insight: What you learned about them (e.g., 'His family in Iraq is safe')
-        store_number: Optional. The store number they work at, if known.
 
     Returns:
         JSON string indicating success or failure
     """
+    if not str(contact_id).isdigit():
+        return json.dumps({"error": "contact_id must be a valid integer ID"})
+
     conn = get_db_connection()
     if not conn:
         return json.dumps({"error": "Database connection failed"})
@@ -241,17 +244,17 @@ def log_associate_insight(name: str, insight: str, store_number: Optional[str] =
     try:
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO associate_insights (associate_name, store_number, insight_text)
-            VALUES (%s, %s, %s)
+            INSERT INTO associate_insights (contact_id, insight_text)
+            VALUES (%s, %s)
             RETURNING id
-        """, (name, store_number, insight))
+        """, (int(contact_id), insight))
         inserted_id = cursor.fetchone()[0]
         conn.commit()
         cursor.close()
         
         return json.dumps({
             "success": True, 
-            "message": f"Successfully logged insight for {name}.",
+            "message": f"Successfully logged insight for Contact #{contact_id}.",
             "insight_id": inserted_id
         })
     except Exception as e:
@@ -261,19 +264,20 @@ def log_associate_insight(name: str, insight: str, store_number: Optional[str] =
         release_db_connection(conn)
 
 
-def get_associate_insights(name: str) -> str:
+def get_associate_insights(contact_id: int) -> str:
     """
     Retrieve all previously logged personal tidbits and insights about a specific associate.
     Use this when the user asks what we know about someone before visiting their store.
+    IMPORTANT: You MUST first use get_contacts to get the person's exact contact_id before calling this.
 
     Args:
-        name: The associate's name to search for (e.g., 'Ibrahim')
+        contact_id: The integer ID of the contact from the contacts table. (Required)
 
     Returns:
         JSON string containing all logged insights chronologically
     """
-    if not name:
-        return json.dumps({"error": "Associate name is required"})
+    if not str(contact_id).isdigit():
+        return json.dumps({"error": "contact_id must be a valid integer ID"})
         
     conn = get_db_connection()
     if not conn:
@@ -282,11 +286,12 @@ def get_associate_insights(name: str) -> str:
     try:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         cursor.execute("""
-            SELECT id, associate_name, store_number, insight_text, created_at
-            FROM associate_insights
-            WHERE associate_name ILIKE %s
-            ORDER BY created_at DESC
-        """, (f"%{name}%",))
+            SELECT ai.id, ai.contact_id, c.name as associate_name, ai.insight_text, ai.created_at
+            FROM associate_insights ai
+            JOIN contacts c ON ai.contact_id = c.id
+            WHERE ai.contact_id = %s
+            ORDER BY ai.created_at DESC
+        """, (int(contact_id),))
         insights = cursor.fetchall()
         
         for ins in insights:

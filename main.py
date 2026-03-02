@@ -4196,8 +4196,7 @@ def ensure_associate_insights_table():
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS associate_insights (
                 id SERIAL PRIMARY KEY,
-                associate_name VARCHAR(200) NOT NULL,
-                store_number VARCHAR(50),
+                contact_id INTEGER NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
                 insight_text TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -4218,22 +4217,24 @@ def get_associate_insights():
     if not conn:
         return jsonify({"error": "Database connection failed"}), 500
 
-    name_filter = request.args.get('associate_name')
+    contact_filter = request.args.get('contact_id')
     
     try:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
-        if name_filter:
+        if contact_filter:
             cursor.execute("""
-                SELECT id, associate_name, store_number, insight_text, created_at
-                FROM associate_insights
-                WHERE associate_name ILIKE %s
-                ORDER BY created_at DESC
-            """, (f"%{name_filter}%",))
+                SELECT ai.id, ai.contact_id, c.name as associate_name, ai.insight_text, ai.created_at
+                FROM associate_insights ai
+                JOIN contacts c ON ai.contact_id = c.id
+                WHERE ai.contact_id = %s
+                ORDER BY ai.created_at DESC
+            """, (contact_filter,))
         else:
             cursor.execute("""
-                SELECT id, associate_name, store_number, insight_text, created_at
-                FROM associate_insights
-                ORDER BY created_at DESC
+                SELECT ai.id, ai.contact_id, c.name as associate_name, ai.insight_text, ai.created_at
+                FROM associate_insights ai
+                JOIN contacts c ON ai.contact_id = c.id
+                ORDER BY ai.created_at DESC
             """)
         insights = cursor.fetchall()
         cursor.close()
@@ -4256,8 +4257,8 @@ def create_associate_insight():
     """Create a new associate insight snippet"""
     ensure_associate_insights_table()
     data = request.get_json()
-    if not data or not data.get('associate_name') or not data.get('insight_text'):
-        return jsonify({"success": False, "insight": None, "error": "associate_name and insight_text are required"}), 400
+    if not data or not data.get('contact_id') or not data.get('insight_text'):
+        return jsonify({"success": False, "insight": None, "error": "contact_id and insight_text are required"}), 400
 
     conn = get_db_connection()
     if not conn:
@@ -4266,12 +4267,11 @@ def create_associate_insight():
     try:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         cursor.execute("""
-            INSERT INTO associate_insights (associate_name, store_number, insight_text)
-            VALUES (%s, %s, %s)
+            INSERT INTO associate_insights (contact_id, insight_text)
+            VALUES (%s, %s)
             RETURNING *
         """, (
-            data.get('associate_name'),
-            data.get('store_number'),
+            data.get('contact_id'),
             data.get('insight_text')
         ))
         insight = cursor.fetchone()
@@ -4304,6 +4304,7 @@ def ensure_contacts_table():
             CREATE TABLE IF NOT EXISTS contacts (
                 id SERIAL PRIMARY KEY,
                 name VARCHAR(200) NOT NULL,
+                store_number VARCHAR(50),
                 title VARCHAR(200),
                 department VARCHAR(200),
                 reports_to VARCHAR(200),
@@ -4314,6 +4315,13 @@ def ensure_contacts_table():
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        
+        # Add store_number column if it doesn't exist (migration)
+        cursor.execute("""
+            ALTER TABLE contacts 
+            ADD COLUMN IF NOT EXISTS store_number VARCHAR(50)
+        """)
+        
         conn.commit()
         cursor.close()
     except Exception as e:
@@ -4333,7 +4341,7 @@ def get_contacts():
     try:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         cursor.execute("""
-            SELECT id, name, title, department, reports_to, phone, email, notes,
+            SELECT id, name, store_number, title, department, reports_to, phone, email, notes,
                    created_at, updated_at
             FROM contacts
             ORDER BY name ASC
@@ -4372,11 +4380,12 @@ def create_contact():
     try:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         cursor.execute("""
-            INSERT INTO contacts (name, title, department, reports_to, phone, email, notes)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO contacts (name, store_number, title, department, reports_to, phone, email, notes)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING *
         """, (
             data.get('name'),
+            data.get('store_number'),
             data.get('title'),
             data.get('department'),
             data.get('reports_to'),
@@ -4421,7 +4430,7 @@ def update_contact(contact_id):
         # Build update query dynamically
         updates = []
         params = []
-        for field in ['name', 'title', 'department', 'reports_to', 'phone', 'email', 'notes']:
+        for field in ['name', 'store_number', 'title', 'department', 'reports_to', 'phone', 'email', 'notes']:
             if field in data:
                 updates.append(f"{field} = %s")
                 params.append(data[field])

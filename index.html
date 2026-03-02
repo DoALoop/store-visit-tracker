@@ -1598,6 +1598,13 @@
                             placeholder="Contact Name" required>
                     </div>
                     <div>
+                        <label class="text-sm text-gray-600">Store Number <span
+                                class="text-gray-400 text-xs">(optional)</span></label>
+                        <input type="text" id="contact-store"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 mt-1 focus:border-walmart-blue focus:ring-walmart-blue"
+                            placeholder="e.g., 1234">
+                    </div>
+                    <div>
                         <label class="text-sm text-gray-600">Title <span
                                 class="text-gray-400 text-xs">(optional)</span></label>
                         <input type="text" id="contact-title"
@@ -5457,19 +5464,17 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
 
         function renderAssociateInsights(insights) {
             const feedEl = document.getElementById('insights-feed');
-            if (!insights || insights.length === 0) {
+            if (!insights || insights.length === 0 || insights.error) {
                 feedEl.innerHTML = '<div class="text-sm text-gray-500 italic px-1">No insights currently logged.</div>';
                 return;
             }
 
             feedEl.innerHTML = insights.map(i => {
                 const dateRaw = i.created_at ? i.created_at.split('T')[0] : '';
-                const storeBadge = i.store_number ? `<span class="bg-blue-100 text-blue-800 text-[10px] px-2 py-0.5 rounded-full ml-2">Store ${escapeHtml(i.store_number)}</span>` : '';
                 return `
                     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-3 min-w-[240px] max-w-[280px] snap-center shrink-0 hover:shadow-md transition-shadow">
                         <div class="flex items-center justify-between mb-1 text-xs">
-                            <span class="font-bold text-gray-900 truncate flex-1">${escapeHtml(i.associate_name)}</span>
-                            ${storeBadge}
+                            <span class="font-bold text-gray-900 truncate flex-1">${escapeHtml(i.associate_name || 'Associate')}</span>
                         </div>
                         <p class="text-gray-700 text-sm line-clamp-3 leading-snug">${escapeHtml(i.insight_text)}</p>
                         <p class="text-gray-400 text-[10px] mt-2 block">${dateRaw}</p>
@@ -5515,7 +5520,7 @@ Use - [ ] for tasks" class="w-full h-full p-4 resize-none focus:outline-none not
                 <div class="bg-white rounded-xl shadow-sm p-4 hover:shadow-md transition-shadow">
                     <div class="flex justify-between items-start">
                         <div class="flex-1 min-w-0">
-                            <h3 class="font-semibold text-gray-900">${escapeHtml(c.name)}</h3>
+                            <h3 class="font-semibold text-gray-900">${escapeHtml(c.name)} ${c.store_number ? `<span class="bg-blue-100 text-blue-800 text-[10px] px-2 py-0.5 rounded-full ml-1 align-middle">Store ${escapeHtml(c.store_number)}</span>` : ''}</h3>
                             ${c.title ? `<p class="text-sm text-walmart-blue font-medium">${escapeHtml(c.title)}</p>` : ''}
                             ${c.department ? `<p class="text-sm text-gray-600"><i class="fas fa-building mr-1 text-gray-400"></i>${escapeHtml(c.department)}</p>` : ''}
                             ${c.reports_to ? `<p class="text-xs text-gray-500"><i class="fas fa-sitemap mr-1"></i>Reports to: ${escapeHtml(c.reports_to)}</p>` : ''}

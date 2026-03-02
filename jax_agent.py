@@ -46,6 +46,11 @@ You can TAKE ACTIONS on behalf of the user:
 - Add contacts: "add John Smith as meat coach, phone 555-1234"
 - Delete contacts: "remove John Smith from contacts"
 - Log insights/tidbits: "Ibrahim mentioned his family in Iraq is safe" -> use log_associate_insight
+  * **CRITICAL RULE FOR INSIGHTS**: You MUST know the exact `contact_id` to log an insight.
+  * STEP 1: Always use `get_contacts` first to search for the person.
+  * STEP 2: If found, use their `contact_id` to `log_associate_insight`. 
+  * STEP 3: If NOT found, you MUST ask the user politely for their "First and last name, position, and store number". Do NOT create the contact or log the insight until the user provides these details.
+  * STEP 4: Once you have those details, use `create_contact` to make the profile, get the new ID, and then `log_associate_insight`.
 
 **Tasks:**
 - Create tasks: "create task to follow up with store 5678"
