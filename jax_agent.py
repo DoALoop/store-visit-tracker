@@ -27,10 +27,12 @@ You can search and retrieve:
 - Champions (team members) and their responsibilities
 - Mentees in the mentee circle
 - Contacts (people of interest)
+- Contacts (people of interest)
 - Enablers (tips/tricks)
 - Issues and feedback
 - Tasks with priorities and assignments
 - Personal user notes
+- Store information (manager, volume tier, format, location)
 
 === ACTION CAPABILITIES ===
 You can TAKE ACTIONS on behalf of the user:
@@ -245,6 +247,8 @@ Please provide a helpful response based on this data."""
             return self._format_tasks(data)
         elif tool_name == 'search_visits':
             return self._format_visits(data)
+        elif tool_name == 'get_store_information':
+            return self._format_store_info(data)
 
         # Default: pretty JSON
         return f"Here's what I found:\n\n```json\n{json.dumps(data, indent=2)}\n```"
@@ -489,6 +493,39 @@ Recent activity (30d): {data.get('recent_visits_30d', 0)} visits"""
             line = f"• **Store {store}** ({date}) - **{rating}**"
             if v.get('sales_comp_wtd'):
                 line += f" | Comp: {v['sales_comp_wtd']}"
+            lines.append(line)
+        return "\n".join(lines)
+
+    def _format_store_info(self, data: list) -> str:
+        """Format store information list"""
+        if not data:
+            return "No store information found."
+            
+        if len(data) == 1:
+            s = data[0]
+            store = s.get('store_number', 'N/A')
+            city = s.get('city', 'N/A')
+            state = s.get('state', 'N/A')
+            manager = s.get('store_manager', 'N/A')
+            
+            response = f"**Store {store}** ({city}, {state})"
+            if manager and manager != 'N/A':
+                response += f"\nManager: {manager}"
+            if s.get('volume_tier'):
+                response += f"\nVolume Tier: {s['volume_tier']}"
+            if s.get('complex_tier'):
+                response += f"\nComplex Tier: {s['complex_tier']}"
+            return response
+            
+        lines = [f"**{len(data)} Stores Found:**\n"]
+        for s in data:
+            store = s.get('store_number', 'N/A')
+            manager = s.get('store_manager', 'No manager listed')
+            tier = s.get('volume_tier', '')
+            
+            line = f"• **Store {store}** - Manager: {manager}"
+            if tier:
+                line += f" | Vol: {tier}"
             lines.append(line)
         return "\n".join(lines)
 

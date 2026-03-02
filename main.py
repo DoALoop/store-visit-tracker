@@ -8,9 +8,16 @@ load_dotenv(override=True)
 
 import json
 import base64
-import vertexai
-from vertexai.generative_models import GenerativeModel, Part, FinishReason
-import vertexai.preview.generative_models as generative_models
+if os.environ.get("DISABLE_VERTEXAI") != "1":
+    import vertexai
+    from vertexai.generative_models import GenerativeModel, Part, FinishReason
+    import vertexai.preview.generative_models as generative_models
+else:
+    vertexai = None
+    GenerativeModel = None
+    Part = None
+    FinishReason = None
+    generative_models = None
 from flask import Flask, request, jsonify, send_from_directory
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -177,10 +184,14 @@ def get_notes_from_db(cursor, visit_id, note_type):
 
 # Initialize Vertex AI
 try:
-    vertexai.init(project=PROJECT_ID, location=LOCATION)
-    # Load the model - using Gemini 2.5 Flash (better reasoning and vision)
-    model = GenerativeModel("gemini-2.5-flash")
-    print("Successfully connected to Vertex AI.")
+    if os.environ.get("DISABLE_VERTEXAI") != "1":
+        vertexai.init(project=PROJECT_ID, location=LOCATION)
+        # Load the model - using Gemini 2.5 Flash (better reasoning and vision)
+        model = GenerativeModel("gemini-2.5-flash")
+        print("Successfully connected to Vertex AI.")
+    else:
+        print("Vertex AI disabled locally.")
+        model = None
 except Exception as e:
     print(f"Error connecting to Vertex AI: {e}")
     model = None

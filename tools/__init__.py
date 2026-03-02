@@ -8,6 +8,7 @@ from tools.notes import search_notes, get_market_insights, get_market_note_statu
 from tools.team import get_champions, get_mentees, get_contacts
 from tools.tracking import get_gold_stars, get_enablers, get_issues, get_tasks, get_user_notes
 from tools.summary import get_summary_stats
+from tools.store_info import get_store_information
 
 # Action tools (write operations)
 from tools.actions import (
@@ -63,6 +64,8 @@ QUERY_TOOLS = [
     get_user_notes,
     # Summary
     get_summary_stats,
+    # Store Info
+    get_store_information,
 ]
 
 # Action tools (write operations)
@@ -105,6 +108,7 @@ __all__ = [
     'get_champions', 'get_mentees', 'get_contacts',
     'get_gold_stars', 'get_enablers', 'get_issues', 'get_tasks', 'get_user_notes',
     'get_summary_stats',
+    'get_store_information',
     # Action tools
     'mark_gold_star_complete', 'save_gold_star_notes',
     'create_contact', 'delete_contact',
