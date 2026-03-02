@@ -82,6 +82,20 @@ class ManualRouter:
             if 1 <= len(name_words) <= 3 and name_words[0].lower() not in skip_names:
                 return 'create_contact_from_description', {'name': cname, 'title': ctitle, 'store_number': cstore}
 
+        # Also detect comma-separated format: "Ibrahim Khalaf, Store Manager, Store 1951"
+        comma_desc_match = re.search(
+            r'^([A-Za-z][A-Za-z\s]+),\s*(.+?),\s*(?:store\s+)?(\d{3,5})\s*$',
+            message.strip(), re.IGNORECASE
+        )
+        if comma_desc_match:
+            cname = comma_desc_match.group(1).strip()
+            ctitle = comma_desc_match.group(2).strip()
+            cstore = comma_desc_match.group(3).strip()
+            name_words = cname.split()
+            skip_names = {'i', 'he', 'she', 'they', 'we', 'it', 'jax', 'store'}
+            if 1 <= len(name_words) <= 3 and name_words[0].lower() not in skip_names:
+                return 'create_contact_from_description', {'name': cname, 'title': ctitle, 'store_number': cstore}
+
         # ============ ACTION ROUTING (check first - more specific) ============
 
         # Gold star completion actions
