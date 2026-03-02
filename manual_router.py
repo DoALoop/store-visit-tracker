@@ -68,15 +68,19 @@ class ManualRouter:
 
         # ============ CONTACT CREATION FROM DESCRIPTION ============
         # Detect: "Ibrahim is the Store Manager of Store 1951" or "X is a/the Y at store Z"
-        contact_desc_pattern = re.search(
-            r'^([A-Za-z]+(?:\s+[A-Za-z]+)?)\s+is\s+(?:a|the)?\s*(.+?)\s+(?:of|at|for|in)\s+(?:store\s*)?(\d{3,5})',
+        contact_desc_match = re.search(
+            r'([A-Za-z][A-Za-z\s\-\']+?)\s+is\s+(?:a\s+|the\s+)(.+?)\s+(?:of|at|for|in)\s+(?:store\s+)?(\d{3,5})',
             message.strip(), re.IGNORECASE
         )
-        if contact_desc_pattern:
-            cname = contact_desc_pattern.group(1).strip()
-            ctitle = contact_desc_pattern.group(2).strip()
-            cstore = contact_desc_pattern.group(3).strip()
-            return 'create_contact_from_description', {'name': cname, 'title': ctitle, 'store_number': cstore}
+        if contact_desc_match:
+            cname = contact_desc_match.group(1).strip()
+            ctitle = contact_desc_match.group(2).strip()
+            cstore = contact_desc_match.group(3).strip()
+            # Sanity check: name should be 1-3 words and not a common pronoun
+            name_words = cname.split()
+            skip_names = {'i', 'he', 'she', 'they', 'we', 'it', 'jax', 'store', 'his', 'her'}
+            if 1 <= len(name_words) <= 3 and name_words[0].lower() not in skip_names:
+                return 'create_contact_from_description', {'name': cname, 'title': ctitle, 'store_number': cstore}
 
         # ============ ACTION ROUTING (check first - more specific) ============
 
