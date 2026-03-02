@@ -5,7 +5,7 @@ Domain-organized tools for the JaxAI chatbot agent.
 
 from tools.visits import search_visits, get_visit_details, analyze_trends, compare_stores
 from tools.notes import search_notes, get_market_insights, get_market_note_status, get_market_note_updates
-from tools.team import get_champions, get_mentees, get_contacts
+from tools.team import get_champions, get_mentees, get_contacts, get_associate_insights, log_associate_insight
 from tools.tracking import get_gold_stars, get_enablers, get_issues, get_tasks, get_user_notes
 from tools.summary import get_summary_stats
 from tools.store_info import get_store_information
@@ -56,6 +56,7 @@ QUERY_TOOLS = [
     get_champions,
     get_mentees,
     get_contacts,
+    get_associate_insights,
     # Tracking domain
     get_gold_stars,
     get_enablers,
@@ -96,6 +97,8 @@ ACTION_TOOLS = [
     create_enabler,
     # Issue actions
     create_issue,
+    # Insights actions
+    log_associate_insight,
 ]
 
 # All tools available for ADK agent registration
@@ -105,7 +108,7 @@ __all__ = [
     # Query tools
     'search_visits', 'get_visit_details', 'analyze_trends', 'compare_stores',
     'search_notes', 'get_market_insights', 'get_market_note_status', 'get_market_note_updates',
-    'get_champions', 'get_mentees', 'get_contacts',
+    'get_champions', 'get_mentees', 'get_contacts', 'get_associate_insights',
     'get_gold_stars', 'get_enablers', 'get_issues', 'get_tasks', 'get_user_notes',
     'get_summary_stats',
     'get_store_information',
@@ -118,6 +121,7 @@ __all__ = [
     'create_mentee', 'delete_mentee',
     'mark_enabler_complete', 'create_enabler',
     'create_issue',
+    'log_associate_insight',
     # Collections
     'QUERY_TOOLS', 'ACTION_TOOLS', 'ALL_TOOLS',
 ]

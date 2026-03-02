@@ -4184,6 +4184,113 @@ def delete_mentee(mentee_id):
         release_db_connection(conn)
 
 
+# --- Associate Insights API ---
+
+def ensure_associate_insights_table():
+    """Ensure associate_insights table exists"""
+    conn = get_db_connection()
+    if not conn:
+        return
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS associate_insights (
+                id SERIAL PRIMARY KEY,
+                associate_name VARCHAR(200) NOT NULL,
+                store_number VARCHAR(50),
+                insight_text TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
+        cursor.close()
+    except Exception as e:
+        print(f"Error ensuring associate_insights table: {e}")
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/associate_insights', methods=['GET'])
+def get_associate_insights():
+    """Get all associate insights, optionally filtered by associate_name"""
+    ensure_associate_insights_table()
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    name_filter = request.args.get('associate_name')
+    
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        if name_filter:
+            cursor.execute("""
+                SELECT id, associate_name, store_number, insight_text, created_at
+                FROM associate_insights
+                WHERE associate_name ILIKE %s
+                ORDER BY created_at DESC
+            """, (f"%{name_filter}%",))
+        else:
+            cursor.execute("""
+                SELECT id, associate_name, store_number, insight_text, created_at
+                FROM associate_insights
+                ORDER BY created_at DESC
+            """)
+        insights = cursor.fetchall()
+        cursor.close()
+
+        for ins in insights:
+            if ins.get('created_at'):
+                ins['created_at'] = ins['created_at'].isoformat()
+
+        return jsonify(insights)
+
+    except Exception as e:
+        print(f"Error fetching associate insights: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
+@app.route('/api/associate_insights', methods=['POST'])
+def create_associate_insight():
+    """Create a new associate insight snippet"""
+    ensure_associate_insights_table()
+    data = request.get_json()
+    if not data or not data.get('associate_name') or not data.get('insight_text'):
+        return jsonify({"success": False, "insight": None, "error": "associate_name and insight_text are required"}), 400
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"success": False, "insight": None, "error": "Database connection failed"}), 500
+
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("""
+            INSERT INTO associate_insights (associate_name, store_number, insight_text)
+            VALUES (%s, %s, %s)
+            RETURNING *
+        """, (
+            data.get('associate_name'),
+            data.get('store_number'),
+            data.get('insight_text')
+        ))
+        insight = cursor.fetchone()
+        conn.commit()
+        cursor.close()
+
+        if insight.get('created_at'):
+            insight['created_at'] = insight['created_at'].isoformat()
+
+        return jsonify({"success": True, "insight": dict(insight)}), 201
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error creating associate insight: {e}")
+        return jsonify({"success": False, "insight": None, "error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+
 # --- Contacts API ---
 
 def ensure_contacts_table():

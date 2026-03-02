@@ -219,3 +219,83 @@ def get_contacts(search_term: Optional[str] = None, department: Optional[str] = 
         return json.dumps({"error": str(e)})
     finally:
         release_db_connection(conn)
+
+
+def log_associate_insight(name: str, insight: str, store_number: Optional[str] = None) -> str:
+    """
+    Log a personal tidbit or conversational insight about a specific associate.
+    Use this proactively when the user mentions learning something new about a team member.
+
+    Args:
+        name: The associate's name (e.g., 'Ibrahim')
+        insight: What you learned about them (e.g., 'His family in Iraq is safe')
+        store_number: Optional. The store number they work at, if known.
+
+    Returns:
+        JSON string indicating success or failure
+    """
+    conn = get_db_connection()
+    if not conn:
+        return json.dumps({"error": "Database connection failed"})
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO associate_insights (associate_name, store_number, insight_text)
+            VALUES (%s, %s, %s)
+            RETURNING id
+        """, (name, store_number, insight))
+        inserted_id = cursor.fetchone()[0]
+        conn.commit()
+        cursor.close()
+        
+        return json.dumps({
+            "success": True, 
+            "message": f"Successfully logged insight for {name}.",
+            "insight_id": inserted_id
+        })
+    except Exception as e:
+        conn.rollback()
+        return json.dumps({"error": str(e)})
+    finally:
+        release_db_connection(conn)
+
+
+def get_associate_insights(name: str) -> str:
+    """
+    Retrieve all previously logged personal tidbits and insights about a specific associate.
+    Use this when the user asks what we know about someone before visiting their store.
+
+    Args:
+        name: The associate's name to search for (e.g., 'Ibrahim')
+
+    Returns:
+        JSON string containing all logged insights chronologically
+    """
+    if not name:
+        return json.dumps({"error": "Associate name is required"})
+        
+    conn = get_db_connection()
+    if not conn:
+        return json.dumps({"error": "Database connection failed"})
+        
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("""
+            SELECT id, associate_name, store_number, insight_text, created_at
+            FROM associate_insights
+            WHERE associate_name ILIKE %s
+            ORDER BY created_at DESC
+        """, (f"%{name}%",))
+        insights = cursor.fetchall()
+        
+        for ins in insights:
+            if ins.get('created_at'):
+                ins['created_at'] = ins['created_at'].isoformat()
+                
+        cursor.close()
+        return json.dumps(insights, default=str)
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+    finally:
+        release_db_connection(conn)

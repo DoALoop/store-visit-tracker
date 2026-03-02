@@ -33,6 +33,7 @@ You can search and retrieve:
 - Tasks with priorities and assignments
 - Personal user notes
 - Store information (manager, volume tier, format, location)
+- Associate Insights (personal tidbits, facts, and conversational notes about team members)
 
 === ACTION CAPABILITIES ===
 You can TAKE ACTIONS on behalf of the user:
@@ -41,9 +42,10 @@ You can TAKE ACTIONS on behalf of the user:
 - Mark gold stars complete: "mark gold star 1 complete for store 1234"
 - Update gold star notes for the week
 
-**Contacts:**
+**Contacts & Associates:**
 - Add contacts: "add John Smith as meat coach, phone 555-1234"
 - Delete contacts: "remove John Smith from contacts"
+- Log insights/tidbits: "Ibrahim mentioned his family in Iraq is safe" -> use log_associate_insight
 
 **Tasks:**
 - Create tasks: "create task to follow up with store 5678"
@@ -249,6 +251,8 @@ Please provide a helpful response based on this data."""
             return self._format_visits(data)
         elif tool_name == 'get_store_information':
             return self._format_store_info(data)
+        elif tool_name == 'get_associate_insights':
+            return self._format_associate_insights(data)
 
         # Default: pretty JSON
         return f"Here's what I found:\n\n```json\n{json.dumps(data, indent=2)}\n```"
@@ -527,6 +531,27 @@ Recent activity (30d): {data.get('recent_visits_30d', 0)} visits"""
             if tier:
                 line += f" | Vol: {tier}"
             lines.append(line)
+        return "\n".join(lines)
+
+    def _format_associate_insights(self, data: list) -> str:
+        """Format associate insights list"""
+        if not data:
+            return "I don't have any insights logged for that associate."
+            
+        name = data[0].get('associate_name', 'Associate')
+        lines = [f"**Insights for {name}:**\n"]
+        for ins in data:
+            text = ins.get('insight_text', '')
+            date = ins.get('created_at', 'Unknown date')
+            # Extract just the date part if it's an ISO string
+            if 'T' in date:
+                date = date.split('T')[0]
+            
+            line = f"• {text} *(Logged on {date})*"
+            if ins.get('store_number'):
+                line += f" [Store {ins['store_number']}]"
+            lines.append(line)
+            
         return "\n".join(lines)
 
 
