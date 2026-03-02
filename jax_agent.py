@@ -217,6 +217,12 @@ class JaxAIOrchestrator:
         if tool_name == 'log_associate_insight_by_name':
             return self._handle_insight_by_name(kwargs.get('name', ''), kwargs.get('insight', message))
 
+        # ---- Special handler: Create contact from description ----
+        if tool_name == 'create_contact_from_description':
+            return self._handle_create_contact_from_description(
+                kwargs.get('name', ''), kwargs.get('title', ''), kwargs.get('store_number', '')
+            )
+
         # Execute tool
         tool_func = TOOL_FUNCTIONS.get(tool_name)
         if not tool_func:
@@ -283,6 +289,49 @@ class JaxAIOrchestrator:
                 ),
                 "source": "insight_needs_contact"
             }
+
+    def _handle_create_contact_from_description(self, name: str, title: str, store_number: str) -> dict:
+        """Create a new contact from a description like 'Ibrahim is the Store Manager of Store 1951'."""
+        from tools.db import get_db_connection, release_db_connection
+        import json as _json
+        try:
+            from psycopg2.extras import RealDictCursor
+            conn = get_db_connection()
+            if not conn:
+                return {"response": "I couldn't connect to the database to save this contact.", "source": "error"}
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            cursor.execute("""
+                INSERT INTO contacts (name, store_number, title)
+                VALUES (%s, %s, %s)
+                ON CONFLICT DO NOTHING
+                RETURNING id, name, store_number, title
+            """, (name.title(), store_number, title.title()))
+            contact = cursor.fetchone()
+            conn.commit()
+            cursor.close()
+            release_db_connection(conn)
+
+            if contact:
+                return {
+                    "response": (
+                        f"✓ Added **{contact['name']}** to your contacts!\n"
+                        f"• Title: {contact['title']}\n"
+                        f"• Store: {contact['store_number']}\n\n"
+                        f"Now just send me the insight you wanted to log about them and I'll save it right away! 🐾"
+                    ),
+                    "source": "contact_created"
+                }
+            else:
+                return {
+                    "response": (
+                        f"It looks like **{name.title()}** may already be in your contacts. "
+                        f"Try sending me the insight again and I'll log it for them!"
+                    ),
+                    "source": "contact_exists"
+                }
+        except Exception as e:
+            logger.error(f"Contact creation from description failed: {e}")
+            return {"response": f"I had trouble creating the contact: {e}", "source": "error"}
 
 
     def _format_with_llm(self, message: str, data: dict) -> str:

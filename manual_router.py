@@ -66,6 +66,18 @@ class ManualRouter:
                 if person_name not in skip_words:
                     return 'log_associate_insight_by_name', {'name': person_name, 'insight': message}
 
+        # ============ CONTACT CREATION FROM DESCRIPTION ============
+        # Detect: "Ibrahim is the Store Manager of Store 1951" or "X is a/the Y at store Z"
+        contact_desc_pattern = re.search(
+            r'^([A-Za-z]+(?:\s+[A-Za-z]+)?)\s+is\s+(?:a|the)?\s*(.+?)\s+(?:of|at|for|in)\s+(?:store\s*)?(\d{3,5})',
+            message.strip(), re.IGNORECASE
+        )
+        if contact_desc_pattern:
+            cname = contact_desc_pattern.group(1).strip()
+            ctitle = contact_desc_pattern.group(2).strip()
+            cstore = contact_desc_pattern.group(3).strip()
+            return 'create_contact_from_description', {'name': cname, 'title': ctitle, 'store_number': cstore}
+
         # ============ ACTION ROUTING (check first - more specific) ============
 
         # Gold star completion actions
